@@ -20,7 +20,7 @@ from app.models.ceri_tables import (
     CeriScoreSnapshot,
     CeriSourceRecord,
 )
-from app.models.tables import PipelineRun, UploadRun
+from app.models.tables import MarketCalculationContext, PipelineRun, UploadRun
 from app.services.ceri.change_detection_service import ChangeDetectionResult
 from app.services.ceri.change_rebuild_service import (
     CeriChangeRebuildRequest,
@@ -45,14 +45,20 @@ TABLES = (
 
 
 @pytest.mark.parametrize(
-    "target_count,unrelated_count,chunk_size", [(5, 0, 2), (5, 250, 2), (11, 500, 4)],
+    "target_count,unrelated_count,chunk_size",
+    [(5, 0, 2), (5, 250, 2), (11, 500, 4)],
 )
 @pytest.mark.parametrize(
     "owner_state",
     ["COMPLETED", *sorted(HARD_UNSUCCESSFUL_PIPELINE_STATES), "SAFE_PARTIAL", "PARTIAL"],
 )
 def test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads(
-    contextual_engine, monkeypatch, record_property, target_count, unrelated_count, chunk_size,
+    contextual_engine,
+    monkeypatch,
+    record_property,
+    target_count,
+    unrelated_count,
+    chunk_size,
     owner_state,
 ):
     as_of = date(2026, 9, 25)
@@ -66,14 +72,20 @@ def test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads(
             cutoff=cutoff,
         )
         safe_partial = owner_state == "SAFE_PARTIAL"
-        db.add(PipelineRun(
-            upload_run_id=target_run_id,
-            status="PARTIAL" if safe_partial else owner_state,
-            result_json={"pipeline_outcome_summary": {
-                "contract_version": PIPELINE_OUTCOME_CONTRACT_VERSION,
-                "integrity": {"status": NO_INTEGRITY_HAZARD},
-            }} if safe_partial else {},
-        ))
+        from sqlalchemy import select
+
+        owner = db.scalar(select(PipelineRun).where(PipelineRun.upload_run_id == target_run_id))
+        owner.status = "PARTIAL" if safe_partial else owner_state
+        owner.result_json = (
+            {
+                "pipeline_outcome_summary": {
+                    "contract_version": PIPELINE_OUTCOME_CONTRACT_VERSION,
+                    "integrity": {"status": NO_INTEGRITY_HAZARD},
+                }
+            }
+            if safe_partial
+            else {}
+        )
         db.commit()
         detector = RecordingDetector()
         captured: list[tuple[str, object]] = []
@@ -164,7 +176,8 @@ def test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads(
         # fixed cost; scoped company IDs and run/session/cutoff are variable.
         policy_statement = eligible_snapshot_select(CeriScoreSnapshot)
         compiled = policy_statement.compile(
-            dialect=postgresql.dialect(), compile_kwargs={"render_postcompile": True},
+            dialect=postgresql.dialect(),
+            compile_kwargs={"render_postcompile": True},
         )
         fixed_eligibility_parameters = len(compiled.params)
         scoped_boundary_parameters = 3 + chunk_size
@@ -205,6 +218,21 @@ def _seed_population(db, *, target_count, unrelated_count, as_of, cutoff):
     target_run = UploadRun(filename="ceri-change-target.csv", status="COMPLETED", row_count=0)
     unrelated_run = UploadRun(filename="ceri-change-unrelated.csv", status="COMPLETED", row_count=0)
     db.add_all((target_run, unrelated_run))
+    db.flush()
+    owner = PipelineRun(upload_run_id=target_run.id, status="COMPLETED")
+    db.add(owner)
+    db.flush()
+    context = MarketCalculationContext(
+        pipeline_run_id=owner.id,
+        upload_run_id=target_run.id,
+        cutoff_at=cutoff - timedelta(minutes=1),
+        exchange_timezone="America/New_York",
+        latest_completed_session=as_of,
+        calendar_version="test-scope-v1",
+        bar_readiness_version="test-scope-v1",
+        cutoff_reason="SCOPED_CERI_TEST",
+    )
+    db.add(context)
     db.flush()
     total = target_count + unrelated_count
     for index in range(total):
@@ -252,6 +280,7 @@ def _seed_population(db, *, target_count, unrelated_count, as_of, cutoff):
         db.add(
             CeriScoreSnapshot(
                 run_id=target_run.id if is_target else unrelated_run.id,
+                calculation_context_id=context.id if is_target else None,
                 company_id=company.id,
                 ticker=company.ticker,
                 as_of_session=as_of,

@@ -32,7 +32,8 @@ from app.services.ceri.guidance_normalizer import (
     apply_guidance_eligibility,
 )
 from app.services.ceri.identity_resolver import CeriIdentityResolver
-from app.services.domain_mutation import MutationDomain
+from app.services.ceri.sec.issuer_succession import effective_symbol, ownership_conflict
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
 from app.services.redaction import redact_text
 from app.services.source_mutation_authority import source_mutation_writer, source_writer_member
 
@@ -82,6 +83,105 @@ class CeriNormalizationService:
         self.earnings_normalizer = earnings_normalizer or CeriEarningsNormalizer()
         self.guidance_normalizer = guidance_normalizer or CeriGuidanceNormalizer()
         self.catalyst_taxonomy = catalyst_taxonomy or CeriCatalystTaxonomy()
+
+    def replay_sec_identity(
+        self, db: Session, *, original: CeriProcessingRun, ingestion_run_id: int, actor: str
+    ) -> CeriNormalizationResult:
+        """Reprocess only rejected SEC guidance members in one caller-owned transaction."""
+        from app.services.ceri.processing_run_service import CeriProcessingRunService
+
+        members = list(
+            db.scalars(
+                select(CeriIngestionRunSourceRecord)
+                .where(
+                    CeriIngestionRunSourceRecord.ingestion_run_id == ingestion_run_id,
+                    CeriIngestionRunSourceRecord.normalization_state == "REJECTED",
+                    CeriIngestionRunSourceRecord.normalization_reason
+                    == "IDENTITY_RESOLUTION_REJECTED",
+                )
+                .order_by(CeriIngestionRunSourceRecord.source_record_id)
+                .with_for_update()
+            )
+        )
+        ingest = db.get(CeriIngestionRun, ingestion_run_id)
+        scope = original.scope_json or {}
+        if (
+            not actor.strip()
+            or not members
+            or original.status != "PARTIAL"
+            or original.job_type != "CERI_NORMALIZE_BATCH"
+            or ingest is None
+            or not original.deterministic_request_key.endswith(
+                f":normalize-ticker:sec:guidance:{scope.get('ticker')}"
+            )
+            or (ingest.request_key or "").split(":refresh:")[0]
+            != original.deterministic_request_key.replace(":normalize-ticker:", ":ingest:")
+            or any(
+                m.ticker != scope.get("ticker") or m.provider != "sec" or m.dataset != "guidance"
+                for m in members
+            )
+        ):
+            raise ValueError("SEC identity replay does not match the original processing scope")
+        rows = list(
+            db.scalars(
+                select(CeriSourceRecord)
+                .where(CeriSourceRecord.id.in_([member.source_record_id for member in members]))
+                .order_by(CeriSourceRecord.id)
+                .with_for_update()
+            )
+        )
+        service = CeriProcessingRunService()
+        replay, created = service.create_or_get(
+            db,
+            job_type="CERI_NORMALIZE_BATCH",
+            request_key=f"sec-reviewed-identity-v1:{original.id}:{ingestion_run_id}",
+            scope={
+                **scope,
+                "original_processing_run_id": original.id,
+                "ingestion_run_id": ingestion_run_id,
+            },
+            config_hash=original.config_hash,
+            config_version=original.config_version,
+            actor=actor,
+        )
+        if not created:
+            if replay.status != "COMPLETED":
+                raise ValueError("Incomplete identity replay requires review")
+            return CeriNormalizationResult(
+                replay.id,
+                replay.status,
+                replay.read_count,
+                replay.normalized_count,
+                0,
+                0,
+                replay.warning_count,
+            )
+        self.identity_resolver.prepare(db)
+        with db.begin_nested():
+            for row in rows:
+                hints = row.company_hint_json or {}
+                if (
+                    row.quarantine_reason != "identity_ambiguous"
+                    or row.provider != "sec"
+                    or row.dataset != "guidance"
+                    or hints.get("ticker") != scope.get("ticker")
+                    or not row.published_at
+                ):
+                    raise ValueError(f"Source {row.id} has no reviewed SEC identity repair")
+                resolution = self.identity_resolver.resolve_source_record(db, row)
+                expected = effective_symbol(hints.get("cik"), row.published_at.date())
+                if (
+                    not resolution.resolved
+                    or not expected
+                    or resolution.matches[0].ticker != expected
+                    or resolution.matches[0].cik != hints.get("cik")
+                ):
+                    raise ValueError(f"Source {row.id} still has conflicting company candidates")
+                _release_reviewed_quarantine(db, row, replay, resolution.company_id)
+            outcome = self.normalize(db, processing_run=replay, source_records=rows)
+            if outcome.status != "COMPLETED" or outcome.read != len(members):
+                raise ValueError("Reviewed identity replay did not close every record")
+        return outcome
 
     def normalize(
         self,
@@ -140,6 +240,13 @@ class CeriNormalizationService:
                     resolution = self.identity_resolver.resolve_source_record(db, source_record)
                     if not resolution.resolved:
                         quarantined += 1
+                        errors.append(
+                            {
+                                "source_record_id": source_record.id,
+                                "reason": resolution.reason,
+                                "candidate_ids": sorted(row.id for row in resolution.matches),
+                            }
+                        )
                         _mark_membership(
                             membership, "REJECTED", "IDENTITY_RESOLUTION_REJECTED"
                         )
@@ -473,6 +580,22 @@ def _normalization_closure(db: Session, ingestion_run_id: int | None) -> dict[st
     }
 
 
+@source_mutation_writer(
+    MutationDomain.CERI_SOURCE, "provider_source", mode=MutationSemanticMode.MAINTENANCE
+)
+def _release_reviewed_quarantine(db, record, processing_run, company_id):
+    """Keep the original rejection in its membership and the release in the new run."""
+    scope = dict(processing_run.scope_json or {})
+    released = dict(scope.get("reviewed_identity_releases") or {})
+    released[str(record.id)] = {
+        "previous_reason": record.quarantine_reason,
+        "company_id": company_id,
+    }
+    processing_run.scope_json = {**scope, "reviewed_identity_releases": released}
+    record.quarantine_reason = None
+    db.flush()
+
+
 @source_writer_member(
     "app.services.ceri.normalization_service:CeriNormalizationService._normalize_record"
 )
@@ -502,6 +625,9 @@ def _persist_sec_identity(
         return
     company = getattr(db, "get", lambda *_args: None)(CeriCompany, company_id)
     if company is not None and not company.cik:
+        conflict = ownership_conflict(db, company.ticker, cik, writing=True)
+        if conflict:
+            raise ValueError(conflict)
         company.cik = cik
     scalar = getattr(db, "scalar", None)
     if not callable(scalar):

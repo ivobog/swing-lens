@@ -219,7 +219,10 @@ def test_revision_score_change_alert_and_purge_indexes_are_defined() -> None:
     }
 
     assert "uq_ceri_revision_features_identity" in revision_constraints
-    assert "uq_ceri_score_snapshots_run_company_version" in score_constraints
+    assert "uq_ceri_score_snapshots_run_company_version" not in score_constraints
+    assert {"uq_ceri_native_score", "uq_ceri_legacy_score"} <= {
+        index.name for index in CeriScoreSnapshot.__table__.indexes
+    }
     assert "uq_ceri_change_events_dedup_key" in change_constraints
     assert "uq_ceri_alert_rules_rule_id" in alert_rule_constraints
     assert "uq_ceri_alert_events_event_key" in alert_event_constraints

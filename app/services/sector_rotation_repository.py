@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
+from time import perf_counter
 from typing import Any
 
 from sqlalchemy import select
@@ -27,6 +28,7 @@ from app.services.core_mutation_authority import (
     core_writer_transaction,
     sector_evidence_read_scope,
 )
+from app.services.sector_serialization import sector_dataclass_payload, sector_hash_progress
 
 
 @dataclass(frozen=True)
@@ -110,7 +112,7 @@ class SectorRotationRepository:
         evidence_sources: dict[str, Any] | None = None,
         checkpoint_callback=None,
     ) -> SectorRotationSnapshot:
-        evidence_hash = self.snapshot_evidence_hash(dto)
+        evidence_hash = self.snapshot_evidence_hash(dto, checkpoint_callback=checkpoint_callback)
         snapshot = self._matching_snapshot(db, dto, evidence_hash)
         if snapshot is not None:
             self._persist_evidence(
@@ -137,7 +139,7 @@ class SectorRotationRepository:
         db.add(snapshot)
         db.flush()
 
-        self._apply_snapshot_fields(snapshot, dto)
+        self._apply_snapshot_fields(snapshot, dto, checkpoint_callback=checkpoint_callback)
         db.flush()
 
         rows = [_to_row_model(snapshot_id=snapshot.id, dto=row) for row in dto.rows]
@@ -182,10 +184,10 @@ class SectorRotationRepository:
             )
         self._validate_source_evidence_kinds(db, evidence_sources)
         payload = {
-            **asdict(dto),
+            **sector_dataclass_payload(dto),
             "evidence_hash": snapshot.evidence_hash,
         }
-        with sector_evidence_read_scope(db):
+        with sector_evidence_read_scope(db, checkpoint_callback=checkpoint_callback):
             persist_core_evidence(
                 db,
                 kind=CoreEvidenceKind.SECTOR,
@@ -463,6 +465,8 @@ class SectorRotationRepository:
         self,
         snapshot: SectorRotationSnapshot,
         dto: SectorRotationSnapshotWrite,
+        *,
+        checkpoint_callback=None,
     ) -> None:
         snapshot.run_id = dto.run_id
         snapshot.market_regime_snapshot_id = dto.market_regime_snapshot_id
@@ -486,13 +490,33 @@ class SectorRotationRepository:
         snapshot.calculation_cutoff_at = _optional_datetime(temporal.get("calculation_cutoff_at"))
         snapshot.input_as_of_session = _optional_date(temporal.get("input_as_of_session"))
         snapshot.calendar_version = temporal.get("calendar_version")
-        snapshot.evidence_hash = self.snapshot_evidence_hash(dto)
+        snapshot.evidence_hash = self.snapshot_evidence_hash(
+            dto, checkpoint_callback=checkpoint_callback,
+        )
 
     @staticmethod
-    def snapshot_evidence_hash(dto: SectorRotationSnapshotWrite) -> str:
-        payload = asdict(dto)
-        data = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
-        return hashlib.sha256(data.encode("utf-8")).hexdigest()
+    def snapshot_evidence_hash(
+        dto: SectorRotationSnapshotWrite, *, checkpoint_callback=None,
+    ) -> str:
+        payload = sector_dataclass_payload(dto)
+        encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), default=str)
+        digest = hashlib.sha256()
+        progress = sector_hash_progress(checkpoint_callback, "snapshot")
+        hashed = 0
+        next_check = 256 * 1024
+        next_report = perf_counter() + 2.0
+        for chunk in encoder.iterencode(payload):
+            encoded = chunk.encode("utf-8")
+            digest.update(encoded)
+            hashed += len(encoded)
+            if progress is not None and hashed >= next_check:
+                if perf_counter() >= next_report:
+                    progress(processed_bytes=hashed, complete=False)
+                    next_report = perf_counter() + 2.0
+                next_check = hashed + 256 * 1024
+        if progress is not None:
+            progress(processed_bytes=hashed, complete=True)
+        return digest.hexdigest()
 
 
 def _optional_datetime(value: Any) -> datetime | None:

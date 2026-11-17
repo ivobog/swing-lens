@@ -190,6 +190,11 @@ class CeriSnapshotService:
     def persist_snapshot(self, db: Session, snapshot: CeriScoreSnapshot) -> CeriScoreSnapshot:
         from app.services.ceri.decision_evidence import persist_ceri_decision_evidence
 
+        if (isinstance(db, Session) and snapshot.calculation_context_id is not None
+                and snapshot.controlled_replay_id is None):
+            from app.services.ceri.score_population import validate_native_snapshot_fields
+
+            validate_native_snapshot_fields(snapshot, self.effective_configuration, db=db)
         # The compatibility row and immutable envelope are one atomic write.  A
         # failed seal must not leave an identity-aware snapshot eligible for a
         # later outer commit.

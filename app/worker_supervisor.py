@@ -7,6 +7,7 @@ import os
 import signal
 import subprocess
 import sys
+from collections import OrderedDict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -16,6 +17,7 @@ from time import monotonic
 from uuid import uuid4
 
 from sqlalchemy import select
+from sqlalchemy.orm import undefer
 
 from app.db import SessionLocal
 from app.models.tables import BackgroundJob, BackgroundSupervisor, BackgroundWorker
@@ -32,12 +34,18 @@ from app.services.background_job_service import (
 from app.services.lifecycle_control import (
     RUNTIME_FINGERPRINT_ENV,
     TOPOLOGY_VERSION,
+    append_lifecycle_event,
     shutdown_request_path,
     supervisor_state_path,
 )
 from app.services.lifecycle_safety import atomic_write_json
 from app.services.parent_watchdog import PARENT_PID_ENV, PARENT_STARTED_AT_ENV
-from app.services.process_identity import process_is_alive, process_started_at
+from app.services.pipeline_execution_authority import job_execution_authority_predicate
+from app.services.process_identity import (
+    inspect_process_identity,
+    process_is_alive,
+    process_started_at,
+)
 from app.services.process_memory import memory_status, process_memory_snapshot
 from app.services.process_roles import build_process_environment, require_process_role
 from app.services.runtime_mutation_authority import recovery_authority
@@ -52,6 +60,7 @@ from app.settings import ProcessRole, RuntimeMode, get_settings
 
 logger = logging.getLogger(__name__)
 WORKER_REGISTRATION_TIMEOUT_SECONDS = 120.0
+_liveness_suspicions = OrderedDict()
 
 
 @dataclass
@@ -696,6 +705,31 @@ def _supervise_once(
     control_loop_alive = _registered_worker_control_loop_alive(worker)
     resource_sampler_alive = _registered_worker_resource_sampler_alive(worker)
     job_execution_alive = False
+    liveness_evidence = _worker_liveness_evidence(
+        worker, process_alive, control_loop_alive, resource_sampler_alive,
+    )
+    registration_active = worker is not None and worker.stopping_at is None
+    if registration_active and not process_alive:
+        observation = inspect_process_identity(worker.process_id, worker.process_started_at)
+        liveness_evidence["os_process"] = observation
+        job_execution_alive = _registered_worker_job_execution_alive(worker)
+        liveness_evidence["job_execution_alive"] = job_execution_alive
+        if observation["state"] == "ALIVE" and (control_loop_alive or job_execution_alive):
+            # A delayed registration sampler is not process death. Keep the
+            # ordinary progress watchdog and independent memory guard active.
+            process_alive = True
+            control_loop_alive = True
+            _clear_liveness_suspicion(worker)
+            _record_worker_liveness(
+                worker, liveness_evidence, "REGISTRATION_DELAYED_ACTIVE_EXECUTION",
+            )
+        elif observation["state"] != "DEAD" and _liveness_confirmation_pending(
+            worker, unknown=observation["state"] == "UNKNOWN",
+        ):
+            _record_worker_liveness(worker, liveness_evidence, "LIVENESS_CONFIRMATION_PENDING")
+            return child
+    elif process_alive and worker is not None:
+        _clear_liveness_suspicion(worker)
 
     if process_alive and worker is not None and not control_loop_alive:
         job_execution_alive = _registered_worker_job_execution_alive(worker)
@@ -707,18 +741,22 @@ def _supervise_once(
             "control_loop_alive": False,
             "job_execution_alive": job_execution_alive,
         }
-        if job_execution_alive and resource_sampler_alive:
+        if job_execution_alive:
             # Business progress and claim-loop liveness are separate signals.
-            # A fresh, fenced job heartbeat plus a live resource sampler proves
-            # execution is still active; the ordinary no-progress watchdog can
+            # A fresh, fenced job heartbeat with a valid lease proves execution
+            # ownership is still active; the ordinary no-progress watchdog can
             # decide later whether business progress is genuinely wedged.
             logger.warning(
                 "worker.supervisor.control_loop_stale_active_job %s",
                 context,
                 extra=context,
             )
+            liveness_evidence["job_execution_alive"] = True
+            _record_worker_liveness(worker, liveness_evidence, "CONTROL_DELAYED_ACTIVE_EXECUTION")
             control_loop_alive = True
         else:
+            liveness_evidence["job_execution_alive"] = job_execution_alive
+            _record_worker_liveness(worker, liveness_evidence, "WORKER_CONTROL_LOOP_STALE")
             logger.error("worker.supervisor.control_loop_stale %s", context, extra=context)
             # A wedged owner can retain the job row, making SKIP LOCKED recovery
             # powerless. Terminate the exact registered generation first so normal
@@ -737,6 +775,7 @@ def _supervise_once(
                 worker.instance_id,
                 "Worker control-loop heartbeat is stale while its process heartbeat remains live.",
                 certification_session_id=certification_session_id,
+                liveness_evidence=liveness_evidence,
             )
             _retire_worker_registration(worker)
             _requeue(
@@ -756,8 +795,8 @@ def _supervise_once(
                     extra=_worker_log_context(worker, launcher_pid=child.process.pid),
                 )
                 child = None
-        state = _safe_memory_status(worker)
-        stalled = _fence_no_progress(
+        state, memory_evidence = _safe_memory_observation(worker)
+        stalled = [] if state == "CRITICAL" else _fence_no_progress(
             worker_id,
             worker.instance_id,
             worker.heartbeat_at,
@@ -765,19 +804,30 @@ def _supervise_once(
         )
         reconciliation = WorkerJobReconciliation()
         if state == "CRITICAL":
+            memory_context = {
+                **_worker_log_context(worker, launcher_pid=_launcher_pid(child)),
+                **memory_evidence,
+                "reason_code": "WORKER_MEMORY_CRITICAL",
+            }
+            logger.error(
+                "worker.supervisor.memory_critical %s", memory_context, extra=memory_context
+            )
             reconciliation = _fence_worker(
                 worker_id,
                 worker.instance_id,
                 f"Worker exceeded {settings.worker_memory_critical_mb} MB memory budget.",
                 certification_session_id=certification_session_id,
                 failure_code="WORKER_MEMORY_CRITICAL",
+                memory_evidence=memory_evidence,
             )
             stalled.extend(reconciliation.fenced_job_ids)
-        if not stalled:
+        finalized = list(getattr(reconciliation, "finalized_job_ids", ()))
+        if not stalled and not finalized:
             return child
         context = {
             **_worker_log_context(worker, launcher_pid=_launcher_pid(child)),
-            "job_ids": sorted(set(stalled)),
+            "job_ids": sorted(set(stalled) | set(finalized)),
+            "finalized_job_ids": finalized,
             "cancelled_job_ids": list(reconciliation.cancelled_job_ids),
             "untouched_job_ids": list(reconciliation.untouched_job_ids),
             "reason": "stalled_or_memory_critical",
@@ -815,15 +865,23 @@ def _supervise_once(
             return child
 
     if registration_active and worker is not None:
+        observation = liveness_evidence["os_process"]
+        decision = (
+            "WORKER_PROCESS_EXITED" if observation["state"] == "DEAD"
+            else "WORKER_INSPECTION_UNAVAILABLE" if observation["state"] == "UNKNOWN"
+            else "WORKER_HEARTBEAT_STALE"
+        )
+        _record_worker_liveness(worker, liveness_evidence, decision)
         reason = (
             f"Registered worker instance {worker.instance_id or '<missing>'} "
-            f"pid={worker.process_id} is no longer alive or has a stale heartbeat."
+            f"pid={worker.process_id}: {decision}."
         )
         reconciliation = _fence_worker(
             worker_id,
             worker.instance_id,
             reason,
             certification_session_id=certification_session_id,
+            liveness_evidence=liveness_evidence,
         )
         _retire_worker_registration(worker)
         _requeue(
@@ -976,7 +1034,10 @@ def _worker_python_executable() -> str:
 
 def _registered_worker(worker_id: str) -> BackgroundWorker | None:
     with SessionLocal() as db:
-        worker = db.get(BackgroundWorker, worker_id)
+        worker = db.get(BackgroundWorker, worker_id, options=(
+            undefer(BackgroundWorker.control_loop_heartbeat_at),
+            undefer(BackgroundWorker.resource_collector_heartbeat_at),
+        ))
         if worker is not None:
             # These health dimensions are deferred on the ORM model. Load them
             # before detaching the registration used by the supervisor.
@@ -984,6 +1045,67 @@ def _registered_worker(worker_id: str) -> BackgroundWorker | None:
             _ = worker.resource_collector_heartbeat_at
             db.expunge(worker)
         return worker
+
+
+def _worker_liveness_evidence(worker, process_alive, control_alive, sampler_alive):
+    observed = datetime.now(UTC)
+
+    def age(value):
+        if value is None:
+            return None
+        value = value.replace(tzinfo=UTC) if value.tzinfo is None else value
+        return max(0.0, (observed - value).total_seconds())
+
+    return {
+        **(_worker_log_context(worker) if worker is not None else {}),
+        "observed_at": observed.isoformat(),
+        "timeout_seconds": get_settings().job_worker_heartbeat_timeout_seconds,
+        "worker_heartbeat_at": str(getattr(worker, "heartbeat_at", None)),
+        "worker_heartbeat_age_seconds": age(getattr(worker, "heartbeat_at", None)),
+        "control_heartbeat_age_seconds": age(getattr(worker, "control_loop_heartbeat_at", None)),
+        "resource_heartbeat_age_seconds": age(
+            getattr(worker, "resource_collector_heartbeat_at", None)
+        ),
+        "control_loop_alive": control_alive,
+        "resource_sampler_alive": sampler_alive,
+        "os_process": {"state": "ALIVE" if process_alive else "UNOBSERVED",
+                       "reason": (
+                           "FRESH_REGISTRATION_AND_MATCHING_PROCESS" if process_alive else None
+                       )},
+    }
+
+
+def _liveness_key(worker):
+    return (worker.worker_id, worker.instance_id, worker.process_id, str(worker.process_started_at))
+
+
+def _clear_liveness_suspicion(worker):
+    _liveness_suspicions.pop(_liveness_key(worker), None)
+
+
+def _liveness_confirmation_pending(worker, *, unknown):
+    key = _liveness_key(worker)
+    observed = monotonic()
+    first = _liveness_suspicions.setdefault(key, observed)
+    _liveness_suspicions.move_to_end(key)
+    while len(_liveness_suspicions) > 128:
+        _liveness_suspicions.popitem(last=False)
+    timeout = float(get_settings().job_worker_heartbeat_timeout_seconds)
+    grace = timeout if unknown else min(timeout, 10.0)
+    return observed - first < grace
+
+
+def _record_worker_liveness(worker, evidence, decision):
+    evidence["decision"] = decision
+    receipt = {**_worker_log_context(worker), **evidence, "decision": decision}
+    logger.warning("worker.supervisor.liveness_decision %s", receipt, extra=receipt)
+    try:
+        append_lifecycle_event(
+            Path.cwd(), event="worker_liveness_decision", action="supervise",
+            component="worker", reason_code=decision, worker_liveness=receipt,
+        )
+    except Exception:
+        logger.exception("worker.supervisor.liveness_receipt_failed")
 
 
 def _registered_worker_process_alive(worker: BackgroundWorker | None) -> bool:
@@ -1033,6 +1155,8 @@ def _registered_worker_job_execution_alive(worker: BackgroundWorker | None) -> b
                         BackgroundJob.execution_token.is_not(None),
                         BackgroundJob.heartbeat_at.is_not(None),
                         BackgroundJob.heartbeat_at >= cutoff,
+                        BackgroundJob.lease_expires_at >= datetime.now(UTC),
+                        job_execution_authority_predicate(),
                     )
                     .limit(1)
                 )
@@ -1121,6 +1245,8 @@ def _fence_worker(
     *,
     certification_session_id: str | None = None,
     failure_code: str | None = None,
+    memory_evidence: dict | None = None,
+    liveness_evidence: dict | None = None,
 ) -> WorkerJobReconciliation:
     with SessionLocal() as db:
         reconciliation = reconcile_jobs_for_worker_loss(
@@ -1133,6 +1259,8 @@ def _fence_worker(
             worker_instance_id=instance_id,
             reason=reason,
             failure_code=failure_code,
+            memory_evidence=memory_evidence,
+            liveness_evidence=liveness_evidence,
         )
         db.commit()
         if reconciliation.untouched_job_ids:
@@ -1188,21 +1316,37 @@ def _requeue(
         db.commit()
 
 
-def _safe_memory_status(worker: BackgroundWorker) -> str:
+def _safe_memory_observation(worker: BackgroundWorker) -> tuple[str, dict]:
     settings = get_settings()
     try:
         snapshot = process_memory_snapshot(worker.process_id)
-        return memory_status(
+        state = memory_status(
             snapshot,
             warning_mb=settings.worker_memory_warning_mb,
             critical_mb=settings.worker_memory_critical_mb,
         )
+        return state, {
+            "observed_at": datetime.now(UTC).isoformat(),
+            "registered_pid": snapshot.process_id,
+            "worker_instance_id": worker.instance_id,
+            "worker_generation": worker.generation,
+            "private_bytes": snapshot.private_bytes,
+            "rss_bytes": snapshot.rss_bytes,
+            "measured_bytes": (
+                snapshot.private_bytes if snapshot.private_bytes is not None else snapshot.rss_bytes
+            ),
+            "measurement_basis": (
+                "private_bytes" if snapshot.private_bytes is not None else "rss_bytes"
+            ),
+            "critical_mb": settings.worker_memory_critical_mb,
+            "critical_bytes": settings.worker_memory_critical_mb * 1024 * 1024,
+        }
     except Exception:
         logger.exception(
             "worker.supervisor.memory_inspection_failed",
             extra=_worker_log_context(worker),
         )
-        return "UNKNOWN"
+        return "UNKNOWN", {}
 
 
 def _terminate_worker_instance(

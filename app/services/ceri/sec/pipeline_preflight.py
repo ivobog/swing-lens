@@ -7,6 +7,11 @@ from sqlalchemy.orm import Session
 
 from app.services.ceri.config import CeriConfigError, load_ceri_config
 from app.services.ceri.enums import CeriDataset, CeriProvider, CeriProviderCapability
+from app.services.ceri.sec.coverage import (
+    load_sec_coverage,
+    sec_coverage_blocking_tickers,
+    sec_coverage_current_gaps,
+)
 from app.services.ceri.sec.processor_lifecycle import require_deployed_processor_active
 from app.services.ceri.sec.readiness_diagnostics import diagnose_sec_readiness
 from app.services.pipeline_prerequisites import (
@@ -20,6 +25,7 @@ def validate_sec_pipeline_preflight(
     db: Session,
     *,
     tickers: Iterable[str],
+    pipeline: Any | None = None,
 ) -> dict[str, Any]:
     try:
         config = load_ceri_config()
@@ -53,14 +59,25 @@ def validate_sec_pipeline_preflight(
         tickers=tickers,
         processor_signature=lifecycle.active_signature or lifecycle.deployed_signature,
     )
+    coverage = load_sec_coverage(
+        pipeline,
+        processor_signature=readiness.processor_signature,
+        tickers=(item.ticker for item in readiness.tickers),
+    )
+    blocking = sec_coverage_blocking_tickers(readiness, coverage)
+    gaps = sec_coverage_current_gaps(readiness, coverage)
     diagnostics = {
         "provider_config": config_diagnostics,
         "processor": lifecycle.as_dict(),
         "readiness": readiness.as_dict(),
+        "continuation_ready": not blocking,
+        "sec_unresolved_count": len(gaps),
+        "sec_unresolved_tickers": list(gaps),
+        **({"sec_coverage": coverage} if coverage is not None else {}),
     }
-    if not readiness.complete:
-        preview = ", ".join(readiness.blocking_tickers[:25])
-        suffix = "..." if len(readiness.blocking_tickers) > 25 else ""
+    if blocking:
+        preview = ", ".join(blocking[:25])
+        suffix = "..." if len(blocking) > 25 else ""
         raise CeriBootstrapRequiredError(
             "SEC ACTIVE pipeline preflight blocked execution: "
             f"{readiness.ready_tickers}/{readiness.requested_tickers} tickers are accepted "

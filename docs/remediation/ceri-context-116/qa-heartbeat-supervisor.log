@@ -1,0 +1,66 @@
+Traceback (most recent call last):
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\psycopg\cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.QueryCanceled: canceling statement due to user request
+CONTEXT:  while locking tuple (47,5) in relation "background_jobs"
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\scripts\qa\ceri_certification_control.py", line 69, in <module>
+    )
+      
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\scripts\qa\ceri_certification_control.py", line 54, in main
+    )
+     
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\background_job_service.py", line 2307, in heartbeat_job
+    _apply_running_job_update(db, job, expected_token, values)
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\background_job_service.py", line 2792, in _apply_running_job_update
+    result = execute(
+             ^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2373, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2271, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\orm\bulk_persistence.py", line 1660, in orm_execute_statement
+    return super().orm_execute_statement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\orm\context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1421, in execute
+    return meth(
+           ^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1643, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2365, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\psycopg\cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+sqlalchemy.exc.OperationalError: (psycopg.errors.QueryCanceled) canceling statement due to user request
+CONTEXT:  while locking tuple (47,5) in relation "background_jobs"
+[SQL: UPDATE background_jobs SET heartbeat_at=%(heartbeat_at)s::TIMESTAMP WITH TIME ZONE, lease_expires_at=%(lease_expires_at)s::TIMESTAMP WITH TIME ZONE WHERE background_jobs.id = %(id_1)s::BIGINT AND background_jobs.status IN (%(status_1_1)s::VARCHAR) AND background_jobs.execution_token = %(execution_token_1)s::VARCHAR]
+[parameters: {'heartbeat_at': datetime.datetime(2026, 11, 16, 11, 57, 37, 889725, tzinfo=datetime.timezone.utc), 'lease_expires_at': datetime.datetime(2026, 11, 16, 12, 57, 37, 889725, tzinfo=datetime.timezone.utc), 'id_1': 2547, 'execution_token_1': '<redacted>', 'status_1_1': 'RUNNING'}]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+verified disposable database before Alembic: database=swinglens_qa_ceri_context_1794788997961 server=127.0.0.1/32:5432 url=postgresql+psycopg://<restricted:userinfo>@127.0.0.1:5432/swinglens_qa_ceri_context_1794788997961

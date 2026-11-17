@@ -4,7 +4,7 @@ import base64
 import hashlib
 import json
 import math
-from collections.abc import Iterator, Mapping, MutableMapping
+from collections.abc import Callable, Iterator, Mapping, MutableMapping
 from datetime import UTC, date, datetime, time, timezone, tzinfo
 from decimal import Decimal
 from enum import Enum
@@ -261,11 +261,15 @@ class CanonicalEvidenceSerializer:
         fragments: MutableMapping[int, bytes] | None = None,
         telemetry: dict[str, int | float] | None = None,
         buffer_size: int = 256 * 1024,
+        progress_callback: Callable[..., None] | None = None,
+        progress_interval_seconds: float = 2.0,
     ) -> str:
         """SHA-256 the exact canonical stream with bounded temporary storage."""
 
         if buffer_size < 1:
             raise ValueError("canonical streaming buffer_size must be positive")
+        if progress_interval_seconds < 0:
+            raise ValueError("canonical progress interval cannot be negative")
         stats = telemetry if telemetry is not None else {}
         started_wall = perf_counter_ns()
         started_cpu = process_time_ns()
@@ -275,15 +279,21 @@ class CanonicalEvidenceSerializer:
         hash_updates = 0
         pending = bytearray()
         hasher = hashlib.sha256()
+        hashed_bytes = 0
+        next_progress = started_wall + int(progress_interval_seconds * 1_000_000_000)
 
         def update(chunk: bytes | bytearray) -> None:
-            nonlocal hashing_wall_ns, hashing_cpu_ns, hash_updates
+            nonlocal hashing_wall_ns, hashing_cpu_ns, hash_updates, hashed_bytes, next_progress
             hash_wall_started = perf_counter_ns()
             hash_cpu_started = process_time_ns()
             hasher.update(chunk)
             hashing_wall_ns += perf_counter_ns() - hash_wall_started
             hashing_cpu_ns += process_time_ns() - hash_cpu_started
             hash_updates += 1
+            hashed_bytes += len(chunk)
+            if progress_callback is not None and perf_counter_ns() >= next_progress:
+                progress_callback(processed_bytes=hashed_bytes, complete=False)
+                next_progress = perf_counter_ns() + int(progress_interval_seconds * 1_000_000_000)
 
         for chunk in cls.iter_bytes(
             value,
@@ -304,6 +314,8 @@ class CanonicalEvidenceSerializer:
                 pending.extend(chunk)
         if pending:
             update(pending)
+        if progress_callback is not None:
+            progress_callback(processed_bytes=hashed_bytes, complete=True)
 
         total_wall_ns = perf_counter_ns() - started_wall
         total_cpu_ns = process_time_ns() - started_cpu

@@ -744,6 +744,29 @@ function updatePipelineProgress(root, data) {
   setText(root, "[data-pipeline-cancel-metric]", data.job_cancel_requested ? "Requested" : "No");
   setText(root, "[data-pipeline-items-processed]", data.processed_item_count || 0);
   setText(root, "[data-pipeline-items-total]", data.total_item_count || 0);
+  const dependencyWait = root.querySelector("[data-pipeline-dependency-wait]");
+  const deferralWarning = root.querySelector("[data-pipeline-deferral-warning]");
+  if (deferralWarning) deferralWarning.hidden = !data.dependency_deferral_warning;
+  if (dependencyWait) {
+    const waiting = data.dependency_wait || {};
+    dependencyWait.hidden = !waiting.prerequisite;
+    setText(root, "[data-pipeline-prerequisite-label]", waiting.label || "");
+    setText(root, "[data-pipeline-prerequisite-unfinished]", waiting.unfinished_batches ?? 0);
+    setText(root, "[data-pipeline-prerequisite-age]", waiting.age_seconds ?? 0);
+    setText(root, "[data-pipeline-deferral-count]", data.dependency_deferral_count ?? 0);
+  }
+  const sectorOperation = root.querySelector("[data-pipeline-sector-operation]");
+  if (sectorOperation) {
+    const sector = data.sector_progress || {};
+    sectorOperation.hidden = !sector.phase;
+    setText(root, "[data-pipeline-sector-label]", sector.label || "");
+    setText(root, "[data-pipeline-sector-count]", sector.progress_label
+      || `${sector.processed ?? 0} / ${sector.total ?? 0}`);
+    setText(root, "[data-pipeline-sector-age]", sector.phase_elapsed_ms == null ? ""
+      : ` · ${Math.round(sector.phase_elapsed_ms / 1000)} seconds in this operation`);
+    setText(root, "[data-pipeline-business-age]", data.business_progress_age_seconds ?? "Unknown");
+    setText(root, "[data-pipeline-heartbeat-age]", data.worker_heartbeat_age_seconds ?? "Unknown");
+  }
   setText(root, "[data-pipeline-current-item]", data.current_item || "None");
   setText(root, "[data-pipeline-progress-stage]", data.progress_stage || "None");
   setText(
@@ -764,8 +787,11 @@ function updatePipelineProgress(root, data) {
   setText(root, "[data-pipeline-worker-memory]", data.worker_memory_status || "Unknown");
   const workerHealth = root.querySelector("[data-pipeline-worker-health]");
   if (workerHealth) {
-    workerHealth.hidden = !["STALLED", "RECOVERING"].includes(data.job_status);
-    if (data.job_status === "STALLED") {
+    workerHealth.hidden = !data.recovery_message
+      && !["STALLED", "RECOVERING"].includes(data.job_status);
+    if (data.recovery_message) {
+      workerHealth.textContent = data.recovery_message;
+    } else if (data.job_status === "STALLED") {
       workerHealth.textContent =
         "The worker process was fenced because this job stopped making useful progress.";
     } else if (data.job_status === "RECOVERING") {
@@ -775,6 +801,29 @@ function updatePipelineProgress(root, data) {
   }
   const result = data.result || {};
   const repair = result.sec_repair || {};
+  const coveragePanel = root.querySelector("[data-pipeline-sec-coverage]");
+  if (coveragePanel) {
+    const coverageReadiness = (result.sec_preflight || {}).readiness
+      || (result.blocked_diagnostics || {}).readiness || {};
+    const exemptions = (coverageReadiness.tickers || [])
+      .filter((item) => item.category === "SEC_NOT_APPLICABLE");
+    const unresolved = result.sec_unresolved_tickers ?? (result.sec_coverage || {}).gaps ?? [];
+    coveragePanel.hidden = exemptions.length === 0 && unresolved.length === 0;
+    const details = coveragePanel.querySelector("[data-pipeline-sec-coverage-details]");
+    if (details) {
+      const rows = exemptions.map((item) => {
+        const row = document.createElement("li");
+        row.textContent = `${item.ticker}: ${item.reason || "SEC guidance is not applicable."}`;
+        return row;
+      });
+      rows.push(...unresolved.map((item) => {
+        const row = document.createElement("li");
+        row.textContent = `${item.ticker}: SEC identity unresolved. ${item.reason || "No exact SEC identity was found."} Other eligible processing continues; SEC guidance remains unavailable.`;
+        return row;
+      }));
+      details.replaceChildren(...rows);
+    }
+  }
   const repairPanel = root.querySelector("[data-pipeline-repair]");
   if (repairPanel) {
     repairPanel.hidden = !(
@@ -823,6 +872,34 @@ function updatePipelineProgress(root, data) {
       );
     }
   const marketReadiness = result.market_data_session_readiness || {};
+  const recoveryAction = root.querySelector("[data-pipeline-recover-gaps]");
+  if (recoveryAction) recoveryAction.hidden = !(data.status === "BLOCKED"
+    && data.current_step === "FETCHING_MARKET_DATA");
+  const historyRepair = root.querySelector("[data-pipeline-history-repair]");
+  if (historyRepair) historyRepair.hidden = !(["COMPLETED", "PARTIAL", "BLOCKED", "FAILED"].includes(data.status)
+    && result.market_data_history_gap_count);
+  const availability = result.market_data_availability || {};
+  const marketGaps = root.querySelector("[data-pipeline-market-gaps]");
+  if (marketGaps) marketGaps.hidden = !(availability.unavailable_tickers || []).length
+    && !(availability.history_gap_tickers || []).length;
+  setText(root, "[data-pipeline-market-unavailable]", (availability.unavailable_tickers || []).join(", ") || "None");
+  setText(root, "[data-pipeline-market-history-gaps]", (availability.history_gap_tickers || []).join(", ") || "None");
+  setText(root, "[data-pipeline-market-gap-explanation]", availability.continued_with_gaps
+    ? "Other companies continue. Affected calculations remain incomplete where required data is missing."
+    : "The run retains each company's data-availability result.");
+  const marketGapDetails = root.querySelector("[data-pipeline-market-gap-details]");
+  if (marketGapDetails) {
+    const rows = Object.entries(marketReadiness.tickers || {}).filter(([, item]) =>
+      item.history_gap_count || !["READY", "TERMINAL_INACTIVE"].includes(item.disposition)
+    ).map(([ticker, item]) => {
+      const row = document.createElement("li");
+      const returnedDates = (item.provider_results || []).map(value => value.actual_end_date).filter(Boolean).sort();
+      const missing = (item.missing_sessions || []).length ? ` Missing days: ${item.missing_sessions.join(", ")}.` : "";
+      row.textContent = `${ticker}: ${item.reason_message || (item.reason_code || "Data unavailable").replaceAll("_", " ")}${missing} Returned through ${returnedDates.at(-1) || "unavailable"}; available through ${item.latest_bar_session || "unavailable"}.`;
+      return row;
+    });
+    marketGapDetails.replaceChildren(...rows);
+  }
   const partialAction = root.querySelector("[data-pipeline-partial]");
   const excludedTickers = marketReadiness.blockers || [];
   if (partialAction) {

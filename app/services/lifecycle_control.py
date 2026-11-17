@@ -79,6 +79,7 @@ JOURNAL_FIELDS = frozenset(
         "desired_fingerprint",
         "topology_version",
         "retirement_operation_id",
+        "worker_liveness",
     }
 )
 

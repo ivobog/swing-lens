@@ -458,6 +458,9 @@ def finalize_technical_scores(
         v4_params = v4_params or load_technical_scoring_v4_config()
         v5_params = v5_params or load_technical_scoring_v5_config()
         pine_params = load_pine_defaults()
+    score_results = _availability_score_results(
+        db, run_id, pipeline_run_id, score_results, v4_params=v4_params
+    )
     symbols = symbols or [
         result.ticker.upper()
         for result in score_results
@@ -720,6 +723,58 @@ def finalize_technical_scores(
             should_cancel=should_cancel,
         )
     return scores
+
+
+def _availability_score_results(db, run_id, pipeline_run_id, score_results, *, v4_params):
+    """Never publish a stale numeric technical score for a known unavailable source."""
+    if not isinstance(db, Session) or pipeline_run_id is None:
+        return score_results
+    from app.models.tables import PipelineRun
+    from app.services.market_data_availability_policy import (
+        hard_readiness_blockers,
+        known_instrument_unavailability,
+        pipeline_availability_policy,
+    )
+    from app.services.market_data_session_readiness import load_current_session_readiness
+
+    pipeline = db.get(PipelineRun, pipeline_run_id)
+    policy = pipeline_availability_policy(pipeline)
+    if not policy.allow_history_gaps:
+        return score_results
+    readiness = load_current_session_readiness(db, pipeline_run_id=pipeline_run_id)
+    if readiness is None or hard_readiness_blockers(readiness.rows, policy):
+        raise ValueError("TECHNICAL_MARKET_DATA_READINESS_REQUIRED")
+    unavailable = {
+        row.ticker: row for row in readiness.rows if known_instrument_unavailability(row)
+    }
+    return [
+        unavailable_source_technical_score(run_id, row.ticker, unavailable[row.ticker], v4_params)
+        if row.ticker in unavailable else row
+        for row in score_results
+    ]
+
+
+def unavailable_source_technical_score(run_id, ticker, disposition, v4_params=None):
+    score = unavailable_technical_score(run_id, ticker, disposition.reason_code, v4_params)
+    score.technical_confidence = "low"
+    score.warning_flags_json = ["insufficient_history"]
+    score.missing_data_json = {
+        "unavailable": True, "market_data_unavailable": True,
+        "insufficient_history": True, "reason": disposition.reason_code,
+    }
+    source = {
+        "disposition": disposition.disposition, "reason_code": disposition.reason_code,
+        "expected_session": disposition.expected_session.isoformat(),
+        "latest_bar_session": (
+            disposition.latest_bar_session.isoformat() if disposition.latest_bar_session else None
+        ),
+    }
+    score.debug_json = {"source_availability": source}
+    score.v4_debug_json = {
+        **(score.v4_debug_json or {}), "source_availability": source,
+        "data_readiness": {"has_sufficient_history": False, "data_quality_score": 0},
+    }
+    return score
 
 
 def _persist_finalized_technical_scores(

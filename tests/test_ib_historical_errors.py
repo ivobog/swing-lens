@@ -1,3 +1,5 @@
+import pytest
+
 from app.services.ib_historical_errors import (
     IBHistoricalErrorCategory,
     classify_ib_historical_error,
@@ -74,3 +76,50 @@ def test_162_no_historical_data_for_qualified_contract_is_not_replayed() -> None
     assert result.category is IBHistoricalErrorCategory.HISTORICAL_DATA_UNAVAILABLE
     assert result.retryable is False
     assert result.systemic is False
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Historical Market Data Service error message:HMDS query returned no data: HLT@SMART",
+        "HMDS query returned no data",
+        " hMdS   query RETURNED no   DATA: CLBK/STK ",
+    ],
+)
+def test_exact_hmds_empty_query_is_instrument_specific_unavailable(message):
+    result = classify_ib_historical_error(162, message)
+    assert result.category is IBHistoricalErrorCategory.HISTORICAL_DATA_UNAVAILABLE
+    assert result.retryable is False and result.systemic is False
+
+
+@pytest.mark.parametrize(
+    "message,category",
+    [
+        (
+            "HMDS query returned no data: historical data request pacing violation",
+            IBHistoricalErrorCategory.HISTORICAL_PACING,
+        ),
+        (
+            "HMDS query returned no data: HMDS data farm connection is broken",
+            IBHistoricalErrorCategory.HISTORICAL_TRANSIENT,
+        ),
+        (
+            "HMDS query returned an unexpected empty response",
+            IBHistoricalErrorCategory.HISTORICAL_UNKNOWN_162,
+        ),
+        (
+            "HMDS query returned no data because feed is still loading",
+            IBHistoricalErrorCategory.HISTORICAL_UNKNOWN_162,
+        ),
+    ],
+)
+def test_empty_wording_does_not_hide_retryable_or_unknown_162(message, category):
+    result = classify_ib_historical_error(162, message)
+    assert result.category is category
+    assert result.retryable is True
+
+
+def test_hmds_empty_phrase_requires_162_code():
+    result = classify_ib_historical_error(200, "HMDS query returned no data")
+    assert result.category is IBHistoricalErrorCategory.PROVIDER_ERROR
+    assert result.retryable is True

@@ -1,11 +1,11 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_db
@@ -857,6 +857,82 @@ def start_partial_pipeline_action(
     return RedirectResponse(
         url=f"/runs/{pipeline.upload_run_id}/pipeline/{pipeline.id}", status_code=303
     )
+
+
+@router.post("/runs/{run_id}/pipeline/{pipeline_id}/recover-with-gaps")
+@unsafe_route(
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    reason="admits the complete requested population under the current data-gap policy",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.pipeline.recover_with_gaps",
+)
+def start_market_data_recovery_action(
+    run_id: int, pipeline_id: int, db: DbSession,
+) -> RedirectResponse:
+    _require_run(db, run_id)
+    _require_pipeline_for_run(db, pipeline_id, run_id)
+    from app.services.pipeline_market_data_recovery import start_market_data_recovery
+
+    try:
+        pipeline = start_market_data_recovery(
+            db, source_pipeline_id=pipeline_id, upload_run_id=run_id,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=redact_text(str(exc))) from exc
+    return RedirectResponse(
+        url=f"/runs/{pipeline.upload_run_id}/pipeline/{pipeline.id}", status_code=303,
+    )
+
+
+@router.get("/runs/{run_id}/pipeline/{pipeline_id}/history-gaps", response_class=HTMLResponse)
+def review_history_gap_repair(
+    run_id: int, pipeline_id: int, request: Request, db: DbSession,
+) -> HTMLResponse:
+    run = _load_run(db, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    _require_pipeline_for_run(db, pipeline_id, run_id)
+    from app.services.ib_gap_repair_service import prepare_gap_repair
+
+    try:
+        preview = prepare_gap_repair(db, pipeline_run_id=pipeline_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=redact_text(str(exc))) from exc
+    return templates.TemplateResponse(
+        request, "history_gap_repair.html", {
+            "active_nav": "runs", "run": run, "pipeline_id": pipeline_id,
+            "preview": preview.as_dict(),
+        },
+    )
+
+
+@router.post("/runs/{run_id}/pipeline/{pipeline_id}/repair-history-gaps")
+@unsafe_route(
+    ROUTE_CLASS_PUBLIC_LOCAL,
+    reason="queues one reviewed acquisition for exact recorded historical gaps",
+    mutation_capability=MutationCapability.NORMAL_ONLY,
+    operation="http.pipeline.repair_history_gaps",
+)
+def repair_history_gaps_action(
+    run_id: int, pipeline_id: int, db: DbSession,
+    manifest_fingerprint: Annotated[str, Form(min_length=64, max_length=64)],
+) -> RedirectResponse:
+    _require_run(db, run_id)
+    _require_pipeline_for_run(db, pipeline_id, run_id)
+    from app.services.ib_gap_repair_service import submit_gap_repair
+
+    try:
+        submit_gap_repair(
+            db, pipeline_run_id=pipeline_id,
+            expected_manifest_fingerprint=manifest_fingerprint,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=redact_text(str(exc))) from exc
+    return RedirectResponse(url=f"/runs/{run_id}/pipeline/{pipeline_id}", status_code=303)
 
 
 @router.post("/runs/{run_id}/ib/test")
@@ -1863,6 +1939,13 @@ def _pipeline_status_payload(
     root_job = db.get(BackgroundJob, status.background_job_id) if status.background_job_id else None
     job = _pipeline_observability_job(db, status, root_job)
     worker = db.get(BackgroundWorker, job.worker_id) if job is not None and job.worker_id else None
+    observed_at = datetime.now(UTC)
+
+    def age_seconds(value):
+        if not isinstance(value, datetime):
+            return None
+        stamp = value.replace(tzinfo=UTC) if value.tzinfo is None else value
+        return round(max(0.0, (observed_at - stamp).total_seconds()), 1)
     projected_result = dict(status.result_json or {})
     if job is not None and job.job_type == "SEC_READINESS_REPAIR":
         child_repair = dict((job.operational_metadata_json or {}).get("sec_repair") or {})
@@ -1874,6 +1957,55 @@ def _pipeline_status_payload(
     is_sec_dependency = (
         status.status == "WAITING_DEPENDENCY"
         and projected_result.get("dependency_type") == "SEC_READINESS"
+    )
+    recovery_job = job
+    observed_metadata = job.operational_metadata_json or {} if job else {}
+    if not any(observed_metadata.get(key) for key in (
+        "progress_recovery", "recovery_continuation", "terminal_publication_recovery",
+    )):
+        recovery_job = root_job
+    sector_progress = (
+        dict(observed_metadata.get("sector_progress") or {})
+        if status.current_step == "SECTOR_ROTATION_SNAPSHOT"
+        and job is not None and job.progress_stage == "SECTOR_ROTATION_SNAPSHOT"
+        and status.status not in PIPELINE_TERMINAL_STATUSES else {}
+    )
+    if sector_progress:
+        phase = str(sector_progress.get("phase") or "")
+        sector_progress["label"] = {
+            "RESUME_AUTHORITY_VALIDATION": "Checking saved checkpoint",
+            "UNIVERSE_INPUTS_LOADED": "Loading company inputs",
+            "UNIVERSE_SOURCE_VALIDATION": "Checking company inputs",
+            "DECLARATION_VALIDATION": "Checking snapshot inputs",
+            "DECLARATION_VALIDATION_SOURCE_ROLES": "Checking snapshot sources",
+            "PERSISTENCE_VALIDATION": "Preparing snapshot publication",
+            "PERSISTENCE_VALIDATION_SOURCE_LOCKS": "Preparing snapshot publication",
+            "PERSISTENCE_VALIDATION_SOURCE_ROLES": "Checking sources before publication",
+            "PERSISTENCE_CANONICAL_HASH": "Sealing snapshot",
+            "SNAPSHOT_STAGED": "Committing snapshot",
+        }.get(phase, phase.replace("_", " ").capitalize())
+        phase_metrics = (sector_progress.get("validation_metrics") or {}).get(phase) or {}
+        hashed = phase_metrics.get("canonical_bytes_hashed")
+        sector_progress["progress_label"] = (
+            f"{hashed / (1024 * 1024):,.1f} MiB processed"
+            if isinstance(hashed, (int, float))
+            else f"{sector_progress.get('processed', 0)} / {sector_progress.get('total', 0)}"
+        )
+    from app.services.ceri.batched_claims import ceri_dependency_wait
+
+    dependency_wait = ceri_dependency_wait(db, job)
+    if dependency_wait:
+        dependency_wait["age_seconds"] = age_seconds(dependency_wait.get("waiting_since"))
+    deferrals = dict(observed_metadata.get("dependency_wait") or {})
+    try:
+        deferral_age = age_seconds(datetime.fromisoformat(deferrals.get("unchanged_since", "")))
+    except (ValueError, TypeError):
+        deferral_age = None
+    deferral_warning = bool(
+        job is not None and job.status in {"QUEUED", "RECOVERING", "RUNNING"}
+        and int(deferrals.get("deferral_count") or 0) >= 10
+        and deferral_age is not None and deferral_age >= 300
+        and deferrals.get("progress_sequence") == job.progress_sequence
     )
     return {
         "pipeline_run_id": status.pipeline_run_id,
@@ -1905,21 +2037,160 @@ def _pipeline_status_payload(
         "worker_rss_bytes": worker.rss_bytes if worker else None,
         "worker_private_bytes": worker.private_bytes if worker else None,
         "last_progress_at": job.last_progress_at if job else None,
+        "business_progress_age_seconds": age_seconds(job.last_progress_at if job else None),
+        "worker_heartbeat_age_seconds": age_seconds(worker.heartbeat_at if worker else None),
         "progress_sequence": job.progress_sequence if job else 0,
         "progress_stage": job.progress_stage if job else None,
         "current_item": job.progress_current_item if job else None,
         "last_completed_item": job.progress_last_completed_item if job else None,
-        "processed_item_count": job.progress_processed if job else 0,
-        "total_item_count": job.progress_total if job else None,
+        "processed_item_count": sector_progress.get(
+            "processed", job.progress_processed if job else 0,
+        ),
+        "total_item_count": sector_progress.get("total", job.progress_total if job else None),
+        "sector_progress": sector_progress,
+        "dependency_wait": dependency_wait,
+        "dependency_deferral_count": int(deferrals.get("deferral_count") or 0),
+        "dependency_deferral_age_seconds": deferral_age,
+        "dependency_deferral_warning": deferral_warning,
+        "last_claimed_at": job.locked_at if job else None,
         "checkpoint_version": job.checkpoint_version if job else None,
         "stall_detected_at": job.stall_detected_at if job else None,
         "recovery_count": job.recovery_count if job else 0,
+        **_pipeline_recovery_fields(recovery_job, pipeline_result=projected_result),
         "job_error": job.error_message if job else None,
         "result": projected_result,
         "completed_steps": completed_steps,
         "total_steps": total_steps,
         "percentage": round((completed_steps / total_steps) * 100, 1) if total_steps else 0.0,
         "steps": steps,
+    }
+
+
+def _pipeline_recovery_fields(
+    job: BackgroundJob | None, *, pipeline_result: dict | None = None,
+) -> dict[str, object]:
+    metadata = job.operational_metadata_json or {} if job else {}
+    recovery = metadata.get("progress_recovery")
+    recovery = recovery if isinstance(recovery, dict) else {}
+    identity = recovery.get("stall_identity") or {}
+    reason_code = identity.get("decision") if isinstance(identity, dict) else None
+    supplied = recovery.get("memory_evidence") or {}
+    allowed = {
+        "observed_at", "registered_pid", "worker_instance_id", "worker_generation",
+        "private_bytes", "rss_bytes", "measured_bytes", "measurement_basis", "critical_mb",
+        "critical_bytes", "stage", "subphase", "sector_phase", "attempt_number",
+        "attempt_started_at",
+    }
+    evidence = {
+        key: value for key, value in supplied.items()
+        if key in allowed and isinstance(value, (str, int, float, type(None)))
+    } if isinstance(supplied, dict) else {}
+    supplied_continuation = metadata.get("recovery_continuation") or {}
+    continuation = {
+        key: value for key, value in supplied_continuation.items()
+        if key in {"version", "boundary", "validation_state", "cause_code", "fenced_at",
+                   "background_job_id", "attempt_number"}
+        and isinstance(value, (str, int, type(None)))
+    } if isinstance(supplied_continuation, dict) else {}
+    validated = (pipeline_result or {}).get("recovery_continuation") or {}
+    if (isinstance(validated, dict) and job is not None
+            and validated.get("background_job_id") == job.id
+            and validated.get("boundary") == continuation.get("boundary")):
+        continuation["validation_state"] = validated.get("validation_state")
+    supplied_terminal = metadata.get("terminal_publication_recovery") or {}
+    terminal = {
+        key: value for key, value in supplied_terminal.items()
+        if key in {"version", "pipeline_status", "cause_code", "reason", "observed_at",
+                   "attempt_number"}
+        and isinstance(value, (str, int, type(None)))
+    } if (isinstance(supplied_terminal, dict) and supplied_terminal.get("version")
+          == "pipeline-terminal-publication-recovery-v1") else {}
+    message = None
+    reason = recovery.get("failure_reason")
+    liveness = metadata.get("last_worker_liveness") or {}
+    if continuation.get("cause_code") == "WORKER_PROCESS_LOST":
+        latest_liveness = (
+            liveness if isinstance(liveness, dict)
+            and liveness.get("fenced_at") == continuation.get("fenced_at")
+            and continuation.get("fenced_at") else {}
+        )
+        reason_code = latest_liveness.get("decision", "WORKER_PROCESS_LOST")
+        reason = {
+            "WORKER_HEARTBEAT_STALE": "The worker's execution heartbeats stopped updating.",
+            "WORKER_INSPECTION_UNAVAILABLE": (
+                "The worker's process identity could not be confirmed."
+            ),
+            "WORKER_PROCESS_EXITED": "The registered worker process ended or its PID was reused.",
+            "WORKER_CONTROL_LOOP_STALE": "The worker's control loop stopped responding.",
+        }.get(reason_code, "The worker was replaced after execution ownership was lost.")
+        evidence = {}
+        message = reason
+        if continuation.get("validation_state") == "PENDING" and job.status == "RUNNING":
+            message += " Recovery is validating the saved checkpoint."
+        elif continuation.get("validation_state") == "VALIDATED":
+            message += " Recovery resumed from the validated checkpoint."
+        elif job.status in {"QUEUED", "STALLED", "RECOVERING"}:
+            message += " Automatic recovery is pending."
+        elif job.status in {"BLOCKED", "FAILED"}:
+            message += " Automatic recovery stopped; review the job error."
+    if terminal:
+        reason_code = terminal.get("cause_code")
+        reason = terminal.get("reason")
+        message = "The pipeline's finished result was preserved and its job record finalized."
+        if job.status == "CANCELLED":
+            message = "The run was cancelled; automatic recovery stopped. " + message
+        if reason_code == "WORKER_MEMORY_CRITICAL":
+            message = "The worker exceeded its memory limit. " + message
+        evidence, continuation = {}, {}
+    elif reason_code == "WORKER_MEMORY_CRITICAL":
+        original_stage = evidence.get("stage")
+        stage = str(original_stage or "").replace("_", " ").title()
+        sector_phase = (
+            evidence.get("sector_phase") if original_stage == "SECTOR_ROTATION_SNAPSHOT" else None
+        )
+        phase = str(sector_phase or evidence.get("subphase") or "")
+        phase = phase.replace("_", " ").title()
+        message = "The worker exceeded its memory limit"
+        if stage:
+            message += f" during {stage}"
+            if phase:
+                message += f" ({phase})"
+        message += "."
+        measured = evidence.get("measured_bytes")
+        budget = evidence.get("critical_mb")
+        if isinstance(measured, (int, float)) and isinstance(budget, (int, float)):
+            message += f" Observed {measured / (1024 * 1024):,.0f} MiB; limit {budget:,} MiB."
+        resume = continuation.get("boundary") or (
+            (job.payload_json or {}).get("resume_from_step") if job else None
+        )
+        resume_label = str(resume).replace("_", " ").title() if resume else None
+        if job.status == "CANCELLED":
+            message += " The run was cancelled; automatic recovery stopped."
+        elif continuation.get("validation_state") == "INVALID":
+            message += " Automatic recovery stopped because checkpoint validation failed."
+        elif job.status in {"BLOCKED", "FAILED"}:
+            message += " Automatic recovery stopped; review the job error."
+        elif job.status in {"QUEUED", "STALLED", "RECOVERING"}:
+            message += (
+                f" Automatic recovery will continue from {resume_label}."
+                if resume_label else " Automatic recovery is pending."
+            )
+        elif job.status == "RUNNING" and continuation.get("validation_state") == "PENDING":
+            message += (
+                f" Recovery is validating the checkpoint for {resume_label}."
+                if resume_label else " Recovery is validating its checkpoint."
+            )
+        elif resume_label:
+            message += f" Recovery resumed from {resume_label}."
+        else:
+            message += " Automatic recovery restarted execution."
+    return {
+        "recovery_reason_code": reason_code,
+        "recovery_reason": reason,
+        "recovery_message": message,
+        "recovery_memory_evidence": evidence or None,
+        "recovery_continuation": continuation or None,
+        "terminal_publication_recovery": terminal or None,
     }
 
 
@@ -1949,7 +2220,16 @@ def _pipeline_observability_job(
         select(BackgroundJob)
         .where(BackgroundJob.workflow_key == str(workflow_key))
         .where(BackgroundJob.status.in_(("RUNNING", "RECOVERING", "STALLED", "QUEUED")))
-        .order_by(BackgroundJob.last_progress_at.desc().nullslast(), BackgroundJob.id.desc())
+        .order_by(
+            case(
+                (BackgroundJob.status == "RUNNING", 0),
+                (BackgroundJob.status == "RECOVERING", 1),
+                (BackgroundJob.status == "STALLED", 2),
+                else_=3,
+            ),
+            BackgroundJob.last_progress_at.desc().nullslast(),
+            BackgroundJob.priority.asc(), BackgroundJob.id.asc(),
+        )
         .limit(1)
     )
     return active_child or root_job

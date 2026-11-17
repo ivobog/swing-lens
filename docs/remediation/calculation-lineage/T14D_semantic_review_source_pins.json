@@ -82,6 +82,24 @@
       "purpose": "Append-only instrument lifecycle evidence and terminal cached-contract invalidation",
       "sha256": "39ee20b7137b168e65feae75338791361479dea99361f90af4446a05114aca04",
       "writer_family": "WF_INSTRUMENT_LIFECYCLE_EVIDENCE"
+    },
+    "app/services/pipeline_market_data_recovery.py": {
+      "authority_domain": "RAW",
+      "introduced_by": "pipeline58-gap-policy release; exact source qualified below",
+      "purpose": "Explicit new admission clones the blocked source's exact frozen requested population into isolated raw inputs; source run, scope and cutoff remain unchanged",
+      "review_evidence": "docs/remediation/pipeline58-market-readiness/raw-bootstrap-caller-review.json",
+      "sha256": "8b89ef1689f9817e99a636d8ac008607b74bf87d2b0cfa09599deaabdf8b07bf",
+      "sha256_normalization": "UTF-8 source with CRLF normalized to LF",
+      "writer_family": "WF_EXPLICIT_MARKET_DATA_RECOVERY_RAW_BOOTSTRAP"
+    },
+    "app/services/pipeline_partial_results.py": {
+      "authority_domain": "RAW",
+      "introduced_by": "1be56a3b2d64111198f65c8e0b6b7d37d879450c",
+      "purpose": "Existing explicit subset admission clones only reviewed included tickers into isolated raw inputs, bound to retained source rows and source scope",
+      "review_evidence": "docs/remediation/pipeline58-market-readiness/raw-bootstrap-caller-review.json",
+      "sha256": "22b5394a5ea3f8b19a930e741119ef01f8127d0dc7592e905f59ba833803618c",
+      "sha256_normalization": "UTF-8 source with CRLF normalized to LF",
+      "writer_family": "WF_EXPLICIT_PARTIAL_UPLOAD_RAW_BOOTSTRAP"
     }
   },
   "predecessor_sha256": "d276050cbc58c77998b9f08087c18138c31340ee038c95583e6092bea62f0129",

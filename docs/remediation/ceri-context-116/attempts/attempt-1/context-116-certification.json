@@ -1,0 +1,17 @@
+{
+  "decision": "BLOCKED",
+  "database": "swinglens_qa_ceri_context_1794788997961",
+  "steps": {
+    "migration": "PASS",
+    "native_capture": "BLOCKED: transaction rolled back; no substitute capture or manifest"
+  },
+  "frozen_anchor": {
+    "anchor_id": "8e37564fc30dfa21e72a9bb31a68944894b399619e23ce8a74ceb461e5fad43e",
+    "fingerprint": "326a130767119b99288c8897fd5bfcfc806ab778994bdca52fd9cad143395807"
+  },
+  "reason_code": "CERI_CERTIFICATION_ENVIRONMENT_MEMORY",
+  "error": {
+    "type": "EnvironmentPrerequisite",
+    "message": "Historical comparison JSON paging did not complete before the genuine worker claim expired"
+  }
+}

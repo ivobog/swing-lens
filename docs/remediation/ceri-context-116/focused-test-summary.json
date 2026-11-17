@@ -1,0 +1,80 @@
+[
+  {
+    "name": "dedicated-context-change",
+    "result": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "2",
+      "time": "50.344",
+      "timestamp": "2026-11-16T13:59:29.358622+01:00",
+      "hostname": "NewLaptop"
+    }
+  },
+  {
+    "name": "focused-pg",
+    "result": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "42",
+      "time": "402.802",
+      "timestamp": "2026-11-16T11:07:30.552286+01:00",
+      "hostname": "NewLaptop"
+    }
+  },
+  {
+    "name": "immutability-and-ambiguity",
+    "result": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "9",
+      "time": "176.108",
+      "timestamp": "2026-11-16T12:22:36.148910+01:00",
+      "hostname": "NewLaptop"
+    }
+  },
+  {
+    "name": "native-identity-ownership",
+    "result": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "28",
+      "time": "768.569",
+      "timestamp": "2026-11-16T11:59:22.120972+01:00",
+      "hostname": "NewLaptop"
+    }
+  },
+  {
+    "name": "native-positive-negative",
+    "result": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "10",
+      "time": "79.523",
+      "timestamp": "2026-11-16T11:48:04.746463+01:00",
+      "hostname": "NewLaptop"
+    }
+  },
+  {
+    "name": "shared-main-ceri-authority",
+    "result": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "73",
+      "time": "57.217",
+      "timestamp": "2026-11-16T14:14:26.315241+01:00",
+      "hostname": "NewLaptop"
+    }
+  }
+]

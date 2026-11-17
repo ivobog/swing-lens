@@ -59,7 +59,7 @@ def test_activation_boundaries_are_paired_and_reject_historical_active_roots(mon
     from app.settings import Settings
 
     with pytest.raises(ValueError, match="configured together"):
-        Settings(_env_file=None, job_activation_min_id=100)
+        Settings(_env_file=None, job_activation_min_id=100, pipeline_activation_min_id=0)
     settings = Settings(
         _env_file=None, job_activation_min_id=100, pipeline_activation_min_id=10,
     )

@@ -1,0 +1,38 @@
+{
+  "time": "2026-11-16 12:20:38.109401+00:00",
+  "claim_expiry": "2026-11-16 13:20:25.553147+01:00",
+  "pid": 19468,
+  "workflow": "ceri:pipeline:owner:66:certification:47e13b2c46ce",
+  "frozen_anchor": {
+    "anchor_id": "8e37564fc30dfa21e72a9bb31a68944894b399619e23ce8a74ceb461e5fad43e",
+    "fingerprint": "326a130767119b99288c8897fd5bfcfc806ab778994bdca52fd9cad143395807"
+  },
+  "process_memory": {
+    "rss": 7328710656,
+    "vms": 11911049216,
+    "num_page_faults": 9257506,
+    "peak_wset": 7819816960,
+    "wset": 7328710656,
+    "peak_paged_pool": 322184,
+    "paged_pool": 312336,
+    "peak_nonpaged_pool": 1136504,
+    "nonpaged_pool": 1136504,
+    "pagefile": 11911049216,
+    "peak_pagefile": 11911049216,
+    "private": 11911049216
+  },
+  "process_cpu": {
+    "user": 1055.734375,
+    "system": 134.375,
+    "children_user": 0.0,
+    "children_system": 0.0
+  },
+  "host_memory": {
+    "total": 17061072896,
+    "available": 2047991808,
+    "percent": 88.0,
+    "used": 15013081088,
+    "free": 2047991808
+  },
+  "stopped_after_real_claim_expiry": true
+}

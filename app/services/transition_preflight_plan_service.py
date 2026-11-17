@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -10,10 +11,9 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.ceri_tables import CeriScoreSnapshot, CeriSourceRecord
+from app.models.ceri_tables import CeriScoreSnapshot
 from app.models.tables import (
     MarketCalculationContext,
-    MarketDataSessionDisposition,
     MarketRegimeSnapshot,
     PipelineRun,
     RawCompanyRow,
@@ -25,6 +25,7 @@ from app.models.tables import (
 )
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.evidence_eligibility import eligible_snapshot_select
+from app.services.ceri.score_population import source_lineage_failures
 from app.services.decision_handoff_contract import (
     REQUIRED_HANDOFF_CONTEXT_ARTIFACTS,
     RequiredHandoffArtifactError,
@@ -413,12 +414,14 @@ def verify_transition_decision_manifests_before_mutation(
         tickers=expected_tickers,
         checkpoint_callback=checkpoint_callback,
     )
+    historical_ids = [row["id"] for row in handoff.manifest_json["ceri_score_snapshots"]]
     ceri_market_cutoff = _decision_ceri_context(db, plan, market_cutoff)
     _validate_handoff_temporal_lineage(
         db,
         upload_run_id=upload_run_id,
         market_cutoff=market_cutoff,
         ceri_market_cutoff=ceri_market_cutoff,
+        historical_ids=historical_ids,
         built_rows=built_rows,
         checkpoint_callback=checkpoint_callback,
     )
@@ -448,6 +451,7 @@ def verify_transition_decision_manifests_before_mutation(
         plan=plan,
         market_cutoff=market_cutoff,
         ceri_market_cutoff=ceri_market_cutoff,
+        historical_ids=historical_ids,
         built_rows=built_rows,
         decision_manifests=actual,
         checkpoint_callback=checkpoint_callback,
@@ -574,11 +578,14 @@ def freeze_transition_decision_handoff_manifest(
         )
         .with_for_update()
     )
+    prepared_inputs: dict[str, Any] = {}
     if plan is None:
         plan = _create_pipeline_decision_handoff_plan(
             db,
             upload_run_id=upload_run_id,
             market_cutoff=market_cutoff,
+            checkpoint_callback=checkpoint_callback,
+            prepared_inputs=prepared_inputs,
         )
     checkpoint("PLAN_LOADED", 1, 1, f"plan:{plan.id}")
     if not plan.run_start_anchor_json or not plan.run_start_anchor_fingerprint:
@@ -597,14 +604,33 @@ def freeze_transition_decision_handoff_manifest(
     from app.services.setup_lifecycle.source_loader import SetupLifecycleSourceLoader
 
     repository = SetupLifecycleRepository()
-    run_context = SetupLifecycleSourceLoader().load_run_context(
-        db,
-        upload_run_id,
-        market_cutoff=market_cutoff,
-        tickers=set(plan.tickers_json or ()),
+    reuse_prepared = (
+        bool(prepared_inputs)
+        and prepared_inputs["transaction"] is db.get_transaction()
+        and prepared_inputs["nested_transaction"]
+        is getattr(db, "get_nested_transaction", lambda: None)()
+        and not any(row is not plan for row in db.dirty)
+        and not any(row is not plan for row in getattr(db, "new", ()))
+        and not getattr(db, "deleted", ())
     )
-    ticker_total = len(getattr(run_context, "tickers", ()) or plan.tickers_json or ())
-    checkpoint("RUN_CONTEXT_LOADED", ticker_total, ticker_total, "run-context")
+    if reuse_prepared:
+        run_context = prepared_inputs["run_context"]
+    else:
+        run_context = SetupLifecycleSourceLoader().load_run_context(
+            db,
+            upload_run_id,
+            market_cutoff=market_cutoff,
+            tickers=set(plan.tickers_json or ()),
+            **(
+                {"checkpoint_callback": checkpoint_callback}
+                if checkpoint_callback is not None
+                else {}
+            ),
+        )
+    # JSON columns do not track nested in-place changes in Session.dirty. Reuse
+    # only loaded sources, never the derived DTOs across the PLAN_LOADED callback:
+    # rebuilding keeps raw-input fingerprints and the run-start anchor sensitive
+    # to a changed nested source, even when SQLAlchemy reports a clean Session.
     built_rows = build_run_context_snapshots(
         db,
         run_context,
@@ -612,6 +638,10 @@ def freeze_transition_decision_handoff_manifest(
         repository=repository,
         checkpoint_callback=checkpoint_callback,
     )
+    ticker_total = len(getattr(run_context, "tickers", ()) or plan.tickers_json or ())
+    checkpoint("RUN_CONTEXT_LOADED", ticker_total, ticker_total, "run-context")
+    # Reconstruct pointer-dependent decisions again: source preparation can be
+    # reused, but the run-start anchor must still reject a changed setup pointer.
     actual = reconstruct_transition_decision_manifests(
         db,
         market_cutoff=market_cutoff,
@@ -704,6 +734,8 @@ def _create_pipeline_decision_handoff_plan(
     *,
     upload_run_id: int,
     market_cutoff: MarketCalculationCutoff,
+    checkpoint_callback=None,
+    prepared_inputs: dict[str, Any] | None = None,
 ) -> TransitionPreflightPlan:
     """Anchor a fresh pipeline's post-upstream decision set before consumers run.
 
@@ -745,12 +777,14 @@ def _create_pipeline_decision_handoff_plan(
         upload_run_id,
         market_cutoff=market_cutoff,
         tickers=downstream_tickers,
+        **({"checkpoint_callback": checkpoint_callback} if checkpoint_callback is not None else {}),
     )
     built_rows = build_run_context_snapshots(
         db,
         run_context,
         builder=SetupLifecycleSnapshotBuilder(),
         repository=repository,
+        checkpoint_callback=checkpoint_callback,
     )
     decision_manifests = reconstruct_transition_decision_manifests(
         db,
@@ -758,6 +792,7 @@ def _create_pipeline_decision_handoff_plan(
         built_rows=built_rows,
         repository=repository,
         tickers=downstream_tickers,
+        checkpoint_callback=checkpoint_callback,
     )
     if not decision_manifests:
         raise TransitionPreflightError(
@@ -770,13 +805,17 @@ def _create_pipeline_decision_handoff_plan(
         upload_run_id=upload_run_id,
         market_cutoff=market_cutoff,
     )
-    _validate_handoff_temporal_lineage(
-        db,
-        upload_run_id=upload_run_id,
-        market_cutoff=market_cutoff,
-        ceri_market_cutoff=ceri_market_cutoff,
-        built_rows=built_rows,
-    )
+    if prepared_inputs is None:
+        # A standalone creation validates here. The enclosing freeze operation
+        # validates after its pointer reconstruction, before staging a manifest.
+        _validate_handoff_temporal_lineage(
+            db,
+            upload_run_id=upload_run_id,
+            market_cutoff=market_cutoff,
+            ceri_market_cutoff=ceri_market_cutoff,
+            built_rows=built_rows,
+            checkpoint_callback=checkpoint_callback,
+        )
     anchor = build_run_start_anchor_manifest(
         db,
         upload_run_id=upload_run_id,
@@ -853,6 +892,12 @@ def _create_pipeline_decision_handoff_plan(
     )
     db.add(plan)
     db.flush()
+    if prepared_inputs is not None:
+        prepared_inputs.update(
+            transaction=db.get_transaction(),
+            nested_transaction=getattr(db, "get_nested_transaction", lambda: None)(),
+            run_context=run_context,
+        )
     return plan
 
 
@@ -863,24 +908,33 @@ def _pipeline_downstream_tickers(
 ) -> set[str] | None:
     """Return the frozen admitted population, or None for legacy/preflight callers."""
 
-    rows = tuple(
-        db.scalars(
-            select(MarketDataSessionDisposition).where(
-                MarketDataSessionDisposition.pipeline_run_id == pipeline_run_id,
-                MarketDataSessionDisposition.is_current_revision.is_(True),
-            )
-        )
-    )
-    if not rows:
+    from app.services.market_data_session_readiness import load_current_session_readiness
+
+    readiness = load_current_session_readiness(db, pipeline_run_id=pipeline_run_id)
+    if readiness is None:
         return None
-    blockers = [row for row in rows if row.disposition not in {"READY", "TERMINAL_INACTIVE"}]
+    rows = readiness.rows
+    from app.services.market_data_availability_policy import (
+        hard_readiness_blockers,
+        parse_availability_policy,
+        pipeline_availability_policy,
+        processing_tickers,
+    )
+
+    pipeline = db.get(PipelineRun, pipeline_run_id)
+    policy = (
+        pipeline_availability_policy(pipeline)
+        if pipeline is not None
+        else (parse_availability_policy())
+    )
+    blockers = hard_readiness_blockers(rows, policy)
     if blockers:
         raise TransitionPreflightError(
             "MARKET_DATA_SESSION_READINESS_BLOCKED",
             "decision handoff cannot bypass unresolved market-data dispositions: "
             + ",".join(f"{row.ticker}={row.disposition}" for row in blockers),
         )
-    return {row.ticker.upper() for row in rows if row.downstream_eligible}
+    return {ticker.upper() for ticker in processing_tickers(rows, policy)}
 
 
 def reconstruct_transition_decision_manifests(
@@ -1088,6 +1142,45 @@ def build_run_start_anchor_manifest(
     return CanonicalEvidenceSerializer.canonicalize(payload)
 
 
+def _handoff_scores(db, upload_id, pipeline_id, cutoff, main_cutoff, historical_ids):
+    pipeline = db.get(PipelineRun, pipeline_id) if pipeline_id else None
+    receipt = (pipeline.result_json or {}).get("ceri_certified_score_ids") if pipeline else None
+    if receipt is not None:
+        from app.services.ceri.score_population import certified_scores
+
+        return certified_scores(db, pipeline_id, cutoff.context_id, expected_ids=receipt)
+    if historical_ids is not None and pipeline and pipeline.status in {"PARTIAL", "COMPLETED"}:
+        # Verify immutable legacy membership as frozen before terminal dispositions.
+        statement = select(CeriScoreSnapshot).where(CeriScoreSnapshot.id.in_(historical_ids))
+    else:
+        if cutoff.context_id != main_cutoff.context_id:
+            raise ValueError("CERI_CERTIFIED_CAPTURE_RECEIPT_MISSING")
+        statement = eligible_snapshot_select(name="effective_handoff_dispositions").where(
+            CeriScoreSnapshot.calculation_context_id == cutoff.context_id,
+            CeriScoreSnapshot.controlled_replay_id.is_(None),
+        )
+    rows = list(
+        db.scalars(
+            statement.where(CeriScoreSnapshot.run_id == upload_id).order_by(
+                CeriScoreSnapshot.ticker, CeriScoreSnapshot.id
+            )
+        )
+    )
+    if historical_ids is not None and sorted(row.id for row in rows) != sorted(historical_ids):
+        raise ValueError("CERI_HISTORICAL_MEMBERSHIP_MISMATCH")
+    if historical_ids is None and pipeline and rows:
+        from app.services.ceri.score_population import certified_scores
+
+        return certified_scores(db, pipeline_id, cutoff.context_id)
+    if (
+        historical_ids is None
+        and pipeline
+        and "ceri_score_snapshots" in (pipeline.result_json or {})
+    ):
+        raise ValueError("CERI_CERTIFIED_CAPTURE_RECEIPT_MISSING")
+    return rows
+
+
 def _build_decision_handoff_payload(
     db: Session,
     *,
@@ -1097,8 +1190,10 @@ def _build_decision_handoff_payload(
     built_rows,
     decision_manifests: dict[str, dict[str, object]],
     checkpoint_callback=None,
+    historical_ids=None,
 ) -> dict[str, Any]:
     artifacts: dict[str, Any] = {}
+    shared_contexts: dict[tuple[type, int], tuple[Any, list[tuple[str, str]]]] = {}
     total = len(built_rows)
     for index, (context, built) in enumerate(built_rows, start=1):
         ticker = context.ticker
@@ -1126,8 +1221,8 @@ def _build_decision_handoff_payload(
                     key=lambda row: (row.ranking_profile, row.profile_rank, row.id or 0),
                 )
             ],
-            "market_regime_snapshot": _artifact_identity(context.market_regime_snapshot),
-            "sector_rotation_snapshot": _artifact_identity(context.sector_rotation_snapshot),
+            "market_regime_snapshot": None,
+            "sector_rotation_snapshot": None,
             "sector_rotation_row": _artifact_identity(context.sector_rotation_row),
             "eligible_price_bars": [
                 {
@@ -1142,23 +1237,44 @@ def _build_decision_handoff_payload(
             ],
             "setup_signal_input_hash": built.source_data_hash,
         }
-        # Every artifact identity and eligible-bar lineage for this company is complete.
+        for key in ("market_regime_snapshot", "sector_rotation_snapshot"):
+            row = getattr(context, key)
+            if row is not None:
+                _, targets = shared_contexts.setdefault((type(row), id(row)), (row, []))
+                targets.append((ticker, key))
+        # Company-specific identities are complete; shared context hashes are
+        # verified below before publishing completed lineage checkpoints.
         if checkpoint_callback is not None:
             checkpoint_callback(
-                phase="ARTIFACT_LINEAGE_SERIALIZED",
+                phase="ARTIFACT_COMPANY_INPUTS_SERIALIZED",
                 processed=index,
                 total=total,
                 current_item=ticker,
                 last_completed_item=ticker,
             )
-    ceri_rows = list(
-        db.scalars(
-            eligible_snapshot_select(name="effective_handoff_dispositions")
-            .where(
-                CeriScoreSnapshot.run_id == plan.upload_run_id,
+    # Hash each shared global row after ticker callbacks have finished. This is
+    # an invocation-local batch, not a successful-hash cache surviving mutation,
+    # callbacks, transaction boundaries, or a subsequent freeze/verification.
+    for row, targets in shared_contexts.values():
+        identity = _artifact_identity(row, checkpoint_callback=checkpoint_callback)
+        for ticker, key in targets:
+            artifacts[ticker][key] = identity
+    if checkpoint_callback is not None:
+        for index, (context, _built) in enumerate(built_rows, start=1):
+            checkpoint_callback(
+                phase="ARTIFACT_LINEAGE_SERIALIZED",
+                processed=index,
+                total=total,
+                current_item=context.ticker,
+                last_completed_item=context.ticker,
             )
-            .order_by(CeriScoreSnapshot.ticker, CeriScoreSnapshot.id)
-        )
+    ceri_rows = _handoff_scores(
+        db,
+        plan.upload_run_id,
+        plan.pipeline_run_id,
+        ceri_market_cutoff,
+        market_cutoff,
+        historical_ids,
     )
     payload = {
         "contract": DECISION_HANDOFF_CONTRACT,
@@ -1239,6 +1355,7 @@ def _validate_handoff_temporal_lineage(
     ceri_market_cutoff: MarketCalculationCutoff | None = None,
     built_rows,
     checkpoint_callback=None,
+    historical_ids=None,
 ) -> None:
     ceri_cutoff = ceri_market_cutoff or market_cutoff
     failures: list[str] = []
@@ -1246,6 +1363,7 @@ def _validate_handoff_temporal_lineage(
     calculation_context = db.get(MarketCalculationContext, market_cutoff.context_id)
     pipeline_run_id = getattr(calculation_context, "pipeline_run_id", None)
     total = len(built_rows)
+    shared_context_pairs: dict[tuple[int, int], tuple[Any, Any, list[str]]] = {}
     for index, (context, _built) in enumerate(built_rows, start=1):
         ticker = context.ticker
         raw = context.raw_row
@@ -1339,8 +1457,10 @@ def _validate_handoff_temporal_lineage(
             except RequiredHandoffArtifactError as exc:
                 failures.append(str(exc))
         if sector is not None and market is not None:
-            if not _sector_market_parent_matches(db, sector, market):
-                failures.append(f"{ticker}:sector_market_parent")
+            _, _, pair_tickers = shared_context_pairs.setdefault(
+                (id(sector), id(market)), (sector, market, [])
+            )
+            pair_tickers.append(ticker)
         if context.sector_rotation_row is not None and (
             sector is None or context.sector_rotation_row.snapshot_id != sector.id
         ):
@@ -1348,12 +1468,22 @@ def _validate_handoff_temporal_lineage(
         price_bars.extend(context.price_bars)
         if checkpoint_callback is not None and (index % 10 == 0 or index == total):
             checkpoint_callback(
-                phase="TEMPORAL_LINEAGE_VALIDATED",
+                phase="TEMPORAL_TICKER_LINEAGE_VALIDATED",
                 processed=index,
                 total=total,
                 current_item=ticker,
                 last_completed_item=ticker,
             )
+
+    # Validate shared context after all per-ticker callbacks. Hoisting the native
+    # validation retains its source/child locks and full integrity checks while
+    # avoiding 159 hashes of the same global evidence. Nothing is reused across
+    # validation calls, transactions, or different ORM source objects.
+    for sector, market, pair_tickers in shared_context_pairs.values():
+        if not _sector_market_parent_matches(
+            db, sector, market, checkpoint_callback=checkpoint_callback
+        ):
+            failures.extend(f"{ticker}:sector_market_parent" for ticker in pair_tickers)
 
     for bar in invalid_price_bar_rows_for_context(
         db,
@@ -1364,14 +1494,9 @@ def _validate_handoff_temporal_lineage(
     ):
         failures.append(f"{bar.ticker.upper()}:post_cutoff_bar")
 
-    ceri_rows = list(
-        db.scalars(
-            eligible_snapshot_select(name="effective_handoff_validation_dispositions").where(
-                CeriScoreSnapshot.run_id == upload_run_id,
-            )
-        )
+    ceri_rows = _handoff_scores(
+        db, upload_run_id, pipeline_run_id, ceri_cutoff, market_cutoff, historical_ids
     )
-    ceri_source_ids: set[int] = set()
     for row in ceri_rows:
         if (
             row.calculation_context_id != ceri_cutoff.context_id
@@ -1380,27 +1505,24 @@ def _validate_handoff_temporal_lineage(
             or row.calendar_version != ceri_cutoff.calendar_version
         ):
             failures.append(f"{row.ticker}:ceri_cutoff")
-        _collect_source_ids(row.evidence_lineage_json or {}, ceri_source_ids)
-    if ceri_source_ids:
-        source_rows = list(
-            db.scalars(select(CeriSourceRecord).where(CeriSourceRecord.id.in_(ceri_source_ids)))
-        )
-        found = {row.id for row in source_rows}
-        if found != ceri_source_ids:
-            failures.append("ceri:source_record_missing")
-        for row in source_rows:
-            known_at = row.retrieved_at or row.ingested_at
-            if known_at is None or _aware(known_at) > _aware(ceri_cutoff.cutoff_at):
-                failures.append(f"ceri:post_cutoff_source:{row.id}")
+    failures.extend(source_lineage_failures(db, ceri_rows, ceri_cutoff))
     if failures:
         raise TransitionPreflightError(
             "DECISION_LINEAGE_MISMATCH",
             "decision artifacts do not descend from the frozen cutoff: "
             + ",".join(sorted(set(failures))[:25]),
         )
+    if checkpoint_callback is not None:
+        checkpoint_callback(
+            phase="TEMPORAL_LINEAGE_VALIDATED",
+            processed=total,
+            total=total,
+            current_item="temporal-lineage",
+            last_completed_item="temporal-lineage",
+        )
 
 
-def _sector_market_parent_matches(db: Session, sector, market) -> bool:
+def _sector_market_parent_matches(db: Session, sector, market, *, checkpoint_callback=None) -> bool:
     if sector.market_regime_snapshot_id == market.id:
         return True
     if sector.market_regime_snapshot_id is not None:
@@ -1418,7 +1540,11 @@ def _sector_market_parent_matches(db: Session, sector, market) -> bool:
         CoreEvidenceKind,
         get_certified_evidence_for_row,
     )
-    from app.services.core_mutation_authority import _validate_evidence, validate_source_values
+    from app.services.core_mutation_authority import (
+        _validate_evidence,
+        sector_evidence_read_scope,
+        validate_source_values,
+    )
 
     sector_evidence = get_certified_evidence_for_row(
         db, kind=CoreEvidenceKind.SECTOR, current_row=sector
@@ -1426,11 +1552,19 @@ def _sector_market_parent_matches(db: Session, sector, market) -> bool:
     market_evidence = get_certified_evidence_for_row(
         db, kind=CoreEvidenceKind.REGIME, current_row=market
     )
-    for row, evidence in ((sector, sector_evidence), (market, market_evidence)):
-        if not isinstance(evidence, CoreCalculationEvidence):
-            return False
-        _validate_evidence(evidence)
-        validate_source_values(row, evidence, db=db)
+    progress_scope = (
+        sector_evidence_read_scope(
+            db, checkpoint_callback=_handoff_hash_checkpoint(checkpoint_callback)
+        )
+        if checkpoint_callback is not None and isinstance(db, Session)
+        else nullcontext()
+    )
+    with progress_scope:
+        for row, evidence in ((sector, sector_evidence), (market, market_evidence)):
+            if not isinstance(evidence, CoreCalculationEvidence):
+                return False
+            _validate_evidence(evidence)
+            validate_source_values(row, evidence, db=db)
     pins = sector_evidence.source_evidence_ids_json or {}
     if pins.get("regime") != market_evidence.id:
         return False
@@ -1484,19 +1618,40 @@ def _semantic_model_payload(row: Any) -> dict[str, Any]:
     }
 
 
-def _artifact_identity(row: Any | None) -> dict[str, Any] | None:
-    return handoff_artifact_identity(row)
+def _artifact_identity(row: Any | None, *, checkpoint_callback=None) -> dict[str, Any] | None:
+    if row is None or checkpoint_callback is None:
+        return handoff_artifact_identity(row)
+    from app.services.sector_serialization import sector_hash_progress
+
+    return {
+        "id": getattr(row, "id", None),
+        "semantic_hash": CanonicalEvidenceSerializer.fingerprint_streaming(
+            _semantic_model_payload(row),
+            progress_callback=sector_hash_progress(
+                _handoff_hash_checkpoint(checkpoint_callback),
+                f"artifact:{type(row).__name__}:{row.id}",
+            ),
+        ),
+    }
 
 
-def _collect_source_ids(value: Any, target: set[int], *, key: str | None = None) -> None:
-    if isinstance(value, dict):
-        for child_key, child in value.items():
-            _collect_source_ids(child, target, key=str(child_key))
-    elif isinstance(value, (list, tuple)):
-        for child in value:
-            _collect_source_ids(child, target, key=key)
-    elif key is not None and "source_id" in key and isinstance(value, int):
-        target.add(value)
+def _handoff_hash_checkpoint(checkpoint_callback):
+    if checkpoint_callback is None:
+        return None
+
+    def checkpoint(*, current_item, last_completed_item, **_metrics):
+        # The label carries a strictly advancing count of bytes actually hashed.
+        # The pipeline callback has no metrics argument; don't discard progress
+        # or accidentally pass Sector-writer-only keyword arguments through it.
+        checkpoint_callback(
+            phase="HANDOFF_EVIDENCE_HASHED",
+            processed=0,
+            total=1,
+            current_item=current_item,
+            last_completed_item=last_completed_item,
+        )
+
+    return checkpoint
 
 
 def _canonical_time(value: datetime | None) -> Any:

@@ -11,8 +11,9 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, aliased
 
 from app.models.ceri_tables import CeriEvidenceDisposition, CeriScoreSnapshot
-from app.models.tables import CoreCalculationEvidence, MarketCalculationContext, PipelineRun
+from app.models.tables import CoreCalculationEvidence, PipelineRun
 from app.services.ceri.constants import PURGE_INVALIDATION_FLAG
+from app.services.ceri.score_ownership import bound_pipeline_id
 from app.services.domain_mutation import MutationDomain, MutationSemanticMode
 from app.services.pipeline_outcome import (
     NO_INTEGRITY_HAZARD,
@@ -99,15 +100,10 @@ def current_snapshot_authority_predicate(snapshot: Any = CeriScoreSnapshot) -> A
     Historical/audit readers deliberately retain their existing eligibility contract.
     Current score and related activity readers share this stricter serving boundary.
     """
-    context_owner = (
-        select(MarketCalculationContext.pipeline_run_id)
-        .where(MarketCalculationContext.id == snapshot.calculation_context_id)
-        .correlate(snapshot)
-        .scalar_subquery()
-    )
+    context_owner = bound_pipeline_id(snapshot.run_id, snapshot.calculation_context_id)
     rejected_owner = exists(
         select(PipelineRun.id).where(
-            or_(PipelineRun.upload_run_id == snapshot.run_id, PipelineRun.id == context_owner),
+            PipelineRun.id == context_owner,
             PipelineRun.execution_authority_state.in_(("QUARANTINED", "RETIRED")),
         )
     ).correlate(snapshot)
@@ -145,36 +141,15 @@ def apply_snapshot_eligibility(
 
 
 def _owner_eligibility_predicate(snapshot: Any) -> Any:
-    # Older incident contexts were accidentally persisted without their
-    # pipeline FK.  Fall back to the upload/run scope, but fail closed if that
-    # scope has any terminally unsuccessful pipeline owner.
-    failed_owner = aliased(PipelineRun)
-    no_unsuccessful_upload_owner = ~exists(
-        select(1)
-        .where(
-            failed_owner.upload_run_id == snapshot.run_id,
-            _owner_is_ineligible(failed_owner),
-        )
-        .correlate(snapshot)
-    )
-    context_owner_is_eligible = exists(
-        select(1)
-        .select_from(MarketCalculationContext)
-        .outerjoin(PipelineRun, PipelineRun.id == MarketCalculationContext.pipeline_run_id)
-        .where(
-            MarketCalculationContext.id == snapshot.calculation_context_id,
-            or_(
-                and_(
-                    MarketCalculationContext.pipeline_run_id.is_(None),
-                    no_unsuccessful_upload_owner,
-                ),
-                ~_owner_is_ineligible(PipelineRun),
-            ),
-        )
-    )
+    owner_id = bound_pipeline_id(snapshot.run_id, snapshot.calculation_context_id)
+    owner = aliased(PipelineRun)
     return or_(
-        and_(snapshot.calculation_context_id.is_(None), no_unsuccessful_upload_owner),
-        context_owner_is_eligible,
+        exists(select(1).where(owner.id == owner_id, ~_owner_is_ineligible(owner))).correlate(
+            snapshot
+        ),
+        # Standalone calculations have no pipeline history. Unresolved pipeline
+        # evidence stays in the audit population pending exact attribution.
+        ~exists(select(1).where(owner.upload_run_id == snapshot.run_id)).correlate(snapshot),
     )
 
 

@@ -1,0 +1,1 @@
+ARCH_REGISTRY_OK: application_routes=214, mutating_routes=57, durable_jobs=35, tables=133, mutable_tables=132, writer_families=85, recovery_paths=22, autonomous_triggers=18, transaction_families=32, high_risk_tables=76, certified_aggregates=8, deferred_r4_aggregates=0; exceptions=0

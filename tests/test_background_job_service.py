@@ -268,6 +268,30 @@ def test_claim_next_job_returns_none_when_queue_is_empty() -> None:
     assert db.flushes == 0
 
 
+def test_dependency_deferrals_and_reclaims_do_not_create_useful_progress(monkeypatch) -> None:
+    now = datetime.now(UTC)
+    job = BackgroundJob(
+        id=11, job_type="CERI_NORMALIZE_BATCH", status=JobStatus.QUEUED,
+        created_at=now, run_after=now, progress_sequence=0,
+    )
+    db = FakeDb(existing=job, scalar_result=11)
+    monkeypatch.setattr("app.services.background_job_service._utcnow", lambda: now)
+    for _ in range(3):
+        claim_next_job(db, worker_id="worker-a")
+        assert job.last_progress_at is None
+        assert job.progress_sequence == 0
+        mark_job_deferred(
+            db, job, delay=timedelta(seconds=5), reason="waiting for providers",
+            execution_token=job.execution_token,
+        )
+        now += timedelta(seconds=6)
+    waiting = job.operational_metadata_json["dependency_wait"]
+    assert waiting["deferral_count"] == 3
+    assert waiting["unchanged_since"] == job.created_at.isoformat()
+    assert job.last_progress_at is None
+    assert job.progress_sequence == 0
+
+
 def test_mark_job_completed_clears_lock_and_stores_result() -> None:
     job = _running_job()
     db = FakeDb(existing=job)

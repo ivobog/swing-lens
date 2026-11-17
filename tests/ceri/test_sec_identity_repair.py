@@ -78,6 +78,59 @@ def test_missing_exact_sec_ticker_is_reported_without_placeholder_mapping() -> N
     assert db.added == []
 
 
+def test_reviewed_fdic_issuer_is_persisted_without_sec_request_or_placeholder_cik() -> None:
+    db = _Db()
+    provider = _Provider(None)
+
+    result = resolve_and_persist_sec_identity(db, provider=provider, ticker=" town ")
+
+    assert result.status == "NOT_APPLICABLE"
+    assert result.resolved
+    assert result.cik is None
+    assert provider.calls == []
+    company = db.added[0]
+    assert company.ticker == "TOWN"
+    assert company.company_name == "TowneBank"
+    assert company.cik is None
+    assert company.sec_applicability == "NOT_APPLICABLE"
+    assert "FDIC" in company.sec_applicability_reason
+    assert "35095" in company.sec_applicability_reason
+    assert "https://investor.townebank.com/" in company.sec_applicability_reason
+    assert company.sec_applicability_updated_at is not None
+
+
+def test_reviewed_classification_preserves_existing_other_provider_ids() -> None:
+    company = CeriCompany(
+        ticker="TOWN", exchange="US", sec_applicability="REQUIRED",
+        current_provider_ids_json={"eodhd": "TOWN.US"},
+    )
+    db = _Db([company])
+    provider = _Provider(None)
+
+    result = resolve_and_persist_sec_identity(db, provider=provider, ticker="TOWN")
+
+    assert result.resolved
+    assert company.sec_applicability == "NOT_APPLICABLE"
+    assert company.current_provider_ids_json == {"eodhd": "TOWN.US"}
+    assert not db.added
+    assert not provider.calls
+
+
+def test_explicit_coverage_exemption_is_not_overwritten_by_sec_lookup() -> None:
+    company = CeriCompany(
+        ticker="EXEMPT", exchange="US", sec_applicability="NOT_APPLICABLE",
+        sec_applicability_reason="Reviewed non-SEC issuer",
+    )
+    provider = _Provider("123456")
+
+    result = resolve_and_persist_sec_identity(_Db([company]), provider=provider, ticker="EXEMPT")
+
+    assert result.status == "NOT_APPLICABLE"
+    assert not provider.calls
+    assert company.cik is None
+    assert company.sec_applicability_reason == "Reviewed non-SEC issuer"
+
+
 def test_sec_share_class_alias_persists_only_the_canonical_ticker() -> None:
     class Client:
         config = SecClientConfig()

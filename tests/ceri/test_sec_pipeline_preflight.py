@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
 
 from app.models.ceri_tables import CeriCompany, CeriSecProcessorRelease, CeriSecSyncState
 from app.services.ceri.config import CeriConfigError
+from app.services.ceri.sec.coverage import build_sec_coverage
 from app.services.ceri.sec.pipeline_preflight import validate_sec_pipeline_preflight
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+from app.services.ceri.sec.readiness_diagnostics import (
+    SecTickerReadiness,
+    SecTickerReadinessCategory,
+    SecUniverseReadiness,
+)
 from app.services.pipeline_prerequisites import (
     CeriBootstrapRequiredError,
     CeriProviderConfigurationError,
@@ -115,7 +122,7 @@ def test_zero_ready_universe_blocks() -> None:
     assert raised.value.diagnostics["readiness"]["ready_tickers"] == 0
 
 
-def test_unresolved_required_ticker_blocks() -> None:
+def test_unattempted_unresolved_ticker_requires_bounded_identity_repair() -> None:
     with pytest.raises(CeriBootstrapRequiredError) as raised:
         validate_sec_pipeline_preflight(
             SequentialDb([_release()], [], []),
@@ -123,6 +130,60 @@ def test_unresolved_required_ticker_blocks() -> None:
         )
 
     assert raised.value.diagnostics["readiness"]["counts"]["UNRESOLVED_MAPPING"] == 1
+
+
+def _pipeline_with_no_match_coverage():
+    signature = sec_guidance_processor_signature()
+    pipeline = SimpleNamespace(id=56, scope_id="scope-56", result_json={})
+    readiness = SecUniverseReadiness(signature, (
+        SecTickerReadiness("AAA", SecTickerReadinessCategory.READY, ciks=("0000000001",)),
+        SecTickerReadiness("MISSING", SecTickerReadinessCategory.UNRESOLVED_MAPPING),
+    ))
+    pipeline.result_json["sec_coverage"] = build_sec_coverage(
+        pipeline=pipeline,
+        readiness=readiness,
+        identity_results={"MISSING": {"status": "UNRESOLVED", "reason": "No exact SEC match."}},
+        attempted_at=datetime.now(UTC),
+    )
+    return pipeline
+
+
+def test_retained_no_match_continues_without_counting_missing_evidence_as_ready() -> None:
+    pipeline = _pipeline_with_no_match_coverage()
+    report = validate_sec_pipeline_preflight(
+        SequentialDb([_release()], [_company("AAA", 1)], [_sync(1)]),
+        tickers=["AAA", "MISSING"],
+        pipeline=pipeline,
+    )
+    assert report["continuation_ready"] is True
+    assert report["readiness"]["complete"] is False
+    assert report["readiness"]["ready_tickers"] == 1
+    assert report["readiness"]["blocking_tickers"] == ["MISSING"]
+    assert report["sec_unresolved_count"] == 1
+    assert report["sec_unresolved_tickers"][0]["ticker"] == "MISSING"
+
+
+def test_no_match_from_another_pipeline_does_not_waive_repair() -> None:
+    pipeline = _pipeline_with_no_match_coverage()
+    pipeline.id = 57
+    with pytest.raises(CeriBootstrapRequiredError):
+        validate_sec_pipeline_preflight(
+            SequentialDb([_release()], [_company("AAA", 1)], [_sync(1)]),
+            tickers=["AAA", "MISSING"],
+            pipeline=pipeline,
+        )
+
+
+def test_previously_unresolved_identity_still_requires_bootstrap_when_cik_is_found() -> None:
+    pipeline = _pipeline_with_no_match_coverage()
+    with pytest.raises(CeriBootstrapRequiredError) as raised:
+        validate_sec_pipeline_preflight(
+            SequentialDb([_release()], [_company("AAA", 1), _company("MISSING", 2)], [_sync(1)]),
+            tickers=["AAA", "MISSING"],
+            pipeline=pipeline,
+        )
+    assert raised.value.diagnostics["sec_unresolved_count"] == 0
+    assert raised.value.diagnostics["readiness"]["counts"]["SYNC_STATE_MISSING"] == 1
 
 
 def test_explicit_not_applicable_ticker_is_accepted() -> None:

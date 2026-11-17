@@ -151,6 +151,7 @@ class CeriRunCaptureService:
         market_cutoff: MarketCalculationCutoff | None = None,
         effective_configuration=None,
         expected_calculation_identity=None,
+        expected_pipeline_id: int | None = None,
         progress_callback: Callable[[str, int, int], None] | None = None,
     ) -> CeriRunCaptureResult:
         if market_cutoff is not None:
@@ -294,6 +295,33 @@ class CeriRunCaptureService:
         if progress_callback is not None:
             progress_callback("PREPARING_IBMI_CONTEXT", 0, len(rows))
         pipeline_id = pipeline_id_for_cutoff(db, run_id=run_id, market_cutoff=market_cutoff)
+        if market_cutoff.cutoff_reason == "CERI_POST_ACQUISITION_FROZEN" and isinstance(
+            db, Session
+        ):
+            from app.services.ceri.score_ownership import bound_pipeline_id
+
+            pipeline_id = db.scalar(select(bound_pipeline_id(run_id, market_cutoff.context_id)))
+            if pipeline_id is None or pipeline_id != expected_pipeline_id:
+                raise ValueError("CERI_CAPTURE_OWNER_MISMATCH")
+
+        if expected_pipeline_id is not None and pipeline_id != expected_pipeline_id:
+            raise ValueError("CERI_CAPTURE_OWNER_MISMATCH")
+        if pipeline_id is not None and isinstance(db, Session):
+            from app.models.tables import PipelineRun
+            from app.services.pipeline_execution_authority import (
+                require_pipeline_execution_authority,
+            )
+
+            require_pipeline_execution_authority(db.get(PipelineRun, pipeline_id))
+        if (
+            pipeline_id is not None
+            and isinstance(db, Session)
+            and market_cutoff.context_id is not None
+        ):
+            # Serialize the check-and-insert window across independent capture sessions.
+            from sqlalchemy import func
+
+            db.execute(select(func.pg_advisory_xact_lock(1128616521, market_cutoff.context_id)))
         ibmi_candidates = _preload_ibmi_context(db, rows, cutoff_at, settings=settings)
         if progress_callback is not None:
             progress_callback("PREPARING_EXISTING_SNAPSHOTS", 0, len(rows))
@@ -765,16 +793,27 @@ class CeriRunCaptureService:
                         persistence_checkpoint,
                         len(rows),
                     )
+
                 def comparison_progress(item, completed, total):
                     if progress_callback is not None:
                         progress_callback(
-                            f"{item}:{completed}/{total}", persistence_checkpoint, len(rows),
+                            f"{item}:{completed}/{total}",
+                            persistence_checkpoint,
+                            len(rows),
                         )
 
                 _capture_score_comparisons(
-                    db, self, captured_snapshots, counts, run_id, market_cutoff,
-                    **({"progress_callback": comparison_progress}
-                       if progress_callback is not None else {}),
+                    db,
+                    self,
+                    captured_snapshots,
+                    counts,
+                    run_id,
+                    market_cutoff,
+                    **(
+                        {"progress_callback": comparison_progress}
+                        if progress_callback is not None
+                        else {}
+                    ),
                 )
                 if progress_callback is not None:
                     progress_callback(str(rows[-1].ticker), len(rows), len(rows))
@@ -880,9 +919,7 @@ def _certified_no_data_snapshot(
             "regime": bool(row.raw_json.get("market_regime")),
             "lifecycle": bool(row.raw_json.get("lifecycle_state")),
         },
-        alignment_context=_alignment_context(
-            db, row, run_id, upcoming_earnings=upcoming_earnings
-        ),
+        alignment_context=_alignment_context(db, row, run_id, upcoming_earnings=upcoming_earnings),
         evidence_lineage=lineage,
     )
     snapshot.calculation_context_id = market_cutoff.context_id
@@ -1012,6 +1049,13 @@ def _capture_delivery_bundle(db, bundle, run_id, market_cutoff):
                 ),
             )
             pipeline_ids = {row.pipeline_run_id for row in contexts if row.pipeline_run_id}
+            if market_cutoff.cutoff_reason == "CERI_POST_ACQUISITION_FROZEN":
+                from app.services.ceri.score_ownership import bound_pipeline_id
+
+                owner = db.scalar(select(bound_pipeline_id(run_id, market_cutoff.context_id)))
+                if owner is None:
+                    raise ValueError("CERI_CAPTURE_OWNER_MISMATCH")
+                pipeline_ids.add(owner)
             keys.extend("pipeline:" + str(value) for value in pipeline_ids)
             bundle.load(PipelineRun, select(PipelineRun).where(PipelineRun.id.in_(pipeline_ids)))
         bundle.load(
@@ -1084,7 +1128,9 @@ def _capture_score_comparisons(
                 new_change_ids.update(changes.change_ids)
             if progress_callback is not None:
                 progress_callback(
-                    f"COMPARISON_COMPLETED:{snapshot.ticker}", index, len(snapshots),
+                    f"COMPARISON_COMPLETED:{snapshot.ticker}",
+                    index,
+                    len(snapshots),
                 )
     if new_change_ids:
         alert_bundle, new_changes = _capture_alert_bundle(
@@ -1618,22 +1664,6 @@ def _upcoming_earnings_for_companies(
     }
 
 
-def _existing_snapshot(
-    db: Session,
-    run_id: int,
-    company_id: int,
-    config,
-) -> CeriScoreSnapshot | None:
-    return _maybe_scalar(
-        db,
-        select(CeriScoreSnapshot)
-        .where(CeriScoreSnapshot.run_id == run_id)
-        .where(CeriScoreSnapshot.company_id == company_id)
-        .where(CeriScoreSnapshot.config_hash == config.config_hash)
-        .where(CeriScoreSnapshot.calculation_version == config.engine.calculation_version),
-    )
-
-
 def _existing_snapshot_company_ids(
     db: Session,
     run_id: int,
@@ -1644,29 +1674,56 @@ def _existing_snapshot_company_ids(
 ) -> set[int]:
     if not company_ids:
         return set()
-    rows = _scalars(
-        db,
-        select(CeriScoreSnapshot)
-        .where(CeriScoreSnapshot.run_id == run_id)
-        .where(CeriScoreSnapshot.company_id.in_(sorted(company_ids)))
-        .where(CeriScoreSnapshot.config_hash == config.config_hash)
-        .where(CeriScoreSnapshot.calculation_version == config.engine.calculation_version),
+    context_id = getattr(market_cutoff, "context_id", None)
+    statement = select(CeriScoreSnapshot).where(
+        CeriScoreSnapshot.run_id == run_id,
+        CeriScoreSnapshot.company_id.in_(sorted(company_ids)),
+        CeriScoreSnapshot.calculation_context_id == context_id,
+        CeriScoreSnapshot.controlled_replay_id.is_(None),
     )
+    if context_id is None:
+        statement = statement.where(
+            CeriScoreSnapshot.config_hash == config.config_hash,
+            CeriScoreSnapshot.calculation_version == config.engine.calculation_version,
+        )
+    rows = _scalars(db, statement)
     if market_cutoff is None:
         return {getattr(row, "company_id", row) for row in rows}
+    expected_tickers = {}
+    if isinstance(db, Session):
+        expected_tickers = dict(db.execute(
+            select(CeriCompany.id, CeriCompany.ticker).where(CeriCompany.id.in_(company_ids))
+        ).all())
     compatible: set[int] = set()
     for row in rows:
+        if expected_tickers and row.ticker != expected_tickers.get(row.company_id):
+            raise ValueError("CERI_SAME_CONTEXT_SUBJECT_MISMATCH")
+        if isinstance(db, Session):
+            from app.services.ceri.score_population import validate_score_seal
+
+            validate_score_seal(db, row)
+        if (
+            row.config_hash != config.config_hash
+            or row.calculation_version != config.engine.calculation_version
+        ):
+            raise ValueError("CERI_SAME_CONTEXT_CONFIGURATION_MISMATCH")
         identity = calculation_identity_from_debug(row.evidence_lineage_json)
         if identity is None:
             raise ValueError(
                 "CALCULATION_IDENTITY_REJECTED: consumer=CERI "
                 "producer=legacy CeriScoreSnapshot reason=LEGACY_UNKNOWN"
             )
+        if pipeline_id is not None and identity.ownership.pipeline_id.value != pipeline_id:
+            raise ValueError("CERI_SAME_CONTEXT_OWNER_MISMATCH")
         frozen = getattr(config, "_effective_configuration", None)
         if frozen is not None and identity.configuration != frozen.bind(identity).configuration:
-            # A new native input-selection policy is a new calculation, even
-            # when the compatibility row's historical raw config hash is equal.
-            continue
+            raise ValueError("CERI_SAME_CONTEXT_CONFIGURATION_MISMATCH")
+        if (
+            row.cutoff_at != market_cutoff.cutoff_at
+            or row.as_of_session != market_cutoff.latest_completed_session
+            or row.calendar_version != market_cutoff.calendar_version
+        ):
+            raise ValueError("CERI_SAME_CONTEXT_TEMPORAL_MISMATCH")
         expected = consumer_context_identity(
             market_cutoff=market_cutoff,
             run_id=run_id,

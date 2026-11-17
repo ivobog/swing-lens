@@ -1,0 +1,84 @@
+{
+  "base_revision": "db8bf10c4962062b68d578d458bc54f7933fff8d",
+  "branch": "codex/pipeline59-sector-memory-recovery",
+  "financial_configuration_file_changes": [],
+  "normalized_lf_product_sha256": {
+    "app/routers/run_routes.py": "32b6b0be634bee6f26f6dda96d0f5fd7624cd9b3bad6dd952b74313dbd7a6860",
+    "app/services/background_job_service.py": "3715fbca55270a90ed84d15683651d8a7aed63022cb6592c08e1737e80208cf3",
+    "app/services/canonical_evidence.py": "3cced68eeeb1119923b16f76dcd06c8aa3f881c41e0d604ffc934877b05eeaa1",
+    "app/services/contextual_calculation_identity.py": "1106f63bc80fa421477150fd216c707ca2945b680ce7a6a953d764ed62c146f3",
+    "app/services/core_calculation_evidence.py": "cca43cb92df1048ecaef3ee91db3549d85f83153de3b47f49e27c8a4dcda6abf",
+    "app/services/core_mutation_authority.py": "4b5419caab7b1b6cabd959a90a65fa7debd9a99be2d2ebf4156d12dd3a0d5ba7",
+    "app/services/pipeline_execution_authority.py": "d93df2574bfa3e6e86e78c23843851cb7db98e87d292866f92add7ec34836b7a",
+    "app/services/pipeline_executor.py": "364dfc463179c13b85ab09cea8fb152ceb63b44808270b4fa929d36bbaaf95df",
+    "app/services/sector_rotation_repository.py": "2a4fe961f0542da72878e3dc828546328f17051a33b8ceb30186a64a9f4c56c4",
+    "app/services/sector_rotation_service.py": "60a9002b92167a7a681e542ada53ccd31a01e1609250352607f1a0932717e9a8",
+    "app/services/sector_serialization.py": "3797fe82b9f5d0f9a46b69ed8e289b18d2f847e4f6687554bc813e48e840ee2e",
+    "app/services/sector_universe_service.py": "ed98ea83c372026ad9459ce2011f90196646433c099f6ba45c5132a87769a3b0",
+    "app/static/app.js": "5f7275d6c205c6fcbf7a75e0f1136204fc86490320fbcf77eb83e59e6ea6d55a",
+    "app/templates/pipeline_progress.html": "249bf0363b7b33d6116c5cd8922c44c726cd0040e3e9049b9430a119876529f9",
+    "app/worker_supervisor.py": "961dbfb5ef2727d3ab47785e51f30b857afc3c4fbfb0d21f8fdd87c3891fcbdb"
+  },
+  "validation": {
+    "focused_release_checks": {
+      "passed": 315,
+      "receipt": "release-final-checks.txt"
+    },
+    "current_architecture_registry": {
+      "result": "PASS",
+      "exceptions": 0,
+      "receipt": "registry-qualified.txt"
+    },
+    "native_writer_regressions": {
+      "base_passed": 20,
+      "hash_rollback_and_independence_passed": 3
+    },
+    "native_recovery_cases": {
+      "passed": 3,
+      "late_cancel_target_passed": 1
+    },
+    "native_universe_compaction_parity_and_release": {
+      "passed": 1
+    },
+    "observed_shape_transport": {
+      "passed": 1,
+      "peak_private_bytes": 842043392,
+      "scope": "Unsealed synthetic PostgreSQL transport; not financial publication"
+    },
+    "full_native_run": {
+      "result": "TIMEOUT",
+      "harness_limit_seconds": 3600,
+      "observed_peak_private_bytes": 3148247040,
+      "all_native_producers_committed": true,
+      "contiguous_full_pipeline_pass": false
+    },
+    "restored_native_466_company_continuation": {
+      "driver_result": "TIMEOUT_DURING_DOWNSTREAM_HANDOFF",
+      "committed_sector_independent_verification": "PASS",
+      "contiguous_full_pipeline_pass": false,
+      "published_sector_rows": 11,
+      "upstream_full_row_and_evidence_digests_preserved": true,
+      "frozen_owner_binding_and_cutoff_preserved": true,
+      "native_seal_child_values_and_wire_hash_parity": true,
+      "worker_external_sampled_peak_private_bytes": 3494543360,
+      "worker_sampling_interval_seconds": 1,
+      "worker_internal_final_peak_available": false,
+      "separate_verifier_sampled_peak_private_bytes": 1286516736,
+      "receipts": [
+        "restored-sector-resume-timeout.json",
+        "restored-sector-resume-verify.json",
+        "restored-worker-observed-memory.json"
+      ]
+    },
+    "pipeline_59_frozen_configuration_compatibility": {
+      "result": "PASS",
+      "read_only": true,
+      "receipt": "frozen-configuration-compatibility.json"
+    },
+    "baseline_limitations": {
+      "unchanged_ceri_ibmi_unit_failures": 4,
+      "receipt": "baseline-contextual-unit.txt",
+      "historical_t14a_review_fixture": "Absent from baseline; current source-adoption check passes"
+    }
+  }
+}

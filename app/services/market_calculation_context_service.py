@@ -820,12 +820,19 @@ def assert_pipeline_calculation_context(
     pipeline_run_id: int,
     upload_run_id: int,
     supplied_context: MarketCalculationCutoff | None,
+    context_role: str = "MAIN",
 ) -> MarketCalculationCutoff:
+    if context_role not in {"MAIN", "CERI"}:
+        raise PipelineCalculationContextError("Unknown pipeline calculation context role.")
     if supplied_context is None:
         raise PipelineCalculationContextError(
             "Pipeline-owned operation is missing its frozen market calculation context."
         )
-    authoritative = resolve_pipeline_market_context(
+    dedicated_ceri = (
+        context_role == "CERI" and supplied_context.cutoff_reason == "CERI_POST_ACQUISITION_FROZEN"
+    )
+    resolver = resolve_pipeline_ceri_context if dedicated_ceri else resolve_pipeline_market_context
+    authoritative = resolver(
         db,
         calculation_context_id=supplied_context.context_id,
         upload_run_id=upload_run_id,
@@ -834,6 +841,14 @@ def assert_pipeline_calculation_context(
         expected_latest_completed_session=supplied_context.latest_completed_session,
         expected_calendar_version=supplied_context.calendar_version,
     )
+    if dedicated_ceri:
+        from app.services.ceri.score_ownership import bound_pipeline_id
+
+        if (
+            db.scalar(select(bound_pipeline_id(upload_run_id, supplied_context.context_id)))
+            != pipeline_run_id
+        ):
+            raise PipelineCalculationContextError("Dedicated CERI context owner binding mismatch.")
     if (
         supplied_context.exchange_timezone != authoritative.exchange_timezone
         or supplied_context.daily_bar_ready_at != authoritative.daily_bar_ready_at

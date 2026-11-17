@@ -1,0 +1,14 @@
+2026-11-16T12:16:34.857195+00:00 valid claim; still running
+2026-11-16T12:16:54.949387+00:00 valid claim; still running
+2026-11-16T12:17:15.066916+00:00 valid claim; still running
+2026-11-16T12:17:35.129184+00:00 valid claim; still running
+2026-11-16T12:17:55.198111+00:00 valid claim; still running
+2026-11-16T12:18:15.312967+00:00 valid claim; still running
+2026-11-16T12:18:35.404199+00:00 valid claim; still running
+2026-11-16T12:18:55.480125+00:00 valid claim; still running
+2026-11-16T12:19:15.574080+00:00 valid claim; still running
+2026-11-16T12:19:35.647069+00:00 valid claim; still running
+2026-11-16T12:19:55.780663+00:00 valid claim; still running
+2026-11-16T12:20:17.915377+00:00 valid claim; still running
+verified disposable database before Alembic: database=swinglens_qa_ceri_context_1794788997961 server=127.0.0.1/32:5432 url=postgresql+psycopg://<restricted:userinfo>@127.0.0.1:5432/swinglens_qa_ceri_context_1794788997961
+Stopped expired QA claim and retained BLOCKED environment evidence

@@ -288,6 +288,11 @@ def execute_normalize_batch_job(
                 except CeriNormalizationCancelled as exc:
                     raise CancelRequested(str(exc)) from exc
                 results[ticker] = result.as_dict()
+            if processing.status == "PARTIAL":
+                conflicts = [row for row in (processing.errors_json or {}).get("records", [])
+                             if row.get("reason") in {"identity_ambiguous", "identity_unresolved"}]
+                if conflicts:
+                    results[ticker]["identity_rejections"] = conflicts
             failed += int(results[ticker].get("failed") or 0)
         completed.add(ticker)
         _save_checkpoint(
@@ -785,11 +790,6 @@ def _require_terminal_stage(
             )
         )
     )
-    if (expected and len(jobs) != expected) or not jobs:
-        raise JobDeferred(
-            f"waiting for {job_type} creation",
-            delay_seconds=retry_seconds,
-        )
     if any(job.status not in TERMINAL_JOB_STATUSES for job in jobs):
         raise JobDeferred(
             f"waiting for terminal {job_type} batches",
@@ -806,6 +806,11 @@ def _require_terminal_stage(
                 "upstream_job_type": job_type,
                 "jobs": [{"job_id": row.id, "status": row.status} for row in unsuccessful],
             },
+        )
+    if (expected and len(jobs) != expected) or not jobs:
+        raise JobDeferred(
+            f"waiting for {job_type} creation",
+            delay_seconds=retry_seconds,
         )
 
 

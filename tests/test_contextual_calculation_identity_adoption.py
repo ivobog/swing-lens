@@ -443,6 +443,11 @@ def test_ceri_uses_compatible_global_ibmi_and_skips_newer_incompatible(
     assert decisions[edge]["producer_readiness"]["status"] == "UNKNOWN"
     ready = ibmi_feature(
         module,
+        classification=compatible.classification,
+        score=compatible.score,
+        components_json=compatible.components_json,
+        calculation_version=config.calculation_version,
+        source_version=config.source_version,
         config_hash=config.config_hash,
         calculation_cutoff_at=cutoff.cutoff_at,
         calendar_version=cutoff.calendar_version,
@@ -455,8 +460,9 @@ def test_ceri_uses_compatible_global_ibmi_and_skips_newer_incompatible(
         as_of_session=cutoff.latest_completed_session,
         market_cutoff=cutoff,
         ibmi_config=config,
+        decisions=decisions,
     )
-    assert selected is not None and selected.id == ready.id
+    assert selected is not None and selected.id == ready.id, decisions[edge]
     assert selected.source_identity.ownership.run_id.state.name == "NOT_APPLICABLE"
 
 
@@ -487,9 +493,18 @@ def test_ceri_omits_ibmi_with_unknown_cutoff(monkeypatch) -> None:
 
 def test_ceri_legacy_result_is_not_silently_reused_or_upgraded() -> None:
     legacy_lineage = {"legacy": True}
+    config = load_ceri_config()
+    cutoff = _cutoff(context_id=42)
     row = SimpleNamespace(
+        run_id=7,
         company_id=55,
         ticker="MSFT",
+        config_hash=config.config_hash,
+        calculation_version=config.engine.calculation_version,
+        calculation_context_id=cutoff.context_id,
+        cutoff_at=cutoff.cutoff_at,
+        as_of_session=cutoff.latest_completed_session,
+        calendar_version=cutoff.calendar_version,
         evidence_lineage_json=legacy_lineage,
     )
 
@@ -498,8 +513,8 @@ def test_ceri_legacy_result_is_not_silently_reused_or_upgraded() -> None:
             _RowsDb([row]),
             7,
             {55},
-            load_ceri_config(),
-            market_cutoff=_cutoff(context_id=42),
+            config,
+            market_cutoff=cutoff,
             pipeline_id=3,
         )
 
@@ -542,6 +557,7 @@ def test_revised_calendar_does_not_admit_legacy_ibmi_identity(monkeypatch, modul
     )
     legacy = ibmi_feature(
         module, config_hash=config.config_hash, calculation_cutoff_at=cutoff.cutoff_at,
+        calculation_version=config.calculation_version, source_version=config.source_version,
         calendar_version=LEGACY_CALENDAR_VERSION,
         as_of_session=cutoff.latest_completed_session,
     )
@@ -553,6 +569,7 @@ def test_revised_calendar_does_not_admit_legacy_ibmi_identity(monkeypatch, modul
     assert legacy.calendar_version == LEGACY_CALENDAR_VERSION
     current = ibmi_feature(
         module, config_hash=config.config_hash, calculation_cutoff_at=cutoff.cutoff_at,
+        calculation_version=config.calculation_version, source_version=config.source_version,
         calendar_version=cutoff.calendar_version,
         as_of_session=cutoff.latest_completed_session,
     )

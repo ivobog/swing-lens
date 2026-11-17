@@ -35,6 +35,15 @@
         </button>
       </form>
       {% set market_readiness = pipeline_result.get('market_data_session_readiness') or {} %}
+      <form method="post" action="/runs/{{ run.id }}/pipeline/{{ pipeline.pipeline_run_id }}/recover-with-gaps"
+            data-loading-form data-pipeline-recover-gaps
+            data-confirm="Start a new run with the same companies and allow reported company-specific data gaps? The original run will remain available."
+            {% if not (pipeline.status == 'BLOCKED' and pipeline.current_step == 'FETCHING_MARKET_DATA') %}hidden{% endif %}>
+        <button type="submit" data-loading-label="Queuing recovery run...">Start new run with data gaps</button>
+      </form>
+      <a class="button-link secondary" data-pipeline-history-repair
+         href="/runs/{{ run.id }}/pipeline/{{ pipeline.pipeline_run_id }}/history-gaps"
+         {% if not (is_terminal and pipeline_result.get('market_data_history_gap_count')) %}hidden{% endif %}>Review missing history</a>
       <form method="post" action="/runs/{{ run.id }}/pipeline/{{ pipeline.pipeline_run_id }}/partial"
             data-loading-form data-pipeline-partial
             data-confirm="Start a new partial run with the listed missing tickers excluded from scoring and ranking? The original pipeline will stay blocked."
@@ -45,6 +54,26 @@
     </div>
   </div>
 
+  {% set availability = pipeline_result.get('market_data_availability') or {} %}
+  <div class="alert section-gap" role="status" data-pipeline-market-gaps
+       {% if not availability.get('unavailable_tickers') and not availability.get('history_gap_tickers') %}hidden{% endif %}>
+    <strong>Market-data gaps</strong><br>
+    Unavailable: <span data-pipeline-market-unavailable>{{ (availability.get('unavailable_tickers') or [])|join(', ') or 'None' }}</span>.<br>
+    Incomplete history: <span data-pipeline-market-history-gaps>{{ (availability.get('history_gap_tickers') or [])|join(', ') or 'None' }}</span>.<br>
+    <span data-pipeline-market-gap-explanation>{% if availability.get('continued_with_gaps') %}Other companies continue. Affected calculations remain incomplete where required data is missing.{% else %}The run retains each company's data-availability result.{% endif %}</span>
+  </div>
+  <ul data-pipeline-market-gap-details>
+    {% for ticker, item in (market_readiness.get('tickers') or {}).items() %}
+      {% if item.get('history_gap_count') or item.get('disposition') not in ['READY', 'TERMINAL_INACTIVE'] %}
+        {% set returned_dates = (item.get('provider_results') or [])|map(attribute='actual_end_date')|select|sort|list %}
+        <li>{{ ticker }}: {{ item.get('reason_message') or item.get('reason_code', 'Data unavailable')|replace('_', ' ') }}
+          {% if item.get('missing_sessions') %}Missing days: {{ item.missing_sessions|join(', ') }}.{% endif %}
+          Returned through {{ returned_dates|last if returned_dates else 'unavailable' }};
+          available through {{ item.get('latest_bar_session') or 'unavailable' }}.</li>
+      {% endif %}
+    {% endfor %}
+  </ul>
+
   {% set partial = pipeline_result.get('partial_scope') or {} %}
   <div class="alert section-gap" role="status" data-pipeline-partial-coverage {% if not partial %}hidden{% endif %}>
     <strong>Partial coverage</strong>:
@@ -54,6 +83,26 @@
     This run remains incomplete for the original universe.
   </div>
 
+  {% set waiting = pipeline.dependency_wait or {} %}
+  <div class="panel section-gap" role="status" data-pipeline-dependency-wait {% if not waiting %}hidden{% endif %}>
+    Waiting for <span data-pipeline-prerequisite-label>{{ waiting.get('label', '') }}</span>:
+    <span data-pipeline-prerequisite-unfinished>{{ waiting.get('unfinished_batches', 0) }}</span> unfinished batches.
+    Waiting job age: <span data-pipeline-prerequisite-age>{{ waiting.get('age_seconds', 0) }}</span> seconds.
+    Previous dependency deferrals: <span data-pipeline-deferral-count>{{ pipeline.dependency_deferral_count or 0 }}</span>.
+    Worker activity does not count as processing progress.
+  </div>
+  <div class="alert section-gap" role="status" data-pipeline-deferral-warning {% if not pipeline.dependency_deferral_warning %}hidden{% endif %}>
+    This job has repeatedly waited for the same prerequisite. Processing has not advanced.
+  </div>
+  {% set sector = pipeline.sector_progress or {} %}
+  <div class="panel section-gap" role="status" data-pipeline-sector-operation {% if not sector %}hidden{% endif %}>
+    <strong>Sector operation:</strong> <span data-pipeline-sector-label>{{ sector.get('label', '') }}</span>.
+    <span data-pipeline-sector-count>{{ sector.get('progress_label') or (sector.get('processed', 0)|string ~ ' / ' ~ sector.get('total', 0)|string) }}</span>
+    <span data-pipeline-sector-age>{% if sector.get('phase_elapsed_ms') is not none %} · {{ (sector.get('phase_elapsed_ms', 0) / 1000)|round|int }} seconds in this operation{% endif %}</span>.
+    Each operation has its own count. The pipeline continues until all steps finish.
+    <br>Last processing progress: <span data-pipeline-business-age>{{ pipeline.business_progress_age_seconds if pipeline.business_progress_age_seconds is not none else 'Unknown' }}</span> seconds ago.
+    Worker heartbeat: <span data-pipeline-heartbeat-age>{{ pipeline.worker_heartbeat_age_seconds if pipeline.worker_heartbeat_age_seconds is not none else 'Unknown' }}</span> seconds ago.
+  </div>
   <div class="run-meta">
     <span class="status-pill" data-pipeline-status>{{ pipeline.status }}</span>
     <span>Created <span data-pipeline-created>{{ pipeline.created_at or "" }}</span></span>
@@ -72,9 +121,11 @@
     class="alert section-gap"
     role="status"
     data-pipeline-worker-health
-    {% if pipeline.job_status not in ['STALLED', 'RECOVERING'] %}hidden{% endif %}
+    {% if not pipeline.recovery_message and pipeline.job_status not in ['STALLED', 'RECOVERING'] %}hidden{% endif %}
   >
-    {% if pipeline.job_status == 'STALLED' %}
+    {% if pipeline.recovery_message %}
+      {{ pipeline.recovery_message }}
+    {% elif pipeline.job_status == 'STALLED' %}
       The worker process was fenced because this job stopped making useful progress.
     {% else %}
       Automatic recovery is in progress from the last durable checkpoint.
@@ -85,6 +136,16 @@
   {% set show_sec_repair = pipeline.status == 'PREPARING' or (pipeline.status == 'WAITING_DEPENDENCY' and pipeline_result.get('dependency_type') == 'SEC_READINESS') %}
   {% set readiness = blocked.get('readiness') or {} %}
   {% set processor = blocked.get('processor') or {} %}
+  {% set coverage_readiness = (pipeline_result.get('sec_preflight') or {}).get('readiness') or readiness %}
+  {% set sec_exemptions = (coverage_readiness.get('tickers') or [])|selectattr('category', 'equalto', 'SEC_NOT_APPLICABLE')|list %}
+  {% set sec_gaps = pipeline_result.get('sec_unresolved_tickers', (pipeline_result.get('sec_coverage') or {}).get('gaps') or []) %}
+  <div class="alert section-gap" role="status" data-pipeline-sec-coverage {% if not sec_exemptions and not sec_gaps %}hidden{% endif %}>
+    <strong>SEC guidance coverage limitations</strong>
+    <ul data-pipeline-sec-coverage-details>
+      {% for item in sec_exemptions %}<li>{{ item.ticker }}: {{ item.reason }}</li>{% endfor %}
+      {% for item in sec_gaps %}<li>{{ item.ticker }}: SEC identity unresolved. {{ item.reason }} Other eligible processing continues; SEC guidance remains unavailable.</li>{% endfor %}
+    </ul>
+  </div>
   {% set market_blocked = pipeline.current_step == 'FETCHING_MARKET_DATA' %}
   {% set market_readiness = pipeline_result.get('market_data_session_readiness') or {} %}
     <div class="alert section-gap" role="alert" data-pipeline-blocked {% if pipeline.status != 'BLOCKED' %}hidden{% endif %}>

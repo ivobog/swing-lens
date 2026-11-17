@@ -29,3 +29,8 @@ docs/testing/golden-provenance/a05b-r4/** -text
 /config/technical_scoring_v5.yaml -text
 /config/technical_v51_research.yaml -text
 /config/winner_probability.yaml -text
+
+# Preserve the exact bytes of the sealed CERI certification and delivery.
+/docs/remediation/ceri-context-116/** -text -whitespace
+/artifacts/ceri-context-116-remediation/** -text -whitespace
+/docs/remediation/ceri-context-116-publication/** -text -whitespace

@@ -1,0 +1,30 @@
+{
+  "scope_id": "64e85af7ad2fd70281a845671b1b3de85f5121242a7c35f9aa1c7794465eab29",
+  "production_read_only": {
+    "scope": [
+      "full-pipeline-run",
+      "ticker",
+      "FROZEN",
+      "855319c5190d1c8ac7c903ec93eb1afc39942f9baac6016d55c46e3174e02b21",
+      "c3961f00219df7867f441f211e123624"
+    ],
+    "member_counts": [
+      [
+        "TICKER",
+        447
+      ]
+    ],
+    "member_rows_md5": "4a7be91ac8c27e6c5a12e1ed9b57c9c1"
+  },
+  "disposable": {
+    "scope": [
+      "full-pipeline-run",
+      "ticker",
+      "FROZEN",
+      "855319c5190d1c8ac7c903ec93eb1afc39942f9baac6016d55c46e3174e02b21",
+      "c3961f00219df7867f441f211e123624"
+    ],
+    "member_counts": [],
+    "member_rows_md5": "d751713988987e9331980363e24189ce"
+  }
+}

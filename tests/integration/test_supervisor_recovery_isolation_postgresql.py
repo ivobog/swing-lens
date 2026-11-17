@@ -255,6 +255,10 @@ def test_certification_supervisor_reconciles_each_owned_job_independently(
         assert _snapshot(rows["unrelated_cancel"]) == before_unrelated_cancel
         assert rows["authorized"].status == JobStatus.RECOVERING
         assert rows["authorized"].recovery_count == 3
+        liveness = rows["authorized"].operational_metadata_json["last_worker_liveness"]
+        assert liveness["decision"] == "WORKER_PROCESS_EXITED"
+        assert liveness["registered_pid"] == 90001
+        assert liveness["fenced_at"]
         assert rows["authorized_cancel"].status == JobStatus.CANCELLED
         assert rows["authorized_cancel"].requested_cancel is True
         assert rows["authorized_cancel"].recovery_count == 2

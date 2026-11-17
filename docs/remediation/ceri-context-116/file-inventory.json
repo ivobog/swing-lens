@@ -1,0 +1,240 @@
+{
+  "baseline": "6d6952feec93adb9dd62635e41d299e3749b4819",
+  "files": [
+    {
+      "path": "alembic/versions/20261116_0096_ceri_native_context.py",
+      "change": "added",
+      "sha256": "76c29d0d69767663216538eb12d8c4dd560ddba70305893ad0d371d4a4aa7dff",
+      "bytes": 2137
+    },
+    {
+      "path": "app/models/ceri_tables.py",
+      "change": "modified",
+      "sha256": "4b9a56606b0e89a3b327826a431b88a02f1bad33ff8525798c803aaeec9c0f82",
+      "bytes": 72083
+    },
+    {
+      "path": "app/services/ceri/capture_service.py",
+      "change": "modified",
+      "sha256": "3e4eaa94b7eab25eba4ac505bb2cd8b254ce175d4f40c63a9e5c7756b5a08db8",
+      "bytes": 86995
+    },
+    {
+      "path": "app/services/ceri/change_rebuild_service.py",
+      "change": "modified",
+      "sha256": "e51ef701c24467cf3fe17f90eef4fdfa7574d085fa481d689dac1a697bf41a78",
+      "bytes": 32828
+    },
+    {
+      "path": "app/services/ceri/evidence_eligibility.py",
+      "change": "modified",
+      "sha256": "88c8356a1e811a8c9a0a1814b097f2e606032e261a9ddb7d9553afb6ab7a324f",
+      "bytes": 10508
+    },
+    {
+      "path": "app/services/ceri/job_handlers.py",
+      "change": "modified",
+      "sha256": "6c275245360ce3d04dc44b7b5048974164c40299786acd6dd70847634e19ac2d",
+      "bytes": 59049
+    },
+    {
+      "path": "app/services/ceri/pipeline_containment_service.py",
+      "change": "modified",
+      "sha256": "526322934376f66ec7537a2d87dbd340352e4a93b6f91aa28c0a71a83b6488b2",
+      "bytes": 7021
+    },
+    {
+      "path": "app/services/ceri/score_ownership.py",
+      "change": "added",
+      "sha256": "eb57eedd2c010d695b36f213523486524df17e1a13b00a73b81b07fa60ae39dd",
+      "bytes": 1204
+    },
+    {
+      "path": "app/services/ceri/score_population.py",
+      "change": "added",
+      "sha256": "3a1949dc97e93a165a2212000823a921c6df85512156db5d258034150b80fc23",
+      "bytes": 10570
+    },
+    {
+      "path": "app/services/ceri/snapshot_service.py",
+      "change": "modified",
+      "sha256": "6549f4e291881483e09fae46c57fa1205b1e48f9a0a880db2bebea600c451af4",
+      "bytes": 16378
+    },
+    {
+      "path": "app/services/core_mutation_authority.py",
+      "change": "modified",
+      "sha256": "7acdf1b12fcee2370ff9968166b508d2fbfff335028bb26a66b550d9f59bfbe1",
+      "bytes": 91420
+    },
+    {
+      "path": "app/services/decision_mutation_authority.py",
+      "change": "modified",
+      "sha256": "ab017f14dc6e45f0fc66b444a352d95cb82d6c50cba368adbecd32a1a78f775a",
+      "bytes": 57784
+    },
+    {
+      "path": "app/services/market_calculation_context_service.py",
+      "change": "modified",
+      "sha256": "5091564937fd0f0be6175304278992e505a7987e9ec307c7a6baaae5ea310d63",
+      "bytes": 41969
+    },
+    {
+      "path": "app/services/pipeline_executor.py",
+      "change": "modified",
+      "sha256": "9e35db9028dc56388511d698bdf3a7c1f7cc817cb3284b9bdd219c5c3629a572",
+      "bytes": 194793
+    },
+    {
+      "path": "app/services/pipeline_service.py",
+      "change": "modified",
+      "sha256": "4ccdf1e807411fca176d34b4c46aea47602b9e702db960ea5b32b6a0ba756f98",
+      "bytes": 79784
+    },
+    {
+      "path": "app/services/pipeline_state_machine.py",
+      "change": "modified",
+      "sha256": "1841ed1b0a025fd38a6eb69fa3a0d2eefd2ffa57cdd5ceaebb3bf83100f961a4",
+      "bytes": 6459
+    },
+    {
+      "path": "app/services/transition_preflight_plan_service.py",
+      "change": "modified",
+      "sha256": "56c72d259e5788321852075cc105e420ce3f0f99d51212eae192aabb1c041741",
+      "bytes": 68661
+    },
+    {
+      "path": "scripts/qa/ceri_certification_postflight.py",
+      "change": "added",
+      "sha256": "c06ac7780fa253856f3180b5e05f5ec945d512a52f951a9bbfc86d509c6b2b1c",
+      "bytes": 10661
+    },
+    {
+      "path": "scripts/qa/ceri_context_116_certification.py",
+      "change": "added",
+      "sha256": "d104830c206e8084f75c8398576b14e6484891fa96b260f7903ca10019b26320",
+      "bytes": 33452
+    },
+    {
+      "path": "scripts/qa/ceri_context_116_continuation.py",
+      "change": "added",
+      "sha256": "4ae613071637b4f3fd8e48579e89d82b6324bb4cce48bbae23481e86d7e99417",
+      "bytes": 11992
+    },
+    {
+      "path": "scripts/qa/ceri_handoff_fixture_completion.py",
+      "change": "added",
+      "sha256": "95406e29d95bb385500418afe0c46195cc80cae0f17e38416b6ad0bd268afc85",
+      "bytes": 8425
+    },
+    {
+      "path": "scripts/qa/ceri_historical_fixture_closure.py",
+      "change": "added",
+      "sha256": "816d33ae63f54472118ad1a4fde77b48b5cd526fb1b8e98d9a079affd90a23c9",
+      "bytes": 10056
+    },
+    {
+      "path": "scripts/qa/ceri_scope_fixture_completion.py",
+      "change": "added",
+      "sha256": "2d09b8a8bf897b4812bddf9560e96435d19277d5ec98081c269147f918ce21e5",
+      "bytes": 8338
+    },
+    {
+      "path": "scripts/qa/ceri_validation_environment.py",
+      "change": "added",
+      "sha256": "43e0ba6da1408ad6a53ee82d7b30ca155b38445b82dfee7a26cbd9817fefd000",
+      "bytes": 11948
+    },
+    {
+      "path": "tests/ceri/test_ceri_acceptance_fixture.py",
+      "change": "modified",
+      "sha256": "b7668bfb8a4d35fedc23891523894827fc2c44b2c115c15ff2152673a6c2c08f",
+      "bytes": 10218
+    },
+    {
+      "path": "tests/ceri/test_ceri_schema.py",
+      "change": "modified",
+      "sha256": "12cedd0177d0f4fae54b571c865f47a0807300b661aeeaf8ad8fdcac6604b9fa",
+      "bytes": 15083
+    },
+    {
+      "path": "tests/ceri/test_native_score_identity.py",
+      "change": "added",
+      "sha256": "ff718ff20cb884f0c9842a4d591681fc20c5988c7b2641a53e9c62aca3f6576c",
+      "bytes": 2759
+    },
+    {
+      "path": "tests/ceri/test_sec_processor_lifecycle.py",
+      "change": "modified",
+      "sha256": "e978473c99286e46e10e00acdd22237d879573d5f92a0a4c416b9820070eced9",
+      "bytes": 10419
+    },
+    {
+      "path": "tests/ceri/test_t15d_residual_findings.py",
+      "change": "modified",
+      "sha256": "62442c058ec41ba785f4c5115b9b9e09f607fc92c36f057823c30c033b73511b",
+      "bytes": 12725
+    },
+    {
+      "path": "tests/ceri/test_wave1_p0.py",
+      "change": "modified",
+      "sha256": "62fdb0d5d97d50c02f0aa8535fc9705aa1e3a5974f82251a8f6efd76fa6cc55d",
+      "bytes": 31293
+    },
+    {
+      "path": "tests/integration/test_ceri_batched_workflow_v2.py",
+      "change": "modified",
+      "sha256": "8b7c8fd4fb14804482c4e52336c48f3671ea7463168490384a8be7c240270352",
+      "bytes": 83952
+    },
+    {
+      "path": "tests/integration/test_ceri_change_rebuild_scoping_postgresql.py",
+      "change": "modified",
+      "sha256": "5d11facc0760f316c8b8188608bc21e70a5768696d35eed8a9981f499e2ab514",
+      "bytes": 13240
+    },
+    {
+      "path": "tests/integration/test_ceri_context_uniqueness.py",
+      "change": "added",
+      "sha256": "cf7ef11678280b65b4182f095c016c8c1888d49b71e37e324189e89358c49cef",
+      "bytes": 2869
+    },
+    {
+      "path": "tests/integration/test_ceri_dedicated_change_authority.py",
+      "change": "added",
+      "sha256": "01aebcc4d796e38a73ddcd4157a03e964cba979007c3df3c467d7edd7b03b30f",
+      "bytes": 7340
+    },
+    {
+      "path": "tests/integration/test_ceri_pipeline_completion_barrier.py",
+      "change": "modified",
+      "sha256": "c802a0cd44731fb2d2c61b85410fd67a8523d324fea70950a2a4d3362568620a",
+      "bytes": 13350
+    },
+    {
+      "path": "tests/integration/test_ceri_run_isolation_remediation.py",
+      "change": "modified",
+      "sha256": "4a0fe2d7d529c09e6cb55c6bba48da5e9752a72c7c34b9f68b0047c54b4e1b9e",
+      "bytes": 18525
+    },
+    {
+      "path": "tests/integration/test_ceri_systemic_remediation.py",
+      "change": "modified",
+      "sha256": "8ec2472fa0489203cff6f4742ff8c66666118504de237a75b980ea894f968a1e",
+      "bytes": 13276
+    },
+    {
+      "path": "tests/test_contextual_calculation_identity_adoption.py",
+      "change": "modified",
+      "sha256": "9228ab5507d2dd9fd2fb5b2fee2deeb60aab1bfcd4039d3c616463c3d92887aa",
+      "bytes": 27227
+    },
+    {
+      "path": "tests/test_pipeline_recovery_transition.py",
+      "change": "added",
+      "sha256": "678ee58b9c5eed0f82c107a0de602fa89c93a69ab3127511ae549b79ecb485c5",
+      "bytes": 568
+    }
+  ],
+  "patch_sha256": "a9dc89974885a8519966d353fee38a600047b4e7c285d7718ffd6b97647282e1"
+}

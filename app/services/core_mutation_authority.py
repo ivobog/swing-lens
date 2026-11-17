@@ -6,11 +6,14 @@ the identity, configuration, exact sources and manifest that it is writing.
 
 from __future__ import annotations
 
+from collections import OrderedDict
+from collections.abc import MutableMapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import wraps
 from inspect import signature
+from sys import getsizeof
 
 from sqlalchemy.orm import Session, object_session
 
@@ -40,6 +43,9 @@ from app.services.producer_readiness import readiness_from_evidence
 _active_writers = ContextVar("core_mutation_semantic_transactions", default=())
 _coalesced_writer_sessions = ContextVar("coalesced_core_writer_sessions", default=())
 _sector_source_records = ContextVar("sector_source_records", default=None)
+SECTOR_EVIDENCE_FETCH_BATCH_SIZE = 32
+SECTOR_EVIDENCE_RESIDENT_LIMIT = 64
+SECTOR_EVIDENCE_RESIDENT_BYTES = 64 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -149,7 +155,10 @@ def core_mutation_context(
                 )
             )
         for role, manifest in sorted(manifests.items()):
-            fingerprint = Canonical.fingerprint(manifest)
+            fingerprint = (
+                sector_payload_fingerprint(manifest, label=f"manifest:{role}")
+                if domain is MutationDomain.SECTOR else Canonical.fingerprint(manifest)
+            )
             pins.append(
                 MutationEvidenceReference(role, "native_manifest", fingerprint, fingerprint)
             )
@@ -236,11 +245,26 @@ def validate_core_mutation_authority(
                 market_calculation_context_fingerprint,
             )
 
+            if domain == MutationDomain.CERI:
+                from sqlalchemy import select
+
+                from app.models.tables import PipelineRun
+                from app.services.ceri.score_ownership import bound_pipeline_id
+                from app.services.pipeline_execution_authority import (
+                    require_pipeline_execution_authority,
+                )
+
+                require_pipeline_execution_authority(db.get(PipelineRun, context.pipeline_run_id))
+                if db.scalar(select(bound_pipeline_id(
+                    context.run_id, context.temporal.context_id
+                ))) != context.pipeline_run_id:
+                    raise ValueError("MUTATION_CERI_OWNER_BINDING_MISMATCH")
             authoritative = assert_pipeline_calculation_context(
                 db,
                 pipeline_run_id=context.pipeline_run_id,
                 upload_run_id=context.run_id,
                 supplied_context=context.temporal,
+                context_role="CERI" if domain == MutationDomain.CERI else "MAIN",
             )
             fingerprint = identity.calculation_context.context_fingerprint.value
             if fingerprint is None or fingerprint.digest != market_calculation_context_fingerprint(
@@ -360,7 +384,11 @@ def _validate_configuration(db, context, configuration):
 def _validate_evidence(evidence):
     if evidence is None:
         raise ValueError("MUTATION_SOURCE_EVIDENCE_MISSING")
-    if Canonical.fingerprint(evidence.payload_json) != evidence.payload_fingerprint:
+    if _sector_source_records.get() is not None or evidence.artifact_kind == "SECTOR":
+        observed = sector_payload_fingerprint(evidence.payload_json, label=f"source:{evidence.id}")
+    else:
+        observed = Canonical.fingerprint(evidence.payload_json)
+    if observed != evidence.payload_fingerprint:
         raise ValueError("MUTATION_SOURCE_PAYLOAD_FINGERPRINT_MISMATCH")
     identity = CalculationIdentity.from_canonical_payload(evidence.calculation_identity_json)
     if str(identity.fingerprint()) != evidence.calculation_identity_fingerprint:
@@ -440,6 +468,11 @@ def _validate_evidence(evidence):
         }
     ):
         raise ValueError("MUTATION_SOURCE_EVIDENCE_KEY_MISMATCH")
+
+
+def validate_evidence(evidence):
+    """Revalidate the full immutable payload, identity, configuration and evidence key."""
+    return _validate_evidence(evidence)
 
 
 def validate_source_configuration(db, identity, evidence, execution=None, cache=None):
@@ -848,6 +881,7 @@ def artifact_mutation_context(
     manifest = {}
     sector_evidence_rows = None
     sector_locked_source_rows = None
+    sector_permission_index = None
     if domain is MutationDomain.SETUP:
         from app.services.decision_mutation_authority import validate_setup_inputs
 
@@ -999,12 +1033,14 @@ def artifact_mutation_context(
         if not isinstance(envelope, dict):
             raise ValueError("MUTATION_SECTOR_NATIVE_INPUT_ENVELOPE_REQUIRED")
         require_payload_reference(identity, "sector-rotation-input-envelope", envelope)
+        sector_permission_index = _sector_permission_index(envelope["universe_rows"])
         sector_evidence_rows = validate_sector_manifest(
             db,
             identity,
             envelope,
             checkpoint_callback=checkpoint_callback,
             checkpoint_phase=checkpoint_phase,
+            permission_index=sector_permission_index,
         )
         source_evidence_ids = {
             source.evidence_id for source in sources.values() if source.evidence_id is not None
@@ -1079,10 +1115,16 @@ def artifact_mutation_context(
                     total=len(sources),
                     current_item=item,
                     last_completed_item=item if processed else None,
+                    metrics=sector_evidence_rows.load_metrics(),
                 )
 
     source_role_checkpoint(0, "started")
-    for source_index, (role, source) in enumerate(sources.items(), start=1):
+    source_visits = list(enumerate(sources.items()))
+    if domain is MutationDomain.SECTOR:
+        source_visits = [source_visits[index] for index in sector_evidence_visit_order(
+            [source.evidence_id for _, source in sources.items()]
+        )]
+    for source_index, (original_index, (role, source)) in enumerate(source_visits, start=1):
         evidence = (
             sector_evidence_rows.get(source.evidence_id)
             if sector_evidence_rows is not None
@@ -1127,7 +1169,7 @@ def artifact_mutation_context(
             if domain is not MutationDomain.SECTOR or not role.startswith("ranking:"):
                 raise ValueError("MUTATION_UNDECLARED_SOURCE_ROLE: " + role)
             validate_financial_source_context(identity, evidence)
-            validate_sector_permission(evidence, envelope["universe_rows"])
+            validate_sector_permission(evidence, envelope["universe_rows"], sector_permission_index)
             source_role_checkpoint(source_index, role, evidence.id)
             continue
         policy = MUTATION_AUTHORITY_POLICIES[domain]
@@ -1149,7 +1191,7 @@ def artifact_mutation_context(
                 )
                 if Canonical.dumps(expected_policy) != Canonical.dumps(observed_policy):
                     raise ValueError("MUTATION_TECHNICAL_POLICY_CORE_CONFIGURATION_MISMATCH")
-            permissions.append(mutation_eligibility(role, evidence, frozen))
+            permissions.append((original_index, mutation_eligibility(role, evidence, frozen)))
         source_role_checkpoint(source_index, role, evidence.id)
     context = core_mutation_context(
         db,
@@ -1158,14 +1200,17 @@ def artifact_mutation_context(
         configuration=configuration,
         sources=native_sources,
         manifests=manifest,
-        eligibility=tuple(permissions),
+        eligibility=tuple(value for _, value in sorted(permissions, key=lambda item: item[0])),
         entrypoint=type(current_row).__name__,
     )
     return context, native_sources, manifest
 
 
 def require_payload_reference(identity, kind, payload):
-    expected = Canonical.fingerprint(payload)
+    expected = (
+        sector_payload_fingerprint(payload, label=kind)
+        if kind == "sector-rotation-input-envelope" else Canonical.fingerprint(payload)
+    )
     if not any(
         ref.artifact_type == kind
         and ref.fingerprint.value is not None
@@ -1183,6 +1228,22 @@ def validate_financial_source_context(identity, evidence):
         or source.temporal != identity.temporal
     ):
         raise ValueError("MUTATION_SOURCE_CALCULATION_CONTEXT_MISMATCH")
+
+
+def _sector_permission_index(universe_rows):
+    index = {}
+    for universe in universe_rows:
+        frozen_permissions = universe.get("debug", {}).get("contextual_consumer_eligibility") or {}
+        for frozen in frozen_permissions.values():
+            evidence_id = (frozen.get("decision") or {}).get("producer_evidence_id")
+            if evidence_id is not None:
+                index.setdefault(evidence_id, []).append(frozen)
+    return index
+
+
+def sector_evidence_visit_order(evidence_ids):
+    """Visit bounded ID windows while callers retain original roles/output positions."""
+    return sorted(range(len(evidence_ids)), key=lambda index: (evidence_ids[index] or 0, index))
 
 
 def validate_sector_permission(evidence, universe_rows, permission_index=None):
@@ -1217,17 +1278,17 @@ def validate_sector_permission(evidence, universe_rows, permission_index=None):
 
 
 @contextmanager
-def sector_evidence_read_scope(db):
-    """Keep immutable inputs resident for one writer, Session and attempt.
+def sector_evidence_read_scope(db, *, checkpoint_callback=None):
+    """Bound immutable input residency to one writer, Session and attempt.
 
     This stores records, never successful validation or ownership decisions.
     Every pass still checks database existence and revalidates the full seals.
     """
     connection = db.connection(bind_arguments={"mapper": CoreCalculationEvidence})
-    records = {}
+    records = _SectorResidentRecords()
     token = _sector_source_records.set((
         db, db.get_transaction(), current_domain_write_ownership(),
-        connection, connection.get_transaction(), records,
+        connection, connection.get_transaction(), records, checkpoint_callback,
     ))
     try:
         yield
@@ -1236,40 +1297,225 @@ def sector_evidence_read_scope(db):
         _sector_source_records.reset(token)
 
 
-def _sector_evidence_rows(db, evidence_ids):
-    from sqlalchemy import inspect, select
-
-    def load(ids):
-        return {
-            row.id: row for row in db.scalars(
-                select(CoreCalculationEvidence).where(CoreCalculationEvidence.id.in_(tuple(ids)))
-            )
-        }
+def sector_payload_fingerprint(value, *, label="sector-payload"):
+    from app.services.sector_serialization import sector_hash_progress
 
     scope = _sector_source_records.get()
-    if not (
+    callback = scope[6] if scope is not None else None
+    return Canonical.fingerprint_streaming(
+        value, progress_callback=sector_hash_progress(callback, label),
+    )
+
+
+def _sector_resident_records(db):
+    scope = _sector_source_records.get()
+    if (
         scope is not None and scope[0] is db and scope[1] is db.get_transaction()
         and scope[2] == current_domain_write_ownership() and not scope[3].closed
         and scope[3] is db.connection(bind_arguments={"mapper": CoreCalculationEvidence})
         and scope[4] is scope[3].get_transaction()
     ):
-        return load(evidence_ids)
-    # A full ORM SELECT also retains already resident values without refreshing
-    # them. Check existence again, but avoid decoding their JSON a second time.
-    existing = set(db.scalars(
-        select(CoreCalculationEvidence.id).where(
-            CoreCalculationEvidence.id.in_(tuple(evidence_ids))
-        )
-    ))
-    records = scope[5]
-    columns = set(CoreCalculationEvidence.__mapper__.column_attrs.keys())
-    missing = {
-        key for key in existing
-        if key not in records or columns.intersection(inspect(records[key]).unloaded)
-    }
-    if missing:
-        records.update(load(missing))
-    return {key: records[key] for key in existing if key in records}
+        return scope[5]
+    return None
+
+
+def _decoded_evidence_size(row):
+    """Measure retained decoded values without creating another serialized document."""
+    pending = [row.calculation_identity_json, row.payload_json, row.source_evidence_ids_json]
+    seen = set()
+    size = getsizeof(row)
+    while pending:
+        value = pending.pop()
+        address = id(value)
+        if address in seen:
+            continue
+        seen.add(address)
+        size += getsizeof(value)
+        if isinstance(value, dict):
+            pending.extend(value.keys())
+            pending.extend(value.values())
+        elif isinstance(value, (list, tuple)):
+            pending.extend(value)
+    return size
+
+
+class _SectorResidentRecords(OrderedDict):
+    def __init__(self):
+        super().__init__()
+        self.decoded_bytes = 0
+        self._sizes = {}
+        self.evictions = 0
+
+    def retain(self, row):
+        size = _decoded_evidence_size(row)
+        if row.id in self:
+            self.pop(row.id)
+        if size > SECTOR_EVIDENCE_RESIDENT_BYTES:
+            return size
+        self[row.id] = row
+        self._sizes[row.id] = size
+        self.decoded_bytes += size
+        while (len(self) > SECTOR_EVIDENCE_RESIDENT_LIMIT
+               or self.decoded_bytes > SECTOR_EVIDENCE_RESIDENT_BYTES):
+            self.pop(next(iter(self)))
+            self.evictions += 1
+        return size
+
+    def pop(self, key, *default):
+        value = super().pop(key, *default)
+        self.decoded_bytes -= self._sizes.pop(key, 0)
+        return value
+
+    def clear(self):
+        super().clear()
+        self._sizes.clear()
+        self.decoded_bytes = 0
+
+
+class _SectorEvidenceRows(MutableMapping):
+    """Exact addresses with bounded decoded bodies; no validation results are retained."""
+
+    def __init__(self, db, evidence_ids):
+        self.db = db
+        self._ids = set(evidence_ids)
+        self._ordered = None
+        self._positions = {}
+        self._local_records = _SectorResidentRecords()
+        self._transaction = db.get_transaction()
+        self._ownership = current_domain_write_ownership()
+        self.peak_resident_count = 0
+        self.peak_resident_bytes = 0
+        self.full_load_batches = 0
+        self.body_rows_loaded = 0
+        self.decoded_body_bytes = 0
+        self.cache_hits = 0
+        self.cache_misses = 0
+
+    def load_metrics(self):
+        return {
+            "evidence_address_count": len(self._ids),
+            "evidence_bulk_load_count": self.full_load_batches,
+            "evidence_body_rows_loaded": self.body_rows_loaded,
+            "evidence_decoded_bytes_loaded": self.decoded_body_bytes,
+            "evidence_cache_hits": self.cache_hits,
+            "evidence_cache_misses": self.cache_misses,
+            "evidence_cache_evictions": self._records().evictions,
+            "evidence_peak_resident_count": self.peak_resident_count,
+            "evidence_peak_resident_bytes": self.peak_resident_bytes,
+        }
+
+    def _records(self):
+        shared = _sector_resident_records(self.db)
+        if shared is not None:
+            return shared
+        transaction = self.db.get_transaction()
+        ownership = current_domain_write_ownership()
+        if self._transaction is not transaction or self._ownership != ownership:
+            self._local_records.clear()
+            self._transaction = transaction
+            self._ownership = ownership
+        return self._local_records
+
+    @property
+    def resident_count(self):
+        return len(self._records())
+
+    @property
+    def resident_bytes(self):
+        return self._records().decoded_bytes
+
+    def _retain(self, records, row):
+        size = records.retain(row)
+        self.peak_resident_count = max(self.peak_resident_count, len(records))
+        self.peak_resident_bytes = max(self.peak_resident_bytes, records.decoded_bytes)
+        return size
+
+    def __getitem__(self, key):
+        from sqlalchemy import inspect, select
+
+        if key not in self._ids:
+            raise KeyError(key)
+        records = self._records()
+        columns = set(CoreCalculationEvidence.__mapper__.column_attrs.keys())
+
+        def loaded(address):
+            row = records.get(address)
+            return row is not None and not columns.intersection(inspect(row).unloaded)
+
+        if not loaded(key):
+            self.cache_misses += 1
+            if self._ordered is None:
+                self._ordered = sorted(self._ids)
+                self._positions = {address: index for index, address in enumerate(self._ordered)}
+            offset = self._positions[key] // SECTOR_EVIDENCE_FETCH_BATCH_SIZE
+            start = offset * SECTOR_EVIDENCE_FETCH_BATCH_SIZE
+            ids = [address for address in self._ordered[
+                start:start + SECTOR_EVIDENCE_FETCH_BATCH_SIZE
+            ] if not loaded(address)]
+            requested = None
+            for row in self.db.scalars(select(CoreCalculationEvidence).where(
+                CoreCalculationEvidence.id.in_(ids),
+            ).order_by(CoreCalculationEvidence.id)):
+                self.decoded_body_bytes += self._retain(records, row)
+                self.body_rows_loaded += 1
+                if row.id == key:
+                    requested = row
+            self.full_load_batches += 1
+            # A single large immutable body is validated by the caller without
+            # retaining it in the cache or decoding an additional full copy.
+            if requested is not None and not loaded(key):
+                return requested
+        else:
+            self.cache_hits += 1
+        if not loaded(key):
+            raise KeyError(key)
+        records.move_to_end(key)
+        return records[key]
+
+    def __setitem__(self, key, row):
+        if key != row.id:
+            raise ValueError("MUTATION_SOURCE_EVIDENCE_ADDRESS_MISMATCH")
+        self._ids.add(key)
+        self._ordered = None
+        self._retain(self._records(), row)
+
+    def __delitem__(self, key):
+        self._ids.remove(key)
+        self._ordered = None
+        self._records().pop(key, None)
+
+    def __iter__(self):
+        return iter(sorted(self._ids))
+
+    def __len__(self):
+        return len(self._ids)
+
+    def update(self, other=(), **kwargs):
+        if isinstance(other, _SectorEvidenceRows) and other.db is self.db:
+            self._ids.update(other._ids)
+            self._ordered = None
+        else:
+            super().update(other)
+        if kwargs:
+            super().update(kwargs)
+
+
+def sector_evidence_rows(db, evidence_ids):
+    """Recheck exact existence; decode immutable JSON only in small access windows.
+
+    Body, configuration, permission and ownership checks remain the caller's
+    responsibility on every pass, including after a body is reloaded or evicted.
+    """
+    from sqlalchemy import select
+
+    existing = set(db.scalars(select(CoreCalculationEvidence.id).where(
+        CoreCalculationEvidence.id.in_(tuple(evidence_ids)),
+    )))
+    return _SectorEvidenceRows(db, existing)
+
+
+def _sector_evidence_rows(db, evidence_ids):
+    return sector_evidence_rows(db, evidence_ids)
 
 
 def validate_sector_manifest(
@@ -1279,6 +1525,7 @@ def validate_sector_manifest(
     *,
     checkpoint_callback=None,
     checkpoint_phase=None,
+    permission_index=None,
 ):
     from sqlalchemy import select
 
@@ -1287,21 +1534,21 @@ def validate_sector_manifest(
     universe_rows = envelope["universe_rows"]
     manifests = []
     seen_manifest_fingerprints = set()
-    permission_index = {}
+    seen_manifest_objects = set()
+    if permission_index is None:
+        permission_index = _sector_permission_index(universe_rows)
     for universe in universe_rows:
         manifest = universe.get("debug", {}).get("native_source_manifest")
         if not isinstance(manifest, dict):
             raise ValueError("MUTATION_SECTOR_CONTRIBUTOR_MANIFEST_REQUIRED")
-        fingerprint = Canonical.fingerprint(manifest)
-        if fingerprint not in seen_manifest_fingerprints:
-            seen_manifest_fingerprints.add(fingerprint)
-            manifests.append(manifest)
-        for frozen in (
-            universe.get("debug", {}).get("contextual_consumer_eligibility") or {}
-        ).values():
-            evidence_id = (frozen.get("decision") or {}).get("producer_evidence_id")
-            if evidence_id is not None:
-                permission_index.setdefault(evidence_id, []).append(frozen)
+        # This loop has no callback or mutation: shared objects are fingerprinted
+        # once in this call, with no trust retained across validation passes.
+        if id(manifest) not in seen_manifest_objects:
+            seen_manifest_objects.add(id(manifest))
+            fingerprint = Canonical.fingerprint(manifest)
+            if fingerprint not in seen_manifest_fingerprints:
+                seen_manifest_fingerprints.add(fingerprint)
+                manifests.append(manifest)
 
     financial_pins = {}
     raw_pins = {}
@@ -1349,7 +1596,8 @@ def validate_sector_manifest(
 
     checkpoint("started")
     configuration_cache = {}
-    for evidence_id, pin in financial_pins.items():
+    for evidence_id in sorted(financial_pins):
+        pin = financial_pins[evidence_id]
         evidence = evidence_rows.get(evidence_id)
         _validate_evidence(evidence)
         validate_source_configuration(
@@ -1411,7 +1659,7 @@ def validate_sector_manifest(
             "manifest_traversal_count": len(manifests),
             "contributor_validation_count": total,
             "configuration_anchor_lookup_count": len(configuration_cache),
-            "evidence_bulk_load_count": len(evidence_rows),
+            **evidence_rows.load_metrics(),
             "raw_source_lock_count": len(raw_rows),
             "etf_source_lock_count": len(etf_sources),
             "evidence_source_lock_count": len(raw_rows) + len(etf_sources),
@@ -1553,7 +1801,7 @@ def validate_price_source_manifest(db, manifest, cutoff, session):
     from app.services.price_bar_repository import (
         _pipeline_acquisition_visibility,
         price_bar_pit_manifest_hash,
-        project_price_bar_rows_as_of,
+        project_acquisition_price_rows,
     )
 
     if (
@@ -1577,9 +1825,9 @@ def validate_price_source_manifest(db, manifest, cutoff, session):
         raise ValueError("MUTATION_PRICE_MANIFEST_SCOPE_MISMATCH")
     baseline = [row for row in rows if row.first_seen_at <= cutoff and row.created_at <= cutoff]
     acquired = [row for row in rows if row not in baseline]
-    projected = project_price_bar_rows_as_of(db, baseline, as_of=cutoff)
+    resolved = None
+    authority = manifest.get("acquisition_authority")
     if acquired:
-        authority = manifest.get("acquisition_authority")
         if not isinstance(authority, dict):
             raise ValueError("MUTATION_PRICE_ACQUISITION_AUTHORITY_REQUIRED")
         resolved = _pipeline_acquisition_visibility(
@@ -1588,20 +1836,13 @@ def validate_price_source_manifest(db, manifest, cutoff, session):
             ticker=manifest["ticker"],
             what_to_show=manifest["what_to_show"],
             timeframe=manifest["timeframe"],
+            receipt_hashes=tuple(sorted({
+                member["receipt_hash"] for member in authority.get("bar_admissions", [])
+            })),
         )
-        if resolved is None or Canonical.canonicalize(authority) != Canonical.canonicalize(
-            resolved.__dict__
-        ):
-            raise ValueError("MUTATION_PRICE_ACQUISITION_AUTHORITY_MISMATCH")
-        if any(
-            row.first_fetch_run_id != resolved.fetch_run_id
-            or row.first_fetch_item_id != resolved.fetch_item_id
-            or row.created_at > resolved.completed_at
-            or row.first_seen_at > resolved.completed_at
-            for row in acquired
-        ):
-            raise ValueError("MUTATION_PRICE_ACQUISITION_SCOPE_MISMATCH")
-        projected.extend(project_price_bar_rows_as_of(db, acquired, as_of=resolved.completed_at))
+    projected = project_acquisition_price_rows(
+        db, rows, as_of=cutoff, acquisition=resolved, authority=authority,
+    )
     expected = {state["id"]: state["fingerprint"] for state in states}
     if len(projected) != len(ids) or any(
         price_bar_pit_manifest_hash(db, row) != expected[row.id] for row in projected
@@ -1708,12 +1949,13 @@ def _validate_technical_price_source_manifests(
     from app.services.price_bar_repository import (
         _pipeline_acquisition_visibilities,
         price_bar_pit_manifest_hash,
-        project_price_bar_rows_as_of,
+        project_acquisition_price_rows,
     )
 
     prepared = []
     all_ids: set[int] = set()
     acquisition_keys: dict[int, set[tuple[str, str, str]]] = {}
+    acquisition_receipts: dict[int, set[str]] = {}
     for manifest in manifests:
         if (
             datetime.fromisoformat(manifest["as_of"]) != cutoff
@@ -1735,6 +1977,9 @@ def _validate_technical_price_source_manifests(
             acquisition_keys[context_id] = acquisition_keys.get(context_id, set()) | {
                 (manifest["ticker"], manifest["what_to_show"], manifest["timeframe"])
             }
+            acquisition_receipts.setdefault(context_id, set()).update(
+                member["receipt_hash"] for member in authority.get("bar_admissions", [])
+            )
 
     rows_by_id = {}
     ordered_ids = sorted(all_ids)
@@ -1754,6 +1999,7 @@ def _validate_technical_price_source_manifests(
             tickers=tuple(sorted({key[0] for key in keys})),
             what_to_show=tuple(sorted({key[1] for key in keys})),
             timeframes=tuple(sorted({key[2] for key in keys})),
+            receipt_hashes=tuple(sorted(acquisition_receipts[context_id])),
         )
 
     for index, ((manifest, ids, expected), item) in enumerate(
@@ -1772,30 +2018,18 @@ def _validate_technical_price_source_manifests(
             raise ValueError("MUTATION_PRICE_MANIFEST_SCOPE_MISMATCH")
         baseline = [row for row in rows if row.first_seen_at <= cutoff and row.created_at <= cutoff]
         acquired = [row for row in rows if row not in baseline]
-        projected = project_price_bar_rows_as_of(db, baseline, as_of=cutoff)
+        resolved = None
+        authority = manifest.get("acquisition_authority")
         if acquired:
-            authority = manifest.get("acquisition_authority")
             if not isinstance(authority, dict):
                 raise ValueError("MUTATION_PRICE_ACQUISITION_AUTHORITY_REQUIRED")
             context_id = int(authority["calculation_context_id"])
             resolved = visibilities.get(context_id, {}).get(
                 (manifest["ticker"].upper(), manifest["what_to_show"], manifest["timeframe"])
             )
-            if resolved is None or Canonical.canonicalize(authority) != Canonical.canonicalize(
-                resolved.__dict__
-            ):
-                raise ValueError("MUTATION_PRICE_ACQUISITION_AUTHORITY_MISMATCH")
-            if any(
-                row.first_fetch_run_id != resolved.fetch_run_id
-                or row.first_fetch_item_id != resolved.fetch_item_id
-                or row.created_at > resolved.completed_at
-                or row.first_seen_at > resolved.completed_at
-                for row in acquired
-            ):
-                raise ValueError("MUTATION_PRICE_ACQUISITION_SCOPE_MISMATCH")
-            projected.extend(
-                project_price_bar_rows_as_of(db, acquired, as_of=resolved.completed_at)
-            )
+        projected = project_acquisition_price_rows(
+            db, rows, as_of=cutoff, acquisition=resolved, authority=authority,
+        )
         if len(projected) != len(ids) or any(
             price_bar_pit_manifest_hash(db, row) != expected[row.id] for row in projected
         ):

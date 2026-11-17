@@ -10,6 +10,7 @@ from app.models.tables import (
     TechnicalScore,
     UploadRun,
 )
+from app.services.ceri.sec.coverage import load_sec_coverage
 from app.services.cockpit_sorting import cockpit_sort_key
 from app.services.column_mapping_summary_service import ColumnMappingSummary
 from app.services.csv_export import write_csv
@@ -266,6 +267,12 @@ EXPORT_SCHEMA_IDS = {
     "mapping": "swinglens.column-mapping.v1",
 }
 
+SEC_COVERAGE_HEADERS = [
+    "sec_source_status",
+    "sec_source_reason",
+    "sec_processor_signature",
+]
+
 
 def export_run_csv(
     run: UploadRun,
@@ -276,18 +283,22 @@ def export_run_csv(
         coverage_by_ticker = _coverage_by_ticker(coverage)
         fundamentals_by_ticker = _fundamentals_by_ticker(run.fundamental_scores)
         technicals_by_ticker = _technicals_by_ticker(run.technical_scores)
+        sec_coverage = _combined_sec_coverage(run)
+        rows = []
+        for result in _sorted_combined(run.combined_results):
+            row = _combined_row(
+                run.id,
+                result,
+                coverage_by_ticker.get(result.ticker.upper()),
+                fundamentals_by_ticker.get(result.ticker.upper()),
+                technicals_by_ticker.get(result.ticker.upper()),
+            )
+            if sec_coverage is not None:
+                row.update(sec_coverage.get(result.ticker.upper(), {}))
+            rows.append(row)
         return _write_csv(
-            COMBINED_HEADERS,
-            [
-                _combined_row(
-                    run.id,
-                    result,
-                    coverage_by_ticker.get(result.ticker.upper()),
-                    fundamentals_by_ticker.get(result.ticker.upper()),
-                    technicals_by_ticker.get(result.ticker.upper()),
-                )
-                for result in _sorted_combined(run.combined_results)
-            ],
+            COMBINED_HEADERS + (SEC_COVERAGE_HEADERS if sec_coverage is not None else []),
+            rows,
             schema_id=EXPORT_SCHEMA_IDS["combined"],
             metadata={"guidance_type": "research_hint", "execution_instruction": False},
         )
@@ -371,6 +382,66 @@ def _write_csv(
     metadata: dict[str, Any] | None = None,
 ) -> str:
     return write_csv(headers, rows, schema_id=schema_id, metadata=metadata)
+
+
+def _combined_sec_coverage(run: UploadRun) -> dict[str, dict[str, str]] | None:
+    """Project retained source facts from this upload's latest pipeline only."""
+    pipelines = getattr(run, "pipeline_runs", ()) or ()
+    pipeline = max(pipelines, key=lambda row: row.id or 0, default=None)
+    if pipeline is None or getattr(pipeline, "upload_run_id", None) != run.id:
+        return None
+    result = pipeline.result_json or {}
+    if not isinstance(result, dict):
+        return None
+    retained = result.get("sec_coverage")
+    if not isinstance(retained, dict):
+        return None
+    preflight = result.get("sec_preflight")
+    readiness = preflight.get("readiness") if isinstance(preflight, dict) else None
+    readiness = readiness if isinstance(readiness, dict) else {}
+    signature = readiness.get("processor_signature") or retained.get("processor_signature")
+    raw_tickers = readiness.get("tickers")
+    raw_by_ticker = {
+        item["ticker"]: item
+        for item in (raw_tickers if isinstance(raw_tickers, list) else [])
+        if isinstance(item, dict) and isinstance(item.get("ticker"), str)
+    }
+    coverage = load_sec_coverage(
+        pipeline,
+        processor_signature=signature,
+        tickers=raw_by_ticker if raw_by_ticker else None,
+    )
+    if coverage is None:
+        return None
+    retained_gaps = {gap["ticker"]: gap for gap in coverage["gaps"]}
+    if raw_by_ticker:
+        active_gaps = {
+            ticker: gap for ticker, gap in retained_gaps.items()
+            if raw_by_ticker[ticker].get("category") in {"UNRESOLVED_MAPPING", "CIK_MISSING"}
+            and not raw_by_ticker[ticker].get("ciks")
+        }
+    elif isinstance(result.get("sec_unresolved_tickers"), list):
+        active_gaps = {
+            item["ticker"]: retained_gaps[item["ticker"]]
+            for item in result["sec_unresolved_tickers"]
+            if isinstance(item, dict)
+            and isinstance(item.get("ticker"), str)
+            and item["ticker"] in retained_gaps
+        }
+    elif result.get("sec_unresolved_count") == 0:
+        active_gaps = {}
+    else:
+        active_gaps = retained_gaps
+    projected = {}
+    for ticker in coverage["requested_tickers"]:
+        raw = raw_by_ticker.get(ticker) or {}
+        gap = active_gaps.get(ticker)
+        projected[ticker] = {
+            "sec_source_status": "SEC_IDENTITY_UNRESOLVED" if gap else raw.get("category") or "",
+            "sec_source_reason": gap["reason"] if gap else raw.get("reason") or "",
+            "sec_processor_signature": signature,
+        }
+    return projected
 
 
 def _combined_row(

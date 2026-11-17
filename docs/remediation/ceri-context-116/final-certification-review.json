@@ -1,0 +1,51 @@
+{
+  "decision": "PASS",
+  "reviewed_at": "2026-11-17T00:53:23.762035+00:00",
+  "database": "swinglens_qa_ceri_context_1794788997961",
+  "parent_status": "PARTIAL",
+  "parent_steps_closed": 13,
+  "dependency": {
+    "id": 90,
+    "dependency_type": "CERI_WORKFLOW",
+    "state": "COMPLETED",
+    "continuation_job_id": 2552
+  },
+  "continuation_job_id": 2552,
+  "continuation_job_status": "COMPLETED",
+  "new_context116_scores": 447,
+  "handoff_manifest": 42,
+  "historical_score_fingerprints_unchanged": 5496,
+  "manifest41_original_references": 164,
+  "regressions_passed": 900,
+  "application_migration_and_test_sources_match_regression": true,
+  "production_originals_unchanged": true,
+  "production_migration_applied": false,
+  "production_recovery_performed": false,
+  "committed": false,
+  "parent_outcome": {
+    "coverage": {
+      "gaps": {
+        "incomplete_rows": 29,
+        "ib_failure_count": 2,
+        "technical_error_count": 7,
+        "market_data_unavailable_count": 1
+      },
+      "warning_rows": 376,
+      "combined_rows": 447,
+      "expected_rows": 447,
+      "excluded_tickers": [],
+      "history_gap_tickers": [],
+      "unavailable_tickers": [
+        "CLBK"
+      ]
+    },
+    "integrity": {
+      "status": "NO_INTEGRITY_HAZARD",
+      "hazards": []
+    },
+    "pipeline_status": "PARTIAL",
+    "contract_version": "pipeline-outcome-v1",
+    "execution_outcome": "SUCCEEDED_WITH_GAPS",
+    "summary_fingerprint": "075951b690ce6c0807b49e34250d8a5d17d93182a86d9a75998446ffafb48c76"
+  }
+}

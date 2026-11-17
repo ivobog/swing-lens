@@ -1,0 +1,551 @@
+commit 7e113f72f4c980a252b23658b3035969855cbb88
+Author:     Codex <codex@localhost>
+AuthorDate: Sat Nov 14 21:08:15 2026 +0100
+Commit:     Codex <codex@localhost>
+CommitDate: Sat Nov 14 21:08:15 2026 +0100
+
+    Reconcile reviewed SEC ticker succession and replay identity rejections
+
+diff --git a/app/services/ceri/batched_job_handlers.py b/app/services/ceri/batched_job_handlers.py
+index f6e3637..b559986 100644
+--- a/app/services/ceri/batched_job_handlers.py
++++ b/app/services/ceri/batched_job_handlers.py
+@@ -288,6 +288,11 @@ def execute_normalize_batch_job(
+                 except CeriNormalizationCancelled as exc:
+                     raise CancelRequested(str(exc)) from exc
+                 results[ticker] = result.as_dict()
++            if processing.status == "PARTIAL":
++                conflicts = [row for row in (processing.errors_json or {}).get("records", [])
++                             if row.get("reason") in {"identity_ambiguous", "identity_unresolved"}]
++                if conflicts:
++                    results[ticker]["identity_rejections"] = conflicts
+             failed += int(results[ticker].get("failed") or 0)
+         completed.add(ticker)
+         _save_checkpoint(
+diff --git a/app/services/ceri/identity_resolver.py b/app/services/ceri/identity_resolver.py
+index 62b5138..11820b3 100644
+--- a/app/services/ceri/identity_resolver.py
++++ b/app/services/ceri/identity_resolver.py
+@@ -19,6 +19,7 @@ from app.models.ceri_tables import (
+     CeriSourceRecord,
+ )
+ from app.services.canonical_evidence import CanonicalEvidenceSerializer
++from app.services.ceri.sec.issuer_succession import effective_symbol, reviewed_symbols
+ from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+ from app.services.source_mutation_authority import source_mutation_writer
+ 
+@@ -466,7 +467,19 @@ class CeriIdentityResolver:
+             if alias.alias_type == "cik" and cik and alias.alias_value == cik:
+                 matched_ids.add(alias.company_id)
+ 
+-        return tuple(company for company in companies if company.id in matched_ids)
++        matches = tuple(company for company in companies if company.id in matched_ids)
++        if provider == "sec" and cik and reviewed_symbols(cik, [row.ticker for row in matches]):
++            symbol = effective_symbol(cik, as_of)
++            if (
++                symbol
++                and ticker in {row.ticker for row in matches}
++                and provider_company_id in (None, cik)
++                and all(row.cik == cik for row in matches)
++                and len({row.exchange for row in matches}) == 1
++                and all(exchange is None or exchange == row.exchange for row in matches)
++            ):
++                return tuple(row for row in matches if row.ticker == symbol)
++        return matches
+ 
+ 
+ def _load_companies(db: Session) -> list[CeriCompany]:
+diff --git a/app/services/ceri/normalization_service.py b/app/services/ceri/normalization_service.py
+index ba65af7..63500cf 100644
+--- a/app/services/ceri/normalization_service.py
++++ b/app/services/ceri/normalization_service.py
+@@ -32,7 +32,8 @@ from app.services.ceri.guidance_normalizer import (
+     apply_guidance_eligibility,
+ )
+ from app.services.ceri.identity_resolver import CeriIdentityResolver
+-from app.services.domain_mutation import MutationDomain
++from app.services.ceri.sec.issuer_succession import effective_symbol, ownership_conflict
++from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+ from app.services.redaction import redact_text
+ from app.services.source_mutation_authority import source_mutation_writer, source_writer_member
+ 
+@@ -83,6 +84,105 @@ class CeriNormalizationService:
+         self.guidance_normalizer = guidance_normalizer or CeriGuidanceNormalizer()
+         self.catalyst_taxonomy = catalyst_taxonomy or CeriCatalystTaxonomy()
+ 
++    def replay_sec_identity(
++        self, db: Session, *, original: CeriProcessingRun, ingestion_run_id: int, actor: str
++    ) -> CeriNormalizationResult:
++        """Reprocess only rejected SEC guidance members in one caller-owned transaction."""
++        from app.services.ceri.processing_run_service import CeriProcessingRunService
++
++        members = list(
++            db.scalars(
++                select(CeriIngestionRunSourceRecord)
++                .where(
++                    CeriIngestionRunSourceRecord.ingestion_run_id == ingestion_run_id,
++                    CeriIngestionRunSourceRecord.normalization_state == "REJECTED",
++                    CeriIngestionRunSourceRecord.normalization_reason
++                    == "IDENTITY_RESOLUTION_REJECTED",
++                )
++                .order_by(CeriIngestionRunSourceRecord.source_record_id)
++                .with_for_update()
++            )
++        )
++        ingest = db.get(CeriIngestionRun, ingestion_run_id)
++        scope = original.scope_json or {}
++        if (
++            not actor.strip()
++            or not members
++            or original.status != "PARTIAL"
++            or original.job_type != "CERI_NORMALIZE_BATCH"
++            or ingest is None
++            or not original.deterministic_request_key.endswith(
++                f":normalize-ticker:sec:guidance:{scope.get('ticker')}"
++            )
++            or (ingest.request_key or "").split(":refresh:")[0]
++            != original.deterministic_request_key.replace(":normalize-ticker:", ":ingest:")
++            or any(
++                m.ticker != scope.get("ticker") or m.provider != "sec" or m.dataset != "guidance"
++                for m in members
++            )
++        ):
++            raise ValueError("SEC identity replay does not match the original processing scope")
++        rows = list(
++            db.scalars(
++                select(CeriSourceRecord)
++                .where(CeriSourceRecord.id.in_([member.source_record_id for member in members]))
++                .order_by(CeriSourceRecord.id)
++                .with_for_update()
++            )
++        )
++        service = CeriProcessingRunService()
++        replay, created = service.create_or_get(
++            db,
++            job_type="CERI_NORMALIZE_BATCH",
++            request_key=f"sec-reviewed-identity-v1:{original.id}:{ingestion_run_id}",
++            scope={
++                **scope,
++                "original_processing_run_id": original.id,
++                "ingestion_run_id": ingestion_run_id,
++            },
++            config_hash=original.config_hash,
++            config_version=original.config_version,
++            actor=actor,
++        )
++        if not created:
++            if replay.status != "COMPLETED":
++                raise ValueError("Incomplete identity replay requires review")
++            return CeriNormalizationResult(
++                replay.id,
++                replay.status,
++                replay.read_count,
++                replay.normalized_count,
++                0,
++                0,
++                replay.warning_count,
++            )
++        self.identity_resolver.prepare(db)
++        with db.begin_nested():
++            for row in rows:
++                hints = row.company_hint_json or {}
++                if (
++                    row.quarantine_reason != "identity_ambiguous"
++                    or row.provider != "sec"
++                    or row.dataset != "guidance"
++                    or hints.get("ticker") != scope.get("ticker")
++                    or not row.published_at
++                ):
++                    raise ValueError(f"Source {row.id} has no reviewed SEC identity repair")
++                resolution = self.identity_resolver.resolve_source_record(db, row)
++                expected = effective_symbol(hints.get("cik"), row.published_at.date())
++                if (
++                    not resolution.resolved
++                    or not expected
++                    or resolution.matches[0].ticker != expected
++                    or resolution.matches[0].cik != hints.get("cik")
++                ):
++                    raise ValueError(f"Source {row.id} still has conflicting company candidates")
++                _release_reviewed_quarantine(db, row, replay, resolution.company_id)
++            outcome = self.normalize(db, processing_run=replay, source_records=rows)
++            if outcome.status != "COMPLETED" or outcome.read != len(members):
++                raise ValueError("Reviewed identity replay did not close every record")
++        return outcome
++
+     def normalize(
+         self,
+         db: Session,
+@@ -140,6 +240,13 @@ class CeriNormalizationService:
+                     resolution = self.identity_resolver.resolve_source_record(db, source_record)
+                     if not resolution.resolved:
+                         quarantined += 1
++                        errors.append(
++                            {
++                                "source_record_id": source_record.id,
++                                "reason": resolution.reason,
++                                "candidate_ids": sorted(row.id for row in resolution.matches),
++                            }
++                        )
+                         _mark_membership(
+                             membership, "REJECTED", "IDENTITY_RESOLUTION_REJECTED"
+                         )
+@@ -473,6 +580,22 @@ def _normalization_closure(db: Session, ingestion_run_id: int | None) -> dict[st
+     }
+ 
+ 
++@source_mutation_writer(
++    MutationDomain.CERI_SOURCE, "provider_source", mode=MutationSemanticMode.MAINTENANCE
++)
++def _release_reviewed_quarantine(db, record, processing_run, company_id):
++    """Keep the original rejection in its membership and the release in the new run."""
++    scope = dict(processing_run.scope_json or {})
++    released = dict(scope.get("reviewed_identity_releases") or {})
++    released[str(record.id)] = {
++        "previous_reason": record.quarantine_reason,
++        "company_id": company_id,
++    }
++    processing_run.scope_json = {**scope, "reviewed_identity_releases": released}
++    record.quarantine_reason = None
++    db.flush()
++
++
+ @source_writer_member(
+     "app.services.ceri.normalization_service:CeriNormalizationService._normalize_record"
+ )
+@@ -502,6 +625,9 @@ def _persist_sec_identity(
+         return
+     company = getattr(db, "get", lambda *_args: None)(CeriCompany, company_id)
+     if company is not None and not company.cik:
++        conflict = ownership_conflict(db, company.ticker, cik, writing=True)
++        if conflict:
++            raise ValueError(conflict)
+         company.cik = cik
+     scalar = getattr(db, "scalar", None)
+     if not callable(scalar):
+diff --git a/app/services/ceri/sec/identity_repair.py b/app/services/ceri/sec/identity_repair.py
+index 245edf8..4e2b6e2 100644
+--- a/app/services/ceri/sec/identity_repair.py
++++ b/app/services/ceri/sec/identity_repair.py
+@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
+ 
+ from app.models.ceri_tables import CeriCompany
+ from app.services.ceri.filing_authority import reviewed_filing_authority
++from app.services.ceri.sec.issuer_succession import ownership_conflict
+ from app.services.ceri.sec.provider import SecCeriProvider
+ from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+ from app.services.source_mutation_authority import source_mutation_writer
+@@ -96,6 +97,9 @@ def resolve_and_persist_sec_identity(
+         )
+ 
+     normalized = str(resolved).zfill(10)
++    conflict = ownership_conflict(db, symbol, normalized, writing=True)
++    if conflict:
++        return SecIdentityRepairResult(symbol, "AMBIGUOUS", cik=normalized, reason=conflict)
+     if rows:
+         for row in rows:
+             row.cik = normalized
+diff --git a/app/services/ceri/sec/incremental_ingestion.py b/app/services/ceri/sec/incremental_ingestion.py
+index 71c122c..02b482f 100644
+--- a/app/services/ceri/sec/incremental_ingestion.py
++++ b/app/services/ceri/sec/incremental_ingestion.py
+@@ -13,6 +13,7 @@ from app.services.ceri.dtos import GuidanceRequest
+ from app.services.ceri.enums import CeriDataset
+ from app.services.ceri.observability import ceri_metrics
+ from app.services.ceri.sec.content_cache import SecDocumentContentCache
++from app.services.ceri.sec.issuer_succession import ownership_conflict
+ from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+ from app.services.ceri.sec.provider import SecCeriProvider, SecGuidanceDocument
+ from app.services.ceri.sec.readiness_service import (
+@@ -399,6 +400,9 @@ class SecGuidanceIncrementalIngestionService:
+         if resolved is None:
+             return None
+         normalized = str(resolved).zfill(10)
++        conflict = ownership_conflict(db, ticker.upper(), normalized, writing=True)
++        if conflict:
++            raise RuntimeError(conflict)
+         if rows:
+             for row in rows:
+                 if not row.cik:
+diff --git a/app/services/ceri/sec/issuer_succession.py b/app/services/ceri/sec/issuer_succession.py
+new file mode 100644
+index 0000000..3410f59
+--- /dev/null
++++ b/app/services/ceri/sec/issuer_succession.py
+@@ -0,0 +1,39 @@
++"""Reviewed SEC issuer symbol changes, effective on regular-way trading dates."""
++
++from datetime import date
++
++from sqlalchemy import select, text
++
++from app.models.ceri_tables import CeriCompany
++
++# Parent's 8-K, accession 0001193125-26-434274. MSGR is a separate issuer.
++SYMBOL_CHANGES = {"0001636519": ("MSGS", "MSGK", date(2026, 10, 27))}
++
++
++def reviewed_symbols(cik, symbols):
++    change = SYMBOL_CHANGES.get(cik)
++    return bool(change and sorted(symbols) == sorted(change[:2]))
++
++
++def effective_symbol(cik, as_of):
++    change = SYMBOL_CHANGES.get(cik)
++    if change and as_of:
++        old, new, effective = change
++        return new if as_of >= effective else old
++    return None
++
++
++def ownership_conflict(db, ticker, cik, *, writing=False):
++    # Serialize competing claims to the same SEC issuer across ticker writers.
++    if writing and getattr(db, "bind", None) is not None and db.bind.dialect.name == "postgresql":
++        db.execute(
++            text("SELECT pg_advisory_xact_lock(hashtextextended(:scope, 0))"),
++            {"scope": f"sec-company-cik:{cik}"},
++        )
++    owners = db.scalars(select(CeriCompany).where(CeriCompany.cik == cik)).all()
++    symbols = [row.ticker for row in owners]
++    if ticker not in symbols:
++        symbols.append(ticker)
++    if len(symbols) > 1 and not reviewed_symbols(cik, symbols):
++        return f"SEC CIK {cik} requires identity review for {', '.join(sorted(symbols))}"
++    return None
+diff --git a/app/services/ceri/sec/readiness_diagnostics.py b/app/services/ceri/sec/readiness_diagnostics.py
+index d6e5d9d..172aba8 100644
+--- a/app/services/ceri/sec/readiness_diagnostics.py
++++ b/app/services/ceri/sec/readiness_diagnostics.py
+@@ -7,11 +7,12 @@ from dataclasses import dataclass
+ from enum import StrEnum
+ from typing import Any
+ 
+-from sqlalchemy import select
++from sqlalchemy import or_, select
+ from sqlalchemy.orm import Session
+ 
+ from app.models.ceri_tables import CeriCompany, CeriSecSyncState
+ from app.services.ceri.enums import CeriDataset
++from app.services.ceri.sec.issuer_succession import reviewed_symbols
+ 
+ _VALID_TICKER = re.compile(r"^[A-Z0-9][A-Z0-9.-]{0,15}$")
+ 
+@@ -103,11 +104,23 @@ def diagnose_sec_readiness(
+     symbols = tuple(sorted({str(value).strip().upper() for value in tickers if value}))
+     valid_symbols = tuple(symbol for symbol in symbols if _VALID_TICKER.fullmatch(symbol))
+     companies = list(
+-        db.scalars(select(CeriCompany).where(CeriCompany.ticker.in_(valid_symbols))).all()
++        db.scalars(
++            select(CeriCompany).where(
++                or_(
++                    CeriCompany.ticker.in_(valid_symbols),
++                    CeriCompany.cik.in_(
++                        select(CeriCompany.cik).where(CeriCompany.ticker.in_(valid_symbols))
++                    ),
++                )
++            )
++        ).all()
+     )
+     by_ticker: dict[str, list[CeriCompany]] = {}
+     for company in companies:
+         by_ticker.setdefault(company.ticker.upper(), []).append(company)
++    owners = {}
++    for company in companies:
++        owners.setdefault(company.cik, []).append(company)
+     ciks = {str(company.cik) for company in companies if company.cik}
+     sync_rows = (
+         list(
+@@ -168,6 +181,23 @@ def diagnose_sec_readiness(
+             )
+             continue
+         ticker_ciks = tuple(sorted({str(company.cik) for company in required if company.cik}))
++        collisions = [
++            row
++            for cik in ticker_ciks
++            for row in owners[cik]
++            if len(owners[cik]) > 1 and not reviewed_symbols(cik, [r.ticker for r in owners[cik]])
++        ]
++        if collisions or len(ticker_ciks) > 1:
++            candidates = ", ".join(f"{r.ticker} ({r.id})" for r in collisions or required)
++            diagnostics.append(
++                SecTickerReadiness(
++                    ticker,
++                    SecTickerReadinessCategory.OTHER_BLOCKING_REASON,
++                    ticker_ciks,
++                    reason=f"Conflicting SEC identity candidates: {candidates}",
++                )
++            )
++            continue
+         if not ticker_ciks:
+             diagnostics.append(
+                 SecTickerReadiness(
+diff --git a/app/services/pipeline_service.py b/app/services/pipeline_service.py
+index 00a21fd..e91776a 100644
+--- a/app/services/pipeline_service.py
++++ b/app/services/pipeline_service.py
+@@ -1607,6 +1607,28 @@ def _ceri_child_failure_detail(job: BackgroundJob) -> dict[str, Any]:
+     classification = dict(
+         result.get("failure_classification") or metadata.get("failure_classification") or {}
+     )
++    identity_failures = (
++        [
++            {
++                "ticker": ticker,
++                "processing_run_id": item.get("processing_run_id"),
++                "provider": result.get("provider"),
++                "dataset": result.get("dataset"),
++                "source_count": len(item["identity_rejections"]),
++                "records": item["identity_rejections"],
++            }
++            for ticker, item in (result.get("results") or {}).items()
++            if isinstance(item, dict) and item.get("identity_rejections")
++        ]
++        if isinstance(result.get("results"), dict)
++        else []
++    )
++    if identity_failures:
++        classification = {
++            **classification,
++            "code": classification.get("code") or "CERI_IDENTITY_REJECTED",
++            "identity_failures": identity_failures,
++        }
+     return {
+         "job_id": job.id,
+         "job_type": job.job_type,
+diff --git a/scripts/replay_sec_identity.py b/scripts/replay_sec_identity.py
+new file mode 100644
+index 0000000..67434c4
+--- /dev/null
++++ b/scripts/replay_sec_identity.py
+@@ -0,0 +1,31 @@
++"""Replay reviewed SEC identity rejections into a new processing run."""
++
++import argparse
++import json
++
++from app.db import SessionLocal
++from app.models.ceri_tables import CeriProcessingRun
++from app.services.ceri.normalization_service import CeriNormalizationService
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--processing-run", required=True, type=int)
++    parser.add_argument("--ingestion-run", required=True, type=int)
++    parser.add_argument("--actor", required=True)
++    args = parser.parse_args()
++    with SessionLocal.begin() as db:
++        original = db.get(CeriProcessingRun, args.processing_run)
++        if original is None:
++            parser.error("Processing run does not exist")
++        outcome = CeriNormalizationService().replay_sec_identity(
++            db,
++            original=original,
++            ingestion_run_id=args.ingestion_run,
++            actor=args.actor,
++        )
++    print(json.dumps(outcome.as_dict()))
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/tests/ceri/test_sec_issuer_succession.py b/tests/ceri/test_sec_issuer_succession.py
+new file mode 100644
+index 0000000..a6cb10d
+--- /dev/null
++++ b/tests/ceri/test_sec_issuer_succession.py
+@@ -0,0 +1,95 @@
++from datetime import date
++from types import SimpleNamespace
++
++import pytest
++from test_sec_identity_repair import _Db, _Provider
++
++from app.models.ceri_tables import CeriCompany
++from app.services.ceri.identity_resolver import CeriIdentityResolver
++from app.services.ceri.sec.identity_repair import resolve_and_persist_sec_identity
++from app.services.ceri.sec.readiness_diagnostics import diagnose_sec_readiness
++from app.services.pipeline_service import _ceri_child_failure_detail
++
++
++def company(i, ticker, cik="0001636519"):
++    return CeriCompany(id=i, ticker=ticker, cik=cik, exchange="US")
++
++
++@pytest.mark.parametrize(
++    ("day", "expected"),
++    [
++        (date(2026, 10, 26), [171]),
++        (date(2026, 10, 27), [793]),
++        (None, [171, 793]),
++    ],
++)
++def test_sec_symbol_as_of_filing_even_with_current_ticker_hint(day, expected):
++    resolver = CeriIdentityResolver(
++        companies=[company(171, "MSGS"), company(793, "MSGK")], aliases=[]
++    )
++    hints = {"ticker": "MSGK", "cik": "0001636519", "provider_company_id": "0001636519"}
++    assert [row.id for row in resolver._candidate_companies(None, "sec", hints, day)] == expected
++
++
++@pytest.mark.parametrize("tickers", [("AAA.A", "AAA.B"), ("MSGS", "MSGK", "MSGR")])
++def test_shared_cik_or_third_candidate_remains_ambiguous(tickers):
++    rows = [company(i, ticker) for i, ticker in enumerate(tickers, 1)]
++    resolver = CeriIdentityResolver(companies=rows, aliases=[])
++    matches = resolver._candidate_companies(
++        None, "sec", {"ticker": tickers[0], "cik": "0001636519"}, date(2026, 11, 6)
++    )
++    assert len(matches) == len(rows)
++
++
++def test_readiness_reports_collision_outside_requested_scope():
++    from test_sec_pipeline_preflight import SequentialDb
++
++    rows = [company(1, "AAA.A"), company(2, "AAA.B")]
++    result = diagnose_sec_readiness(
++        SequentialDb(rows, []), tickers=["AAA.A"], processor_signature="test"
++    )
++    assert result.blocking_tickers == ("AAA.A",)
++    assert "AAA.B (2)" in result.tickers[0].reason
++
++
++def test_new_ticker_cannot_claim_an_unreviewed_cik():
++    class WriterDb(_Db):
++        def scalars(self, statement):
++            if "WHERE ceri_companies.cik" in str(statement):
++                return SimpleNamespace(all=lambda: [company(1, "OTHER")])
++            return super().scalars(statement)
++
++    db = WriterDb()
++    result = resolve_and_persist_sec_identity(db, provider=_Provider("1636519"), ticker="NEW")
++    assert result.status == "AMBIGUOUS" and not db.added
++
++
++def test_pipeline_retains_identity_failure_provenance():
++    record = {"source_record_id": 5, "candidate_ids": [1, 2], "reason": "identity_ambiguous"}
++    job = SimpleNamespace(
++        id=9,
++        payload_json={},
++        operational_metadata_json={},
++        job_type="CERI_NORMALIZE_BATCH",
++        status="PARTIAL",
++        related_run_id=62,
++        error_message=None,
++        progress_stage=None,
++        result_json={
++            "provider": "sec",
++            "dataset": "guidance",
++            "results": {"ABC": {"processing_run_id": 8, "identity_rejections": [record]}},
++        },
++    )
++    detail = _ceri_child_failure_detail(job)
++    assert detail["reason"] == "CERI_IDENTITY_REJECTED"
++    assert detail["classification"]["identity_failures"] == [
++        {
++            "ticker": "ABC",
++            "processing_run_id": 8,
++            "provider": "sec",
++            "dataset": "guidance",
++            "source_count": 1,
++            "records": [record],
++        }
++    ]
