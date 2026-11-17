@@ -82,7 +82,7 @@ def assert_completed_oracle(engine, env, run_id, pipeline_id):
         }
 
         def evidence(
-            row, kind, *, sources=None, context=context_id, cutoff="20:30", pipeline_dimension=None
+            row, kind, *, sources=None, context=context_id, cutoff="20:30"
         ):
             retained = db.get(m.CoreCalculationEvidence, row.evidence_id)
             section = {
@@ -134,7 +134,7 @@ def assert_completed_oracle(engine, env, run_id, pipeline_id):
                 and retained.ticker == getattr(row, "ticker", None)
                 and ownership["run_id"].get("value") == run_id
                 and ownership["pipeline_id"]
-                == (pipeline_dimension or {"state": "KNOWN", "value": pipeline_id})
+                == {"state": "KNOWN", "value": pipeline_id}
                 and temporal["as_of_session"].get("value") == "2026-10-26"
                 and datetime.fromisoformat(temporal["calculation_cutoff"]["value"])
                 == datetime.fromisoformat("2026-10-26T" + cutoff + ":00+00:00")
@@ -617,7 +617,6 @@ def assert_completed_oracle(engine, env, run_id, pipeline_id):
                     "CERI",
                     context=target_context,
                     cutoff="20:32",
-                    pipeline_dimension={"state": "UNKNOWN"},
                 )
                 relationship(
                     "ceri_capture_issuer:captures:"

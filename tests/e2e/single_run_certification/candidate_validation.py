@@ -1,7 +1,8 @@
 """Explicit candidate financial validation; never selects an active golden.
 
-The retained loaders and their pins remain unchanged. Only the supported A04
-parent enables candidate data in its native child. This module cannot authorize
+The retained loaders and their pins remain unchanged. The supported A04 parent
+and source-bound native browser lane explicitly enable candidate data in their
+test children. This module cannot authorize
 an owner, promote an oracle, or change NORMAL application configuration.
 """
 

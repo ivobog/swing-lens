@@ -4227,6 +4227,14 @@
           {
             "path": "scripts/qa/golden_provenance.py",
             "symbol": "_protected_branch"
+          },
+          {
+            "path": "tests/e2e/single_run_certification/candidate_validation.py",
+            "symbol": "candidate_proposal"
+          },
+          {
+            "path": "tests/e2e/single_run_certification/golden_assertions.py",
+            "symbol": "assert_completed_oracle"
           }
         ],
         "impact_patterns": [
@@ -4362,7 +4370,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "aa15f32b53e1a5cf61f6422578b280b5cacb4f58e4a8f2b4329db43504dd821a"
+            "reviewed_test_sha256": "7bdb4be9bf356ced6f6cf83fc35a6312ee7522014ef1b12f54fa1720fef6de37"
           },
           {
             "id": "tests/test_ibmi_golden_recertification.py::test_proposal_does_not_select_or_authorize_a_golden",
@@ -4371,7 +4379,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "aa15f32b53e1a5cf61f6422578b280b5cacb4f58e4a8f2b4329db43504dd821a"
+            "reviewed_test_sha256": "7bdb4be9bf356ced6f6cf83fc35a6312ee7522014ef1b12f54fa1720fef6de37"
           },
           {
             "id": "tests/test_ibmi_golden_recertification.py::test_changed_candidate_literals_fail_even_after_prior_success",
@@ -4380,7 +4388,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "aa15f32b53e1a5cf61f6422578b280b5cacb4f58e4a8f2b4329db43504dd821a"
+            "reviewed_test_sha256": "7bdb4be9bf356ced6f6cf83fc35a6312ee7522014ef1b12f54fa1720fef6de37"
           },
           {
             "id": "tests/test_ibmi_golden_recertification.py::test_candidate_cannot_claim_promotion_or_reuse_another_binding",
@@ -4389,7 +4397,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "aa15f32b53e1a5cf61f6422578b280b5cacb4f58e4a8f2b4329db43504dd821a"
+            "reviewed_test_sha256": "7bdb4be9bf356ced6f6cf83fc35a6312ee7522014ef1b12f54fa1720fef6de37"
           }
         ],
         "oracle": "Unchanged A05 v3/A05B-r3 seals and independent derivations; A13-R10 requires live sole-owner acknowledgement, never automatic activation.",
@@ -4400,7 +4408,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "b2048ad251f3faeefc883e8565c1fc0bbee8c5695d73a22973c6d173983e6500",
+        "review_sha256": "af8d9f64953be0e9e5e744471d7e694e570578077c62039094749ab7e9d6466e",
         "policy_amendment": {
           "id": "A13-R10",
           "date": "2026-11-01",
@@ -4417,7 +4425,16 @@
           "financial_expectations_changed": false,
           "new_independent_reviewer_required": false,
           "coverage_claim": "STATIC_INTENT; actual execution evidence recorded separately"
-        }
+        },
+        "review_addenda": [
+          {
+            "task": "CERI-CONTEXT116-PR82-CANDIDATE-20261117",
+            "kind": "STATIC_ASSERTION_AND_CANDIDATE_SCOPE_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/ci-prerequisite-review.md",
+            "scope": "Four candidate-integrity controls preserve historical v3, exact financial literals and variants, corruption rejection, foreign-binding rejection and non-activation. Only the version and ten independently derived current CERI owner states change. Native immutable scope now requires the exact parent ID.",
+            "claim": "STATIC_INTENT only; candidate validation cannot authorize or activate a golden. Current native A04 and the unchanged trusted A13 owner acknowledgement remain required."
+          }
+        ]
       },
       {
         "id": "CI_RELEASE_GOVERNANCE",

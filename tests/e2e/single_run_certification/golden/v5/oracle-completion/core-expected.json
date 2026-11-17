@@ -1,0 +1,1698 @@
+{
+  "combined": [
+    {
+      "combined_decision": "Candidate",
+      "days_until_earnings": -41,
+      "dual_score": "7.2834",
+      "earnings_risk_level": "clear",
+      "final_rank": 10,
+      "final_score": "6.8325",
+      "fundamental_score": "9.1909",
+      "has_fundamental": true,
+      "has_technical": true,
+      "has_warning": false,
+      "is_complete": true,
+      "position_size_hint": "Half starter",
+      "technical_classification": "Overheated momentum",
+      "ticker": "BHE",
+      "upcoming_earnings_date": "2026-09-15",
+      "warning_flags": []
+    },
+    {
+      "combined_decision": "Strong candidate",
+      "days_until_earnings": -41,
+      "dual_score": "7.0912",
+      "earnings_risk_level": "clear",
+      "final_rank": 2,
+      "final_score": "8.2460",
+      "fundamental_score": "9.1909",
+      "has_fundamental": true,
+      "has_technical": true,
+      "has_warning": false,
+      "is_complete": true,
+      "position_size_hint": "Half starter",
+      "technical_classification": "No trade",
+      "ticker": "BLLN",
+      "upcoming_earnings_date": "2026-09-15",
+      "warning_flags": []
+    },
+    {
+      "combined_decision": "Candidate",
+      "days_until_earnings": -41,
+      "dual_score": "7.3866",
+      "earnings_risk_level": "clear",
+      "final_rank": 9,
+      "final_score": "6.8790",
+      "fundamental_score": "9.1909",
+      "has_fundamental": true,
+      "has_technical": true,
+      "has_warning": false,
+      "is_complete": true,
+      "position_size_hint": "Half starter",
+      "technical_classification": "Overheated momentum",
+      "ticker": "KLIC",
+      "upcoming_earnings_date": "2026-09-15",
+      "warning_flags": []
+    },
+    {
+      "combined_decision": "Candidate",
+      "days_until_earnings": -41,
+      "dual_score": "7.7659",
+      "earnings_risk_level": "clear",
+      "final_rank": 7,
+      "final_score": "7.0496",
+      "fundamental_score": "9.1909",
+      "has_fundamental": true,
+      "has_technical": true,
+      "has_warning": false,
+      "is_complete": true,
+      "position_size_hint": "Half starter",
+      "technical_classification": "Overheated momentum",
+      "ticker": "LSCC",
+      "upcoming_earnings_date": "2026-09-15",
+      "warning_flags": []
+    },
+    {
+      "combined_decision": "Strong candidate",
+      "days_until_earnings": -41,
+      "dual_score": "6.6724",
+      "earnings_risk_level": "clear",
+      "final_rank": 5,
+      "final_score": "8.0576",
+      "fundamental_score": "9.1909",
+      "has_fundamental": true,
+      "has_technical": true,
+      "has_warning": false,
+      "is_complete": true,
+      "position_size_hint": "Half starter",
+      "technical_classification": "No trade",
+      "ticker": "PDFS",
+      "upcoming_earnings_date": "2026-09-15",
+      "warning_flags": []
+    },
+    {
+      "combined_decision": "Candidate",
+      "days_until_earnings": -41,
+      "dual_score": "7.3866",
+      "earnings_risk_level": "clear",
+      "final_rank": 8,
+      "final_score": "6.8790",
+      "fundamental_score": "9.1909",
+      "has_fundamental": true,
+      "has_technical": true,
+      "has_warning": false,
+      "is_complete": true,
+      "position_size_hint": "Half starter",
+      "technical_classification": "Overheated momentum",
+      "ticker": "ACMR",
+      "upcoming_earnings_date": "2026-09-15",
+      "warning_flags": []
+    },
+    {
+      "combined_decision": "Strong candidate",
+      "days_until_earnings": -41,
+      "dual_score": "7.2076",
+      "earnings_risk_level": "clear",
+      "final_rank": 1,
+      "final_score": "8.2984",
+      "fundamental_score": "9.1909",
+      "has_fundamental": true,
+      "has_technical": true,
+      "has_warning": false,
+      "is_complete": true,
+      "position_size_hint": "Half starter",
+      "technical_classification": "No trade",
+      "ticker": "RDVT",
+      "upcoming_earnings_date": "2026-09-15",
+      "warning_flags": []
+    },
+    {
+      "combined_decision": "Strong candidate",
+      "days_until_earnings": -41,
+      "dual_score": "6.8210",
+      "earnings_risk_level": "clear",
+      "final_rank": 3,
+      "final_score": "8.1244",
+      "fundamental_score": "9.1909",
+      "has_fundamental": true,
+      "has_technical": true,
+      "has_warning": false,
+      "is_complete": true,
+      "position_size_hint": "Half starter",
+      "technical_classification": "No trade",
+      "ticker": "AVT",
+      "upcoming_earnings_date": "2026-09-15",
+      "warning_flags": []
+    },
+    {
+      "combined_decision": "Strong candidate",
+      "days_until_earnings": -41,
+      "dual_score": "6.6087",
+      "earnings_risk_level": "clear",
+      "final_rank": 6,
+      "final_score": "8.0289",
+      "fundamental_score": "9.1909",
+      "has_fundamental": true,
+      "has_technical": true,
+      "has_warning": false,
+      "is_complete": true,
+      "position_size_hint": "Half starter",
+      "technical_classification": "No trade",
+      "ticker": "DVN",
+      "upcoming_earnings_date": "2026-09-15",
+      "warning_flags": []
+    },
+    {
+      "combined_decision": "Strong candidate",
+      "days_until_earnings": -41,
+      "dual_score": "6.7481",
+      "earnings_risk_level": "clear",
+      "final_rank": 4,
+      "final_score": "8.0916",
+      "fundamental_score": "9.1909",
+      "has_fundamental": true,
+      "has_technical": true,
+      "has_warning": false,
+      "is_complete": true,
+      "position_size_hint": "Half starter",
+      "technical_classification": "No trade",
+      "ticker": "JNJ",
+      "upcoming_earnings_date": "2026-09-15",
+      "warning_flags": []
+    }
+  ],
+  "ranking": [
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "5.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "clean_compounder_pullback",
+      "profile_rank": 4,
+      "profile_score": "8.4447",
+      "technical_profile_score": "7.059",
+      "ticker": "BHE",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Watchlist",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "liquidity_cap": false
+      },
+      "has_warning": true,
+      "is_complete": true,
+      "penalties": {
+        "overheated_momentum": "2.5"
+      },
+      "profile": "defensive_quality",
+      "profile_rank": 8,
+      "profile_score": "5.9493",
+      "technical_profile_score": "7.337",
+      "ticker": "BHE",
+      "warning_flags": [
+        "overheated_momentum"
+      ]
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "2.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "early_rocket",
+      "profile_rank": 2,
+      "profile_score": "7.784",
+      "technical_profile_score": "7.181",
+      "ticker": "BHE",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Watchlist",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "3.0",
+          "passed": true
+        }
+      },
+      "has_warning": true,
+      "is_complete": true,
+      "penalties": {
+        "overheated_momentum": "1.5"
+      },
+      "profile": "momentum_swing",
+      "profile_rank": 8,
+      "profile_score": "6.4696",
+      "technical_profile_score": "6.9703",
+      "ticker": "BHE",
+      "warning_flags": [
+        "overheated_momentum"
+      ]
+    },
+    {
+      "decision_label": "Watchlist",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false
+      },
+      "has_warning": true,
+      "is_complete": true,
+      "penalties": {
+        "overheated_momentum": "1.5"
+      },
+      "profile": "quality_momentum",
+      "profile_rank": 8,
+      "profile_score": "6.7488",
+      "technical_profile_score": "7.0974",
+      "ticker": "BHE",
+      "warning_flags": [
+        "overheated_momentum"
+      ]
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "5.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "clean_compounder_pullback",
+      "profile_rank": 3,
+      "profile_score": "8.4452",
+      "technical_profile_score": "7.0603",
+      "ticker": "BLLN",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "liquidity_cap": false
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "defensive_quality",
+      "profile_rank": 6,
+      "profile_score": "8.4499",
+      "technical_profile_score": "7.3383",
+      "ticker": "BLLN",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "2.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "early_rocket",
+      "profile_rank": 6,
+      "profile_score": "7.7474",
+      "technical_profile_score": "7.1287",
+      "ticker": "BLLN",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "3.0",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "momentum_swing",
+      "profile_rank": 2,
+      "profile_score": "7.9485",
+      "technical_profile_score": "6.932",
+      "ticker": "BLLN",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "quality_momentum",
+      "profile_rank": 2,
+      "profile_score": "8.2343",
+      "technical_profile_score": "7.0652",
+      "ticker": "BLLN",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "5.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "clean_compounder_pullback",
+      "profile_rank": 6,
+      "profile_score": "8.4431",
+      "technical_profile_score": "7.0543",
+      "ticker": "KLIC",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Watchlist",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "liquidity_cap": false
+      },
+      "has_warning": true,
+      "is_complete": true,
+      "penalties": {
+        "overheated_momentum": "2.5"
+      },
+      "profile": "defensive_quality",
+      "profile_rank": 10,
+      "profile_score": "5.9475",
+      "technical_profile_score": "7.3323",
+      "ticker": "KLIC",
+      "warning_flags": [
+        "overheated_momentum"
+      ]
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "2.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "early_rocket",
+      "profile_rank": 4,
+      "profile_score": "7.7807",
+      "technical_profile_score": "7.1763",
+      "ticker": "KLIC",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Watchlist",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "3.0",
+          "passed": true
+        }
+      },
+      "has_warning": true,
+      "is_complete": true,
+      "penalties": {
+        "overheated_momentum": "1.5"
+      },
+      "profile": "momentum_swing",
+      "profile_rank": 10,
+      "profile_score": "6.4635",
+      "technical_profile_score": "6.9593",
+      "ticker": "KLIC",
+      "warning_flags": [
+        "overheated_momentum"
+      ]
+    },
+    {
+      "decision_label": "Watchlist",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false
+      },
+      "has_warning": true,
+      "is_complete": true,
+      "penalties": {
+        "overheated_momentum": "1.5"
+      },
+      "profile": "quality_momentum",
+      "profile_rank": 10,
+      "profile_score": "6.7453",
+      "technical_profile_score": "7.0896",
+      "ticker": "KLIC",
+      "warning_flags": [
+        "overheated_momentum"
+      ]
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "5.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "clean_compounder_pullback",
+      "profile_rank": 2,
+      "profile_score": "8.4728",
+      "technical_profile_score": "7.1393",
+      "ticker": "LSCC",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Watchlist",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "liquidity_cap": false
+      },
+      "has_warning": true,
+      "is_complete": true,
+      "penalties": {
+        "overheated_momentum": "2.5"
+      },
+      "profile": "defensive_quality",
+      "profile_rank": 7,
+      "profile_score": "6.0143",
+      "technical_profile_score": "7.4993",
+      "ticker": "LSCC",
+      "warning_flags": [
+        "overheated_momentum"
+      ]
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "2.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "early_rocket",
+      "profile_rank": 1,
+      "profile_score": "7.8411",
+      "technical_profile_score": "7.2626",
+      "ticker": "LSCC",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Watchlist",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "3.0",
+          "passed": true
+        }
+      },
+      "has_warning": true,
+      "is_complete": true,
+      "penalties": {
+        "overheated_momentum": "1.5"
+      },
+      "profile": "momentum_swing",
+      "profile_rank": 7,
+      "profile_score": "6.6361",
+      "technical_profile_score": "7.2731",
+      "ticker": "LSCC",
+      "warning_flags": [
+        "overheated_momentum"
+      ]
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false
+      },
+      "has_warning": true,
+      "is_complete": true,
+      "penalties": {
+        "overheated_momentum": "1.5"
+      },
+      "profile": "quality_momentum",
+      "profile_rank": 7,
+      "profile_score": "6.8556",
+      "technical_profile_score": "7.3346",
+      "ticker": "LSCC",
+      "warning_flags": [
+        "overheated_momentum"
+      ]
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "5.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "clean_compounder_pullback",
+      "profile_rank": 10,
+      "profile_score": "8.3423",
+      "technical_profile_score": "6.7664",
+      "ticker": "PDFS",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "liquidity_cap": false
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "defensive_quality",
+      "profile_rank": 5,
+      "profile_score": "8.4523",
+      "technical_profile_score": "7.3444",
+      "ticker": "PDFS",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "2.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "early_rocket",
+      "profile_rank": 10,
+      "profile_score": "7.4039",
+      "technical_profile_score": "6.638",
+      "ticker": "PDFS",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "3.0",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "momentum_swing",
+      "profile_rank": 6,
+      "profile_score": "7.7716",
+      "technical_profile_score": "6.6103",
+      "ticker": "PDFS",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "quality_momentum",
+      "profile_rank": 6,
+      "profile_score": "8.1129",
+      "technical_profile_score": "6.7954",
+      "ticker": "PDFS",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "5.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "clean_compounder_pullback",
+      "profile_rank": 5,
+      "profile_score": "8.4431",
+      "technical_profile_score": "7.0543",
+      "ticker": "ACMR",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Watchlist",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "liquidity_cap": false
+      },
+      "has_warning": true,
+      "is_complete": true,
+      "penalties": {
+        "overheated_momentum": "2.5"
+      },
+      "profile": "defensive_quality",
+      "profile_rank": 9,
+      "profile_score": "5.9475",
+      "technical_profile_score": "7.3323",
+      "ticker": "ACMR",
+      "warning_flags": [
+        "overheated_momentum"
+      ]
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "2.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "early_rocket",
+      "profile_rank": 3,
+      "profile_score": "7.7807",
+      "technical_profile_score": "7.1763",
+      "ticker": "ACMR",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Watchlist",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "3.0",
+          "passed": true
+        }
+      },
+      "has_warning": true,
+      "is_complete": true,
+      "penalties": {
+        "overheated_momentum": "1.5"
+      },
+      "profile": "momentum_swing",
+      "profile_rank": 9,
+      "profile_score": "6.4635",
+      "technical_profile_score": "6.9593",
+      "ticker": "ACMR",
+      "warning_flags": [
+        "overheated_momentum"
+      ]
+    },
+    {
+      "decision_label": "Watchlist",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false
+      },
+      "has_warning": true,
+      "is_complete": true,
+      "penalties": {
+        "overheated_momentum": "1.5"
+      },
+      "profile": "quality_momentum",
+      "profile_rank": 9,
+      "profile_score": "6.7453",
+      "technical_profile_score": "7.0896",
+      "ticker": "ACMR",
+      "warning_flags": [
+        "overheated_momentum"
+      ]
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "5.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "clean_compounder_pullback",
+      "profile_rank": 1,
+      "profile_score": "8.4788",
+      "technical_profile_score": "7.1562",
+      "ticker": "RDVT",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "liquidity_cap": false
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "defensive_quality",
+      "profile_rank": 1,
+      "profile_score": "8.521",
+      "technical_profile_score": "7.5162",
+      "ticker": "RDVT",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "2.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "early_rocket",
+      "profile_rank": 5,
+      "profile_score": "7.7628",
+      "technical_profile_score": "7.1508",
+      "ticker": "RDVT",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "3.0",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "momentum_swing",
+      "profile_rank": 1,
+      "profile_score": "8.0972",
+      "technical_profile_score": "7.2024",
+      "ticker": "RDVT",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "quality_momentum",
+      "profile_rank": 1,
+      "profile_score": "8.3312",
+      "technical_profile_score": "7.2804",
+      "ticker": "RDVT",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "5.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "clean_compounder_pullback",
+      "profile_rank": 8,
+      "profile_score": "8.3452",
+      "technical_profile_score": "6.7745",
+      "ticker": "AVT",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "liquidity_cap": false
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "defensive_quality",
+      "profile_rank": 3,
+      "profile_score": "8.4555",
+      "technical_profile_score": "7.3525",
+      "ticker": "AVT",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "2.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "early_rocket",
+      "profile_rank": 8,
+      "profile_score": "7.4095",
+      "technical_profile_score": "6.6461",
+      "ticker": "AVT",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "3.0",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "momentum_swing",
+      "profile_rank": 4,
+      "profile_score": "7.782",
+      "technical_profile_score": "6.6293",
+      "ticker": "AVT",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "quality_momentum",
+      "profile_rank": 4,
+      "profile_score": "8.119",
+      "technical_profile_score": "6.8089",
+      "ticker": "AVT",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "5.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "clean_compounder_pullback",
+      "profile_rank": 7,
+      "profile_score": "8.346",
+      "technical_profile_score": "6.7769",
+      "ticker": "DVN",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "liquidity_cap": false
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "defensive_quality",
+      "profile_rank": 2,
+      "profile_score": "8.4565",
+      "technical_profile_score": "7.3549",
+      "ticker": "DVN",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "2.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "early_rocket",
+      "profile_rank": 7,
+      "profile_score": "7.4112",
+      "technical_profile_score": "6.6485",
+      "ticker": "DVN",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "3.0",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "momentum_swing",
+      "profile_rank": 3,
+      "profile_score": "7.785",
+      "technical_profile_score": "6.6347",
+      "ticker": "DVN",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "quality_momentum",
+      "profile_rank": 3,
+      "profile_score": "8.1208",
+      "technical_profile_score": "6.8128",
+      "ticker": "DVN",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "5.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "clean_compounder_pullback",
+      "profile_rank": 9,
+      "profile_score": "8.3446",
+      "technical_profile_score": "6.7728",
+      "ticker": "JNJ",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "liquidity_cap": false
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "defensive_quality",
+      "profile_rank": 4,
+      "profile_score": "8.4549",
+      "technical_profile_score": "7.3508",
+      "ticker": "JNJ",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "2.5",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "early_rocket",
+      "profile_rank": 9,
+      "profile_score": "7.4083",
+      "technical_profile_score": "6.6444",
+      "ticker": "JNJ",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false,
+        "fundamental_floor": {
+          "min_score": "3.0",
+          "passed": true
+        }
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "momentum_swing",
+      "profile_rank": 5,
+      "profile_score": "7.7797",
+      "technical_profile_score": "6.6251",
+      "ticker": "JNJ",
+      "warning_flags": []
+    },
+    {
+      "decision_label": "Strong candidate",
+      "gates": {
+        "danger_gate": false,
+        "data_quality": true,
+        "earnings_block": false
+      },
+      "has_warning": false,
+      "is_complete": true,
+      "penalties": {},
+      "profile": "quality_momentum",
+      "profile_rank": 5,
+      "profile_score": "8.1177",
+      "technical_profile_score": "6.8059",
+      "ticker": "JNJ",
+      "warning_flags": []
+    }
+  ],
+  "technical": [
+    {
+      "action_bias": "Overheated, avoid chasing",
+      "atr_percentile_252": "0.3968",
+      "base_dual_score": "7.7825",
+      "box_tightness_score": "7.0664",
+      "breakout_quality_score": "5.0600",
+      "classification": "Overheated momentum",
+      "climax_risk_score": "3",
+      "combined_relative_strength_score": "10.0000",
+      "data_quality_score": "10",
+      "dual_score": "7.2834",
+      "entry_risk_pct": "1.7359",
+      "extension_percentile_252": "0.3968",
+      "htf_score": "10",
+      "insufficient_data": false,
+      "leadership_score": "6.6667",
+      "local_trend_score": "8.3000",
+      "market_regime": "Bull trend",
+      "market_score": "10",
+      "momentum_score": "7.0500",
+      "pullback_health": "Mixed",
+      "range_percentile_252": "0.3968",
+      "relative_strength_score": "10",
+      "reward_risk": "1.9325",
+      "risk_score": "2.2000",
+      "sector_relative_strength_score": "10",
+      "setup_score": "5.4000",
+      "stage": "Stage 2",
+      "suggested_stop": "92.27",
+      "suggested_target": "97.05",
+      "technical_confidence": "high",
+      "technical_engine_version": "4.0.0",
+      "ticker": "BHE",
+      "trend_score": "8.6400",
+      "vcp_score": "5",
+      "volume_percentile_252": "100",
+      "warning_flags_json": []
+    },
+    {
+      "action_bias": "No clear trade",
+      "atr_percentile_252": "0.3968",
+      "base_dual_score": "7.7200",
+      "box_tightness_score": "7.1242",
+      "breakout_quality_score": "5.0686",
+      "classification": "No trade",
+      "climax_risk_score": "3",
+      "combined_relative_strength_score": "10.0000",
+      "data_quality_score": "10",
+      "dual_score": "7.0912",
+      "entry_risk_pct": "1.884",
+      "extension_percentile_252": "0.3968",
+      "htf_score": "10",
+      "insufficient_data": false,
+      "leadership_score": "5.6667",
+      "local_trend_score": "8.3000",
+      "market_regime": "Bull trend",
+      "market_score": "10",
+      "momentum_score": "6.8000",
+      "pullback_health": "Mixed",
+      "range_percentile_252": "0.3968",
+      "relative_strength_score": "10",
+      "reward_risk": "1.9325",
+      "risk_score": "2.2000",
+      "sector_relative_strength_score": "10",
+      "setup_score": "5.4000",
+      "stage": "Stage 2",
+      "suggested_stop": "84.89",
+      "suggested_target": "89.67",
+      "technical_confidence": "high",
+      "technical_engine_version": "4.0.0",
+      "ticker": "BLLN",
+      "trend_score": "8.6400",
+      "vcp_score": "5",
+      "volume_percentile_252": "100",
+      "warning_flags_json": []
+    },
+    {
+      "action_bias": "Overheated, avoid chasing",
+      "atr_percentile_252": "0.3968",
+      "base_dual_score": "7.7825",
+      "box_tightness_score": "6.8590",
+      "breakout_quality_score": "5.0288",
+      "classification": "Overheated momentum",
+      "climax_risk_score": "3",
+      "combined_relative_strength_score": "10.0000",
+      "data_quality_score": "10",
+      "dual_score": "7.3866",
+      "entry_risk_pct": "1.8544",
+      "extension_percentile_252": "0.3968",
+      "htf_score": "10",
+      "insufficient_data": false,
+      "leadership_score": "7.4167",
+      "local_trend_score": "8.3000",
+      "market_regime": "Bull trend",
+      "market_score": "10",
+      "momentum_score": "7.0500",
+      "pullback_health": "Mixed",
+      "range_percentile_252": "0.3968",
+      "relative_strength_score": "10",
+      "reward_risk": "1.9325",
+      "risk_score": "2.2000",
+      "sector_relative_strength_score": "10",
+      "setup_score": "5.4000",
+      "stage": "Stage 2",
+      "suggested_stop": "86.27",
+      "suggested_target": "91.05",
+      "technical_confidence": "high",
+      "technical_engine_version": "4.0.0",
+      "ticker": "KLIC",
+      "trend_score": "8.6400",
+      "vcp_score": "5",
+      "volume_percentile_252": "100",
+      "warning_flags_json": []
+    },
+    {
+      "action_bias": "Overheated, avoid chasing",
+      "atr_percentile_252": "0.3968",
+      "base_dual_score": "7.9100",
+      "box_tightness_score": "6.8562",
+      "breakout_quality_score": "5.0284",
+      "classification": "Overheated momentum",
+      "climax_risk_score": "3",
+      "combined_relative_strength_score": "10.0000",
+      "data_quality_score": "10",
+      "dual_score": "7.7659",
+      "entry_risk_pct": "1.693",
+      "extension_percentile_252": "0.3968",
+      "htf_score": "10",
+      "insufficient_data": false,
+      "leadership_score": "8.5000",
+      "local_trend_score": "8.5000",
+      "market_regime": "Bull trend",
+      "market_score": "10",
+      "momentum_score": "7.4000",
+      "pullback_health": "Mixed",
+      "range_percentile_252": "0.3968",
+      "relative_strength_score": "10",
+      "reward_risk": "1.9325",
+      "risk_score": "2.2000",
+      "sector_relative_strength_score": "10",
+      "setup_score": "5.4000",
+      "stage": "Stage 2",
+      "suggested_stop": "94.65",
+      "suggested_target": "99.43",
+      "technical_confidence": "high",
+      "technical_engine_version": "4.0.0",
+      "ticker": "LSCC",
+      "trend_score": "8.8000",
+      "vcp_score": "6",
+      "volume_percentile_252": "100",
+      "warning_flags_json": []
+    },
+    {
+      "action_bias": "No clear trade",
+      "atr_percentile_252": "0.3968",
+      "base_dual_score": "7.3100",
+      "box_tightness_score": "7.3957",
+      "breakout_quality_score": "5.1094",
+      "classification": "No trade",
+      "climax_risk_score": "3",
+      "combined_relative_strength_score": "7.0000",
+      "data_quality_score": "10",
+      "dual_score": "6.6724",
+      "entry_risk_pct": "1.9145",
+      "extension_percentile_252": "0.3968",
+      "htf_score": "10",
+      "insufficient_data": false,
+      "leadership_score": "3.2500",
+      "local_trend_score": "8.3000",
+      "market_regime": "Bull trend",
+      "market_score": "10",
+      "momentum_score": "6.4000",
+      "pullback_health": "Mixed",
+      "range_percentile_252": "0.3968",
+      "relative_strength_score": "10",
+      "reward_risk": "1.9325",
+      "risk_score": "2.9000",
+      "sector_relative_strength_score": "0",
+      "setup_score": "5.4000",
+      "stage": "Stage 2",
+      "suggested_stop": "83.51",
+      "suggested_target": "88.29",
+      "technical_confidence": "high",
+      "technical_engine_version": "4.0.0",
+      "ticker": "PDFS",
+      "trend_score": "8.6400",
+      "vcp_score": "5",
+      "volume_percentile_252": "100",
+      "warning_flags_json": []
+    },
+    {
+      "action_bias": "Overheated, avoid chasing",
+      "atr_percentile_252": "0.3968",
+      "base_dual_score": "7.7825",
+      "box_tightness_score": "6.8590",
+      "breakout_quality_score": "5.0288",
+      "classification": "Overheated momentum",
+      "climax_risk_score": "3",
+      "combined_relative_strength_score": "10.0000",
+      "data_quality_score": "10",
+      "dual_score": "7.3866",
+      "entry_risk_pct": "1.8544",
+      "extension_percentile_252": "0.3968",
+      "htf_score": "10",
+      "insufficient_data": false,
+      "leadership_score": "7.4167",
+      "local_trend_score": "8.3000",
+      "market_regime": "Bull trend",
+      "market_score": "10",
+      "momentum_score": "7.0500",
+      "pullback_health": "Mixed",
+      "range_percentile_252": "0.3968",
+      "relative_strength_score": "10",
+      "reward_risk": "1.9325",
+      "risk_score": "2.2000",
+      "sector_relative_strength_score": "10",
+      "setup_score": "5.4000",
+      "stage": "Stage 2",
+      "suggested_stop": "86.27",
+      "suggested_target": "91.05",
+      "technical_confidence": "high",
+      "technical_engine_version": "4.0.0",
+      "ticker": "ACMR",
+      "trend_score": "8.6400",
+      "vcp_score": "5",
+      "volume_percentile_252": "100",
+      "warning_flags_json": []
+    },
+    {
+      "action_bias": "No clear trade",
+      "atr_percentile_252": "0.3968",
+      "base_dual_score": "7.7600",
+      "box_tightness_score": "7.6103",
+      "breakout_quality_score": "5.1415",
+      "classification": "No trade",
+      "climax_risk_score": "3",
+      "combined_relative_strength_score": "10.0000",
+      "data_quality_score": "10",
+      "dual_score": "7.2076",
+      "entry_risk_pct": "1.3573",
+      "extension_percentile_252": "0.3968",
+      "htf_score": "10",
+      "insufficient_data": false,
+      "leadership_score": "5.3333",
+      "local_trend_score": "8.5000",
+      "market_regime": "Bull trend",
+      "market_score": "10",
+      "momentum_score": "6.8000",
+      "pullback_health": "Mixed",
+      "range_percentile_252": "0.3968",
+      "relative_strength_score": "10",
+      "reward_risk": "1.9325",
+      "risk_score": "2.2000",
+      "sector_relative_strength_score": "10",
+      "setup_score": "5.4000",
+      "stage": "Stage 2",
+      "suggested_stop": "118.46",
+      "suggested_target": "123.24",
+      "technical_confidence": "high",
+      "technical_engine_version": "4.0.0",
+      "ticker": "RDVT",
+      "trend_score": "8.8000",
+      "vcp_score": "6",
+      "volume_percentile_252": "100",
+      "warning_flags_json": []
+    },
+    {
+      "action_bias": "No clear trade",
+      "atr_percentile_252": "0.3968",
+      "base_dual_score": "7.3100",
+      "box_tightness_score": "7.7572",
+      "breakout_quality_score": "5.1636",
+      "classification": "No trade",
+      "climax_risk_score": "3",
+      "combined_relative_strength_score": "7.0000",
+      "data_quality_score": "10",
+      "dual_score": "6.8210",
+      "entry_risk_pct": "1.3372",
+      "extension_percentile_252": "0.3968",
+      "htf_score": "10",
+      "insufficient_data": false,
+      "leadership_score": "4.2500",
+      "local_trend_score": "8.3000",
+      "market_regime": "Bull trend",
+      "market_score": "10",
+      "momentum_score": "6.4000",
+      "pullback_health": "Mixed",
+      "range_percentile_252": "0.3968",
+      "relative_strength_score": "10",
+      "reward_risk": "1.9325",
+      "risk_score": "2.9000",
+      "sector_relative_strength_score": "0",
+      "setup_score": "5.4000",
+      "stage": "Stage 2",
+      "suggested_stop": "120.27",
+      "suggested_target": "125.05",
+      "technical_confidence": "high",
+      "technical_engine_version": "4.0.0",
+      "ticker": "AVT",
+      "trend_score": "8.6400",
+      "vcp_score": "5",
+      "volume_percentile_252": "100",
+      "warning_flags_json": []
+    },
+    {
+      "action_bias": "No clear trade",
+      "atr_percentile_252": "0.3968",
+      "base_dual_score": "7.3100",
+      "box_tightness_score": "7.8615",
+      "breakout_quality_score": "5.1792",
+      "classification": "No trade",
+      "climax_risk_score": "3",
+      "combined_relative_strength_score": "7.0000",
+      "data_quality_score": "10",
+      "dual_score": "6.6087",
+      "entry_risk_pct": "1.4909",
+      "extension_percentile_252": "0.3968",
+      "htf_score": "10",
+      "insufficient_data": false,
+      "leadership_score": "2.7500",
+      "local_trend_score": "8.3000",
+      "market_regime": "Bull trend",
+      "market_score": "10",
+      "momentum_score": "6.4000",
+      "pullback_health": "Mixed",
+      "range_percentile_252": "0.3968",
+      "relative_strength_score": "10",
+      "reward_risk": "1.9325",
+      "risk_score": "2.9000",
+      "sector_relative_strength_score": "0",
+      "setup_score": "5.4000",
+      "stage": "Stage 2",
+      "suggested_stop": "107.70",
+      "suggested_target": "112.48",
+      "technical_confidence": "high",
+      "technical_engine_version": "4.0.0",
+      "ticker": "DVN",
+      "trend_score": "8.6400",
+      "vcp_score": "5",
+      "volume_percentile_252": "100",
+      "warning_flags_json": []
+    },
+    {
+      "action_bias": "No clear trade",
+      "atr_percentile_252": "0.3968",
+      "base_dual_score": "7.3100",
+      "box_tightness_score": "7.6777",
+      "breakout_quality_score": "5.1517",
+      "classification": "No trade",
+      "climax_risk_score": "3",
+      "combined_relative_strength_score": "7.0000",
+      "data_quality_score": "10",
+      "dual_score": "6.7481",
+      "entry_risk_pct": "1.5302",
+      "extension_percentile_252": "0.3968",
+      "htf_score": "10",
+      "insufficient_data": false,
+      "leadership_score": "3.7500",
+      "local_trend_score": "8.3000",
+      "market_regime": "Bull trend",
+      "market_score": "10",
+      "momentum_score": "6.4000",
+      "pullback_health": "Mixed",
+      "range_percentile_252": "0.3968",
+      "relative_strength_score": "10",
+      "reward_risk": "1.9325",
+      "risk_score": "2.9000",
+      "sector_relative_strength_score": "0",
+      "setup_score": "5.4000",
+      "stage": "Stage 2",
+      "suggested_stop": "104.89",
+      "suggested_target": "109.67",
+      "technical_confidence": "high",
+      "technical_engine_version": "4.0.0",
+      "ticker": "JNJ",
+      "trend_score": "8.6400",
+      "vcp_score": "5",
+      "volume_percentile_252": "100",
+      "warning_flags_json": []
+    }
+  ],
+  "technical_contributions": [
+    {
+      "execution": "8.3206",
+      "leadership": "6.6667",
+      "market": "9.5",
+      "momentum": "7.0500",
+      "risk_control": "7",
+      "setup": "5.4000",
+      "ticker": "BHE",
+      "trend": "8.6400"
+    },
+    {
+      "execution": "8.2836",
+      "leadership": "5.6667",
+      "market": "9.5",
+      "momentum": "6.8000",
+      "risk_control": "7",
+      "setup": "5.4000",
+      "ticker": "BLLN",
+      "trend": "8.6400"
+    },
+    {
+      "execution": "8.2910",
+      "leadership": "7.4167",
+      "market": "9.5",
+      "momentum": "7.0500",
+      "risk_control": "7",
+      "setup": "5.4000",
+      "ticker": "KLIC",
+      "trend": "8.6400"
+    },
+    {
+      "execution": "8.3314",
+      "leadership": "8.5000",
+      "market": "9.5",
+      "momentum": "7.4000",
+      "risk_control": "7",
+      "setup": "6",
+      "ticker": "LSCC",
+      "trend": "8.8000"
+    },
+    {
+      "execution": "8.2760",
+      "leadership": "3.2500",
+      "market": "9.5",
+      "momentum": "6.4000",
+      "risk_control": "7",
+      "setup": "5.4000",
+      "ticker": "PDFS",
+      "trend": "8.6400"
+    },
+    {
+      "execution": "8.2910",
+      "leadership": "7.4167",
+      "market": "9.5",
+      "momentum": "7.0500",
+      "risk_control": "7",
+      "setup": "5.4000",
+      "ticker": "ACMR",
+      "trend": "8.6400"
+    },
+    {
+      "execution": "8.4153",
+      "leadership": "5.3333",
+      "market": "9.5",
+      "momentum": "6.8000",
+      "risk_control": "7",
+      "setup": "6",
+      "ticker": "RDVT",
+      "trend": "8.8000"
+    },
+    {
+      "execution": "8.4203",
+      "leadership": "4.2500",
+      "market": "9.5",
+      "momentum": "6.4000",
+      "risk_control": "7",
+      "setup": "5.4000",
+      "ticker": "AVT",
+      "trend": "8.6400"
+    },
+    {
+      "execution": "8.3819",
+      "leadership": "2.7500",
+      "market": "9.5",
+      "momentum": "6.4000",
+      "risk_control": "7",
+      "setup": "5.4000",
+      "ticker": "DVN",
+      "trend": "8.6400"
+    },
+    {
+      "execution": "8.3720",
+      "leadership": "3.7500",
+      "market": "9.5",
+      "momentum": "6.4000",
+      "risk_control": "7",
+      "setup": "5.4000",
+      "ticker": "JNJ",
+      "trend": "8.6400"
+    }
+  ]
+}

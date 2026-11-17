@@ -54,8 +54,15 @@ def test_proposal_does_not_select_or_authorize_a_golden(monkeypatch):
         candidate = validation.expected_manifest(mode, candidate=True)
         baseline = retained.expected_manifest(mode)
         validation.require_complete(candidate)
-        assert candidate["version"] == "a05-v4"
-        assert candidate["completion"]["domains"] == baseline["completion"]["domains"]
+        assert candidate["version"] == "a05-v5"
+        # The new capture contract carries the verified parent owner. No
+        # financial value or other semantic field may drift from the baseline.
+        expected_domains = copy.deepcopy(baseline["completion"]["domains"])
+        assert len(expected_domains["captures"]) == 10
+        for row in expected_domains["captures"]:
+            assert row["pipeline_ownership_state"] == "UNKNOWN"
+            row["pipeline_ownership_state"] = "KNOWN"
+        assert candidate["completion"]["domains"] == expected_domains
         assert candidate["completion"]["variants"] == baseline["completion"]["variants"]
         assert sum(len(v) for v in candidate["completion"]["domains"].values()) == 402
         assert candidate["candidate_validation"]["activation_authorized"] is False
@@ -82,7 +89,7 @@ def _clone_declared_data(tmp_path):
 def test_changed_candidate_literals_fail_even_after_prior_success(tmp_path, monkeypatch):
     proposal = _clone_declared_data(tmp_path)
     monkeypatch.setattr(validation, "ROOT", tmp_path)
-    assert validation.expected_manifest(True, candidate=True)["version"] == "a05-v4"
+    assert validation.expected_manifest(True, candidate=True)["version"] == "a05-v5"
     old = "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json"
     path = tmp_path / proposal["candidate"]["expectation_artifacts"][old]
     changed = json.loads(path.read_text())
