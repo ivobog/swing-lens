@@ -22,6 +22,7 @@ from app.models.ceri_tables import (
 from app.models.tables import (
     CoreCalculationCurrentProjection,
     CoreCalculationEvidence,
+    MarketCalculationContext,
     PipelineRun,
     RankingResult,
     SetupLifecycleEpisode,
@@ -74,12 +75,41 @@ def seed_intelligence(db):
     workspace_decision(db, 7)
     insert(db, CeriCompany, id=8000, ticker="EOG", company_name="EOG Resources", exchange="US")
     for sid, run, score, days in ((8999, 6, 5.0, -3), (9000, 7, 8.2, 2), (9001, 7, 9.9, 3)):
+        context_id = None
+        if sid != 9001:
+            # These reader fixtures need the stored owner link used by current
+            # presentation. Writer/seal correctness has separate native tests.
+            context_id = sid + 20000
+            cutoff = CUTOFF + timedelta(days=days)
+            insert(
+                db,
+                MarketCalculationContext,
+                id=context_id,
+                pipeline_run_id=None,
+                upload_run_id=run,
+                cutoff_at=cutoff,
+                exchange_timezone="America/New_York",
+                latest_completed_session=cutoff.date(),
+                calendar_version="swinglens-us-equities-v2",
+                bar_readiness_version="reader-fixture-v1",
+                cutoff_reason="CERI_POST_ACQUISITION_FROZEN",
+            )
+            owner = db.get(PipelineRun, run)
+            db.execute(
+                PipelineRun.__table__.update()
+                .where(PipelineRun.id == run)
+                .values(
+                    result_json={**owner.result_json, "ceri_calculation_context_id": context_id}
+                )
+            )
+        # 9001 remains deliberately excluded legacy evidence with no context.
         frozen(db, sid + 10000, "CERI", run)
         insert(
             db,
             CeriScoreSnapshot,
             id=sid,
             run_id=run,
+            calculation_context_id=context_id,
             company_id=8000,
             ticker="EOG",
             evidence_id=sid + 10000,
@@ -462,6 +492,9 @@ def seed_intelligence(db):
                 published_at=CUTOFF if status != "CANDIDATE" else None,
                 superseded_at=CUTOFF + timedelta(days=1) if status == "SUPERSEDED" else None,
             )
+    # The browser serves this tiny read model immediately after seeding. Give
+    # PostgreSQL its actual cardinalities before concurrent eligibility reads.
+    db.execute(text("ANALYZE"))
 
 
 @pytest.fixture
@@ -560,6 +593,24 @@ def test_ceri_quarantined_owner_and_uncertified_snapshots(intelligence_db, intel
     result = request(intelligence_client, "ceri").json()
     assert "Opportunity 5.00" in result["summary"] and "8.20" not in result["summary"]
     intelligence_db.execute(CeriScoreSnapshot.__table__.update().values(evidence_id=None))
+    assert request(intelligence_client, "ceri").json()["state"] == "excluded"
+
+
+def test_ceri_unattributed_pipeline_snapshot_is_not_a_current_projection(
+    intelligence_db, intelligence_client,
+):
+    intelligence_db.execute(
+        CeriScoreSnapshot.__table__.update()
+        .where(CeriScoreSnapshot.id == 9000)
+        .values(calculation_context_id=None)
+    )
+    result = request(intelligence_client, "ceri").json()
+    assert "Opportunity 5.00" in result["summary"] and "8.20" not in result["summary"]
+    intelligence_db.execute(
+        CeriScoreSnapshot.__table__.update()
+        .where(CeriScoreSnapshot.id == 8999)
+        .values(calculation_context_id=None)
+    )
     assert request(intelligence_client, "ceri").json()["state"] == "excluded"
 
 

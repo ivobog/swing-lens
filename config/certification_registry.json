@@ -2646,6 +2646,10 @@
           {
             "path": "scripts/replay_sec_identity.py",
             "symbol": "main"
+          },
+          {
+            "path": "app/services/ticker_intelligence_service.py",
+            "symbol": "_ceri"
           }
         ],
         "impact_patterns": [
@@ -2874,6 +2878,24 @@
             "positive": "The frozen baseline temporal identity is accepted by the companion positive control.",
             "negative": "A changed cutoff within the native context is rejected.",
             "reviewed_test_sha256": "ff718ff20cb884f0c9842a4d591681fc20c5988c7b2641a53e9c62aca3f6576c"
+          },
+          {
+            "id": "tests/test_ticker_intelligence.py::test_ceri_eligible_current_cutoff_scores_changes_alerts_and_freshness",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Stored context/owner links expose the exact current independent score, date and retained activity across selected decision runs.",
+            "negative": "A newer excluded legacy snapshot cannot replace the eligible projection.",
+            "reviewed_test_sha256": "fd08a55636fc85be4494e4d78b81de84270f0a52b66a1248f7896df0744ff31c"
+          },
+          {
+            "id": "tests/test_ticker_intelligence.py::test_ceri_unattributed_pipeline_snapshot_is_not_a_current_projection",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "An older genuinely attributed owner remains selectable when the newer snapshot loses its owner/context link.",
+            "negative": "Removing both context links refuses the current projection despite matching upload histories.",
+            "reviewed_test_sha256": "fd08a55636fc85be4494e4d78b81de84270f0a52b66a1248f7896df0744ff31c"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -2885,7 +2907,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "e228de36627c97265675696f220aeb609fcc530bb3ab6da8e2132347d1f83559",
+        "review_sha256": "97273db57a25c3fae8ba68b664da10ec8020f6787d31c693be413b6d2a4babaf",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -2971,6 +2993,13 @@
               }
             ],
             "claim": "STATIC_INTENT only. Exact prerequisite paths are assigned to existing accountable domains and existing mandatory validation. Unknown high-risk paths still fail closed; manual replay is not an automated producer. No financial oracle, historical source identity, authenticated approval or certificate is changed."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-READER-FIXTURE-20261117",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/browser-fixture-review.md",
+            "scope": "Seed true persisted dedicated context/reverse-owner links for positive current-presentation fixtures. Preserve the excluded legacy row and all browser/financial assertions; add explicit unattributed-context refusal. Reader payloads remain doubles and are not promoted to financial-writer certification.",
+            "claim": "STATIC_INTENT only; native seals, current CI evidence and authenticated golden approval remain separately required."
           }
         ]
       },
