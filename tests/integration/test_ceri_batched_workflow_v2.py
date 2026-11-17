@@ -34,6 +34,7 @@ from app.models.ceri_tables import (
 )
 from app.models.tables import (
     BackgroundJob,
+    CoreCalculationEvidence,
     MarketCalculationContext,
     PipelineRun,
     PipelineStep,
@@ -601,6 +602,23 @@ def test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores(
         )
         assert db.scalar(select(func.count()).select_from(CeriEstimateSnapshot)) == 0
 
+        from app.services.pipeline_dependency_service import prepare_ceri_workflow_dependency
+
+        root_job = _new_job(
+            db,
+            job_type=FULL_PIPELINE_JOB_TYPE,
+            payload_json={"pipeline_run_id": pipeline.id},
+            related_run_id=run_id,
+            status=JobStatus.COMPLETED,
+            request_key=f"{workflow_key}:root",
+        )
+        pipeline.result_json = {**pipeline.result_json, "pipeline_root_job_id": root_job.id}
+        dependency = prepare_ceri_workflow_dependency(
+            db,
+            pipeline=pipeline,
+            workflow_key=workflow_key,
+            resume_from_step="FREEZING_DECISION_HANDOFF_MANIFEST",
+        )
         provider = _new_job(
             db,
             job_type=CERI_PROVIDER_INGEST_BATCH,
@@ -765,6 +783,13 @@ def test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores(
         db.refresh(pipeline)
         assert snapshot is not None
         assert snapshot.calculation_context_id == ceri_context_id
+        db.refresh(dependency)
+        assert dependency.state == "COMPLETED"
+        assert dependency.continuation_job_id == continuation.id
+        assert dependency.child_job_id == alert.id
+        assert dependency.result_json["certified_count"] == 1
+        assert pipeline.result_json["ceri_certified_score_ids"] == [snapshot.id]
+        assert change.payload_json["score_ids"] == alert.payload_json["score_ids"] == [snapshot.id]
         assert pipeline.result_json["market_calculation_context_id"] == main_context_id
         assert pipeline.result_json["market_cutoff_at"] == main_cutoff_at.isoformat()
         assert pipeline.result_json["ceri_calculation_context_id"] == ceri_context_id
@@ -783,12 +808,106 @@ def test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores(
             market_cutoff=main_context,
         )
         assert decision_ceri_context.context_id == retained_ceri_context.context_id
+        from app.services.ceri.capture_service import _existing_snapshot_company_ids
+        from app.services.ceri.score_population import certified_scores
+        from app.services.configuration_delivery import (
+            binding_reference,
+            load_configuration_delivery,
+        )
+        from app.services.contextual_effective_configuration import ContextualEffectiveConfiguration
+
+        owner_config = load_configuration_delivery(
+            db, binding_reference(db, pipeline_run_id=pipeline.id)
+        )
+        native_config = ContextualEffectiveConfiguration(
+            owner_config.configurations["contextual.ceri"].snapshot
+        )
+        assert _existing_snapshot_company_ids(
+            db,
+            run_id,
+            {snapshot.company_id},
+            native_config.ceri_config(),
+            retained_ceri_context,
+            pipeline.id,
+        ) == {snapshot.company_id}
+        # Another generation is neither a retry candidate nor a corruption.
+        assert _existing_snapshot_company_ids(
+            db,
+            run_id,
+            {snapshot.company_id},
+            native_config.ceri_config(),
+            main_context,
+            pipeline.id,
+        ) == set()
+        from types import SimpleNamespace
+
+        incompatible_config = SimpleNamespace(
+            config_hash="incompatible-same-context",
+            engine=native_config.ceri_config().engine,
+        )
+        with pytest.raises(ValueError, match="CERI_SAME_CONTEXT_CONFIGURATION_MISMATCH"):
+            _existing_snapshot_company_ids(
+                db, run_id, {snapshot.company_id}, incompatible_config,
+                retained_ceri_context, pipeline.id,
+            )
+        from copy import deepcopy
+
+        from app.services.ceri.score_population import validate_score_seal
+
+        evidence = db.get(CoreCalculationEvidence, snapshot.evidence_id)
+        # Mutate a detached envelope input, never the retained immutable row.
+        tampered = SimpleNamespace(
+            artifact_kind=evidence.artifact_kind,
+            payload_json={**deepcopy(evidence.payload_json), "tamper": True},
+            payload_fingerprint=evidence.payload_fingerprint,
+        )
+        with pytest.raises(ValueError, match="MUTATION_SOURCE_PAYLOAD_FINGERPRINT_MISMATCH"):
+            validate_score_seal(db, snapshot, evidence=tampered)
+        with pytest.raises(ValueError, match="CERI_SAME_CONTEXT_OWNER_MISMATCH"):
+            _existing_snapshot_company_ids(
+                db,
+                run_id,
+                {snapshot.company_id},
+                native_config.ceri_config(),
+                retained_ceri_context,
+                -1,
+            )
+        with pytest.raises(ValueError, match="CERI_CERTIFIED_CAPTURE_ID_MISMATCH"):
+            certified_scores(db, pipeline.id, ceri_context_id, expected_ids=[])
+
         _validate_handoff_temporal_lineage(
             db,
             upload_run_id=run_id,
             market_cutoff=main_context,
             ceri_market_cutoff=retained_ceri_context,
             built_rows=(),
+        )
+
+        pipeline_id, alert_id, continuation_id = pipeline.id, alert.id, continuation.id
+
+    # Reopen after the completed native workflow to exercise durable retry semantics.
+    from app.services.pipeline_service import enqueue_pipeline_after_ceri_completion
+
+    with Session(engine) as restarted:
+        trigger = restarted.get(BackgroundJob, alert_id)
+        duplicate = enqueue_pipeline_after_ceri_completion(restarted, trigger)
+        assert duplicate.id == continuation_id
+        restarted.commit()
+        pipeline = restarted.get(PipelineRun, pipeline_id)
+        assert pipeline.status == "PENDING"
+        assert pipeline.current_step == "FREEZING_DECISION_HANDOFF_MANIFEST"
+        assert pipeline.result_json["ceri_certified_capture_count"] == 1
+        assert duplicate.payload_json["pipeline_run_id"] == pipeline.id
+        assert duplicate.payload_json["ceri_provider_workflow_key"] == workflow_key
+        assert duplicate.pipeline_dependency_id == trigger.pipeline_dependency_id
+        assert require_semantic_authority(duplicate) == require_semantic_authority(pipeline)
+        assert (
+            restarted.scalar(
+                select(func.count())
+                .select_from(BackgroundJob)
+                .where(BackgroundJob.request_key == duplicate.request_key)
+            )
+            == 1
         )
 
     engine.dispose()
@@ -1082,7 +1201,8 @@ def test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded(
     # when the deployment's optional CERI master switch defaults to disabled.
     enabled_settings = Settings(_env_file=None, ceri_enabled=True)
     monkeypatch.setattr(
-        "app.services.ceri.feature_flags.get_settings", lambda: enabled_settings,
+        "app.services.ceri.feature_flags.get_settings",
+        lambda: enabled_settings,
     )
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
@@ -1314,6 +1434,8 @@ def _execute_legacy_fixture(database_url: str) -> dict:
         )
         ceri_context = _retain_fixture_ceri_context(db, pipeline, cutoff)
         workflow_key = f"ceri:pipeline:{pipeline.id}:legacy-parity"
+        pipeline.result_json = {**pipeline.result_json, "ceri_provider_workflow_key": workflow_key}
+        pipeline.status = "WAITING_FOR_CERI_COMPLETION"
         temporal_payload = {
             "pipeline_run_id": pipeline.id,
             "calculation_context_id": ceri_context.id,
@@ -1386,6 +1508,8 @@ def _execute_batched_fixture(database_url: str) -> dict:
         )
         ceri_context = _retain_fixture_ceri_context(db, pipeline, cutoff)
         workflow_key = f"ceri:pipeline:{pipeline.id}:fixture-config"
+        pipeline.result_json = {**pipeline.result_json, "ceri_provider_workflow_key": workflow_key}
+        pipeline.status = "WAITING_FOR_CERI_COMPLETION"
         ingestion = db.get(CeriIngestionRun, ingestion_run_id)
         ingestion.request_key = (
             f"{workflow_key}:ingest:eodhd:estimates:MSFT:refresh:{authority.refresh_cycle_id}"

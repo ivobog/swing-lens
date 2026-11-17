@@ -441,6 +441,15 @@ def execute_capture_run_job(
             "expected_calendar_version": str(payload["calendar_version"]),
         }
         if resolver is resolve_pipeline_ceri_context:
+            retained_key = (pipeline.result_json or {}).get("ceri_provider_workflow_key")
+            if (
+                job.workflow_key != workflow_key
+                or retained_key != workflow_key
+                or payload.get("workflow_key", workflow_key) != workflow_key
+                or job.related_run_id != run_id
+            ):
+                raise ValueError("CERI_CAPTURE_WORKFLOW_OWNER_MISMATCH")
+        if pipeline_id is not None:
             resolver_kwargs["pipeline_run_id"] = pipeline_id
         market_cutoff = resolver(db, **resolver_kwargs)
     processing, created = _processing_run(
@@ -547,6 +556,7 @@ def execute_capture_run_job(
             capture_kwargs["market_cutoff"] = market_cutoff
         if isinstance(capture, CeriRunCaptureService):
             capture_kwargs["progress_callback"] = capture_progress
+            capture_kwargs["expected_pipeline_id"] = _optional_int(payload.get("pipeline_run_id"))
         result = capture.capture_run(db, run_id, **capture_kwargs)
     values = result.as_dict()
     CeriProcessingRunService().finish(
@@ -599,6 +609,7 @@ def execute_change_detection_job(
     payload = job.payload_json or {}
     if _is_pipeline_owned_ceri_job(job, payload):
         require_parent_pipeline_active(db, job)
+    _verify_tail_population(db, job, payload)
     semantic_authority = None
     if isinstance(db, Session):
         from app.services.scope_refresh_adoption import require_semantic_authority
@@ -633,6 +644,7 @@ def execute_change_detection_job(
             _release_pipeline_after_ceri(db, job)
         return values
     request = CeriChangeRebuildRequest(
+        score_ids=_optional_int_tuple(payload.get("score_ids")),
         company_ids=_optional_int_tuple(payload.get("company_ids")),
         ticker=payload.get("ticker"),
         run_id=_optional_int(payload.get("run_id")),
@@ -786,6 +798,7 @@ def execute_alert_rebuild_job(db: Session, job: BackgroundJob) -> dict[str, Any]
     payload = job.payload_json or {}
     if _is_pipeline_owned_ceri_job(job, payload):
         require_parent_pipeline_active(db, job)
+    _verify_tail_population(db, job, payload)
     processing, created = _processing_run(
         db,
         CERI_ALERT_REBUILD,
@@ -1018,6 +1031,30 @@ def _processing_run(
     )
 
 
+def _verify_tail_population(db: Session, job: BackgroundJob, payload: dict[str, Any]) -> None:
+    if not isinstance(db, Session) or not payload.get("pipeline_run_id"):
+        return
+    from app.services.ceri.score_population import certified_scores
+
+    if not payload.get("score_ids") or job.related_run_id != payload.get("run_id"):
+        raise ValueError("CERI_CERTIFIED_CAPTURE_RECEIPT_MISSING")
+    owner = db.get(PipelineRun, payload["pipeline_run_id"])
+    if owner is None or owner.upload_run_id != job.related_run_id:
+        raise ValueError("CERI_CAPTURE_OWNER_MISMATCH")
+    from app.services.configuration_delivery import binding_reference
+
+    if payload.get("effective_configuration_anchor") != binding_reference(
+        db, pipeline_run_id=owner.id
+    ):
+        raise ValueError("CERI_CAPTURE_CONFIGURATION_ANCHOR_MISMATCH")
+    if (owner.result_json or {}).get("ceri_calculation_context_id") is not None:
+        if (owner.result_json or {}).get("ceri_provider_workflow_key") != job.workflow_key:
+            raise ValueError("CERI_CAPTURE_WORKFLOW_OWNER_MISMATCH")
+    certified_scores(
+        db, owner.id, payload.get("calculation_context_id"), expected_ids=payload["score_ids"]
+    )
+
+
 def _eligible_changes(
     db: Session,
     payload: dict[str, Any],
@@ -1031,6 +1068,22 @@ def _eligible_changes(
             {int(value) for value in payload.get("change_ids", []) if str(value).isdigit()}
         )
         has_authoritative_scope = bool(ids)
+        if payload.get("score_ids") is not None:
+            scope = payload["score_ids"]
+            if ids:
+                # Revision/guidance events can be independent of a score change.
+                companies = select(CeriScoreSnapshot.company_id).where(
+                    CeriScoreSnapshot.id.in_(scope)
+                )
+                statement = statement.where(
+                    CeriChangeEvent.company_id.in_(companies),
+                    or_(
+                        CeriChangeEvent.to_snapshot_id.is_(None),
+                        CeriChangeEvent.to_snapshot_id.in_(scope),
+                    ),
+                )
+            else:
+                statement = statement.where(CeriChangeEvent.to_snapshot_id.in_(scope))
         if ids:
             statement = statement.where(CeriChangeEvent.id.in_(ids))
         else:
@@ -1300,6 +1353,13 @@ def _enqueue_change_after_capture(db: Session, *, job: BackgroundJob, run_id: in
     request_key = (
         f"{job.workflow_key}:change" if job.workflow_key else f"ceri:change-rebuild:run:{run_id}"
     )
+    score_scope = {}
+    if isinstance(db, Session) and (job.payload_json or {}).get("pipeline_run_id"):
+        from app.services.ceri.score_population import certified_scores
+
+        payload = job.payload_json
+        scores = certified_scores(db, payload["pipeline_run_id"], payload["calculation_context_id"])
+        score_scope["score_ids"] = [row.id for row in scores]
     change_job = enqueue_job(
         db,
         CERI_CHANGE_DETECTION,
@@ -1308,6 +1368,7 @@ def _enqueue_change_after_capture(db: Session, *, job: BackgroundJob, run_id: in
             "run_id": run_id,
             "workflow_key": job.workflow_key,
             **_temporal_context_payload(job.payload_json or {}),
+            **score_scope,
         },
         related_run_id=run_id,
         priority=_child_priority(job),
@@ -1386,6 +1447,7 @@ def _temporal_context_payload(payload: dict[str, Any]) -> dict[str, Any]:
         key: payload[key]
         for key in (
             "pipeline_run_id",
+            "score_ids",
             "calculation_context_id",
             "cutoff_at",
             "as_of_session",

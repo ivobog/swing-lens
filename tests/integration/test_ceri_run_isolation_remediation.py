@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+import pytest
 from alembic.config import Config
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
@@ -93,9 +94,7 @@ def test_cancelled_source_owner_does_not_own_later_deduplicated_normalization(
         )
         db.add(partial)
         db.flush()
-        CeriNormalizationService().normalize(
-            db, processing_run=partial, source_records=[first]
-        )
+        CeriNormalizationService().normalize(db, processing_run=partial, source_records=[first])
         db.commit()
 
         run_b = service.create_ingestion_run(
@@ -271,7 +270,7 @@ def test_failed_pipeline_excludes_evidence_repairs_projection_and_processing(
             job_type="CERI_NORMALIZE_BATCH",
             status="RUNNING",
             deterministic_request_key=f"ceri:pipeline:{pipeline.id}:normalize:AAA",
-            scope_json={"run_id": upload.id, "ticker": "AAA"},
+            scope_json={"run_id": upload.id, "pipeline_run_id": pipeline.id, "ticker": "AAA"},
             started_at=datetime.now(UTC),
         )
         db.add_all(
@@ -290,15 +289,39 @@ def test_failed_pipeline_excludes_evidence_repairs_projection_and_processing(
         db.commit()
 
         # A second pipeline failing on dispatch owns neither the first context
-        # nor its legacy upload-only processing record.
+        # nor its owner-qualified processing record.
         savepoint = db.begin_nested()
         context.pipeline_run_id = pipeline.id
         sibling = PipelineRun(upload_run_id=upload.id, status="FAILED")
         db.add(sibling)
         db.flush()
         assert reconcile_unsuccessful_pipeline_ceri(db, sibling) == {
-            "excluded": 0, "projections_repaired": 0, "processing_terminalized": 0,
+            "excluded": 0,
+            "projections_repaired": 0,
+            "processing_terminalized": 0,
         }
+        savepoint.rollback()
+
+        # A separate CERI context has a reverse binding rather than the main FK.
+        savepoint = db.begin_nested()
+        context.cutoff_reason = "CERI_POST_ACQUISITION_FROZEN"
+        pipeline.status = "PARTIAL"
+        pipeline.result_json = {
+            "ceri_calculation_context_id": context.id,
+            "pipeline_outcome_summary": {
+                "contract_version": "pipeline-outcome-v1",
+                "integrity": {"status": "NO_INTEGRITY_HAZARD"},
+            },
+        }
+        failed_sibling = PipelineRun(upload_run_id=upload.id, status="FAILED")
+        db.add(failed_sibling)
+        db.flush()
+        for status in ("PARTIAL", "COMPLETED"):
+            pipeline.status = status
+            db.flush()
+            assert list(db.scalars(eligible_snapshot_select())) == [snapshot]
+            assert reconcile_unsuccessful_pipeline_ceri(db, failed_sibling)["excluded"] == 0
+            assert reconcile_unsuccessful_pipeline_ceri(db, pipeline)["excluded"] == 0
         savepoint.rollback()
         result = reconcile_unsuccessful_pipeline_ceri(db, pipeline)
         db.commit()
@@ -318,6 +341,69 @@ def test_failed_pipeline_excludes_evidence_repairs_projection_and_processing(
         db.commit()
         assert again["excluded"] == 0
         assert db.scalar(select(func.count()).select_from(CeriEvidenceDisposition)) == 1
+    engine.dispose()
+
+
+@pytest.mark.parametrize("ambiguous_context", [False, True])
+def test_unresolved_legacy_owner_is_contained_with_multiple_upload_siblings(
+    disposable_postgres_database: str,
+    ambiguous_context: bool,
+) -> None:
+    """Neither a shared upload nor competing reverse bindings grant ownership."""
+    from copy import deepcopy
+
+    from app.services.calculation_identity import CalculationIdentity
+    from app.services.contextual_calculation_identity import identity_metadata
+
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine) as db:
+        upload = UploadRun(filename="ambiguous-owner.csv", row_count=1, status="COMPLETED")
+        company = CeriCompany(ticker="AAA", exchange="US")
+        db.add_all([upload, company])
+        db.flush()
+        failed = PipelineRun(upload_run_id=upload.id, status="FAILED")
+        successful = PipelineRun(upload_run_id=upload.id, status="COMPLETED")
+        db.add_all([failed, successful])
+        context_id = None
+        if ambiguous_context:
+            context = MarketCalculationContext(
+                upload_run_id=upload.id,
+                pipeline_run_id=None,
+                cutoff_at=datetime(2026, 9, 30, 14, tzinfo=UTC),
+                latest_completed_session=date(2026, 9, 29),
+                exchange_timezone="America/New_York",
+                calendar_version="legacy-unknown",
+                bar_readiness_version="legacy-unknown",
+                cutoff_reason="CERI_POST_ACQUISITION_FROZEN",
+            )
+            db.add(context)
+            db.flush()
+            context_id = context.id
+            failed.result_json = {"ceri_calculation_context_id": context_id}
+            successful.result_json = {"ceri_calculation_context_id": context_id}
+        snapshot = _snapshot(
+            run_id=upload.id, company_id=company.id, context_id=context_id, evidence_id=None
+        )
+        snapshot.evidence_lineage_json = identity_metadata(
+            CalculationIdentity.legacy_unknown(run_id=upload.id, ticker="AAA"),
+            policy="LEGACY_OWNERSHIP_TEST",
+        )
+        retained_identity = deepcopy(snapshot.evidence_lineage_json)
+        db.add(snapshot)
+        db.commit()
+        assert list(db.scalars(eligible_snapshot_select())) == []
+        assert reconcile_unsuccessful_pipeline_ceri(db, failed)["excluded"] == 1
+        db.commit()
+        disposition = db.scalar(
+            select(CeriEvidenceDisposition).where(
+                CeriEvidenceDisposition.ceri_snapshot_id == snapshot.id
+            )
+        )
+        assert disposition.reason_code == "CERI_OWNER_UNRESOLVED"
+        assert disposition.incident_reference == f"ceri-snapshot:{snapshot.id}"
+        assert snapshot.evidence_lineage_json == retained_identity
+        assert reconcile_unsuccessful_pipeline_ceri(db, failed)["excluded"] == 0
     engine.dispose()
 
 

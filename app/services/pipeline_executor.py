@@ -1260,6 +1260,12 @@ def _continue_after_sector_snapshot(
             capture = dependencies.capture_ceri_snapshot or _capture_ceri_snapshot
             ceri_result = _call_market_sensitive(capture, db, upload_run.id, market_cutoff)
             _apply_ceri_capture_result(result, ceri_result)
+            if isinstance(db, Session) and dependencies.capture_ceri_snapshot is None:
+                from app.services.ceri.score_population import certified_scores
+
+                scores = certified_scores(db, pipeline.id, market_cutoff.context_id)
+                result["ceri_certified_score_ids"] = [score.id for score in scores]
+                pipeline.result_json = {**(pipeline.result_json or {}), **result}
 
     if _pipeline_has_step(db, pipeline.id, DECISION_HANDOFF_PIPELINE_STEP):
         _raise_if_cancelled(should_cancel)
@@ -2318,7 +2324,7 @@ def _validate_ceri_completion_barrier(
         raise ValueError("CERI_COMPLETION_BARRIER_NOT_CERTIFIED")
     if not isinstance(db, Session):
         return
-    from app.models.ceri_tables import CeriScoreSnapshot
+    from app.services.ceri.score_population import certified_scores
     from app.services.market_calculation_context_service import resolve_pipeline_ceri_context
 
     if retained.get("ceri_calculation_context_id") is not None:
@@ -2333,15 +2339,11 @@ def _validate_ceri_completion_barrier(
         # under the original market context. New provider workflows always
         # retain a post-acquisition CERI context before feature calculation.
         context = market_context_for_pipeline(db, pipeline)
-    captured = set(
-        db.scalars(
-            select(CeriScoreSnapshot.ticker).where(
-                CeriScoreSnapshot.run_id == pipeline.upload_run_id,
-                CeriScoreSnapshot.calculation_context_id == context.context_id,
-                CeriScoreSnapshot.evidence_id.is_not(None),
-            )
-        )
-    )
+    receipt = retained.get("ceri_certified_score_ids")
+    if not receipt:
+        raise ValueError("CERI_CERTIFIED_CAPTURE_RECEIPT_MISSING")
+    scores = certified_scores(db, pipeline.id, context.context_id, expected_ids=receipt)
+    captured = {row.ticker for row in scores}
     expected = {ticker.strip().upper() for ticker in tickers}
     if captured != expected:
         raise ValueError(

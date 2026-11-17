@@ -1,0 +1,48 @@
+{
+  "production_read_only": {
+    "technical_counts": [
+      [
+        115,
+        447,
+        447
+      ]
+    ],
+    "AAPL_technical": [
+      [
+        8868,
+        "AAPL",
+        115,
+        71797,
+        "bd4021380d03fa30fbe3c9c92d91bad5"
+      ]
+    ],
+    "AAPL_combined": [
+      [
+        8539,
+        "AAPL",
+        {
+          "raw_row_id": 7875,
+          "technical_score_id": 8868,
+          "fundamental_score_id": 19121
+        },
+        72364
+      ]
+    ]
+  },
+  "disposable": {
+    "technical_counts": [],
+    "AAPL_technical": [],
+    "AAPL_combined": [
+      [
+        8539,
+        "AAPL",
+        {
+          "raw_row_id": 7875,
+          "technical_score_id": 8868,
+          "fundamental_score_id": 19121
+        },
+        72364
+      ]
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "production_access": "READ ONLY",
+  "authoritative_original_scores_unchanged": 611,
+  "original_dispositions_unchanged": 611,
+  "context116_score_count": 0,
+  "alembic_version": "0095_ib_bar_admission_receipts",
+  "pipeline66_unchanged": "9f3fe30ca57a45d7bc3d84ae844dd726",
+  "job2546_unchanged": "94130aeda7ed7e656094f12da6a620f8",
+  "manifest41_unchanged": "a9b7136520cf33a39aab9dc62ccfa146",
+  "context116_unchanged": "6634a21800b1c76610545acaa037c7b9"
+}

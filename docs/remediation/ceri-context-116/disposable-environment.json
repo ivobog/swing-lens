@@ -1,0 +1,7 @@
+{
+  "database": "swinglens_qa_ceri_context_1794788997961",
+  "source_clone": "swinglens_qa_ceri_context_1794788997961",
+  "post_data_restore_exit": 0,
+  "production_access": "read-only schema export",
+  "authorized_fixture_copy": "authorized-fixture-copy.json"
+}

@@ -1,0 +1,28 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+____ test_revised_calendar_does_not_admit_legacy_ibmi_identity[VOLATILITY] ____
+tests\test_contextual_calculation_identity_adoption.py:559: in test_revised_calendar_does_not_admit_legacy_ibmi_identity
+    assert selector(
+E   AssertionError: assert None is not None
+E    +  where None = <function _point_in_time_volatility_feature at 0x000001CF648A4220>(<test_contextual_calculation_identity_adoption._RowsDb object at 0x000001CF6752EAE0>, 'MSFT', datetime.datetime(2026, 9, 11, 20, 30, tzinfo=datetime.timezone.utc), as_of_session=datetime.date(2026, 9, 11), market_cutoff=MarketCalculationCutoff(cutoff_at=datetime.datetime(2026, 9, 11, 20, 30, tzinfo=datetime.timezone.utc), exchange_timez...swinglens-us-equities-v2', bar_readiness_version='daily-close-plus-15m-v1', cutoff_reason='T10C_TEST', context_id=None), ibmi_config=IBMarketIntelligenceConfig(raw={'engine': {'enabled': True, 'calculation_version': 'ibmi-1.0.2', 'config_version': '20...cation='STK.US.MAJOR', scan_code='HOT_BY_OPT_VOLUME', max_results=50, filters=({'tag': 'priceAbove', 'value': '5'},)))))
+E    +    where <test_contextual_calculation_identity_adoption._RowsDb object at 0x000001CF6752EAE0> = _RowsDb([<app.models.ib_market_intelligence_tables.IBIntelligenceFeature object at 0x000001CF65B9A8A0>])
+E    +    and   datetime.datetime(2026, 9, 11, 20, 30, tzinfo=datetime.timezone.utc) = MarketCalculationCutoff(cutoff_at=datetime.datetime(2026, 9, 11, 20, 30, tzinfo=datetime.timezone.utc), exchange_timez...swinglens-us-equities-v2', bar_readiness_version='daily-close-plus-15m-v1', cutoff_reason='T10C_TEST', context_id=None).cutoff_at
+E    +    and   datetime.date(2026, 9, 11) = MarketCalculationCutoff(cutoff_at=datetime.datetime(2026, 9, 11, 20, 30, tzinfo=datetime.timezone.utc), exchange_timez...swinglens-us-equities-v2', bar_readiness_version='daily-close-plus-15m-v1', cutoff_reason='T10C_TEST', context_id=None).latest_completed_session
+__ test_revised_calendar_does_not_admit_legacy_ibmi_identity[SHORT_PRESSURE] __
+tests\test_contextual_calculation_identity_adoption.py:559: in test_revised_calendar_does_not_admit_legacy_ibmi_identity
+    assert selector(
+E   AssertionError: assert None is not None
+E    +  where None = <function _point_in_time_short_pressure_feature at 0x000001CF648A42C0>(<test_contextual_calculation_identity_adoption._RowsDb object at 0x000001CF65CF3230>, 'MSFT', datetime.datetime(2026, 9, 11, 20, 30, tzinfo=datetime.timezone.utc), as_of_session=datetime.date(2026, 9, 11), market_cutoff=MarketCalculationCutoff(cutoff_at=datetime.datetime(2026, 9, 11, 20, 30, tzinfo=datetime.timezone.utc), exchange_timez...swinglens-us-equities-v2', bar_readiness_version='daily-close-plus-15m-v1', cutoff_reason='T10C_TEST', context_id=None), ibmi_config=IBMarketIntelligenceConfig(raw={'engine': {'enabled': True, 'calculation_version': 'ibmi-1.0.2', 'config_version': '20...cation='STK.US.MAJOR', scan_code='HOT_BY_OPT_VOLUME', max_results=50, filters=({'tag': 'priceAbove', 'value': '5'},)))))
+E    +    where <test_contextual_calculation_identity_adoption._RowsDb object at 0x000001CF65CF3230> = _RowsDb([<app.models.ib_market_intelligence_tables.IBIntelligenceFeature object at 0x000001CF65EB4680>])
+E    +    and   datetime.datetime(2026, 9, 11, 20, 30, tzinfo=datetime.timezone.utc) = MarketCalculationCutoff(cutoff_at=datetime.datetime(2026, 9, 11, 20, 30, tzinfo=datetime.timezone.utc), exchange_timez...swinglens-us-equities-v2', bar_readiness_version='daily-close-plus-15m-v1', cutoff_reason='T10C_TEST', context_id=None).cutoff_at
+E    +    and   datetime.date(2026, 9, 11) = MarketCalculationCutoff(cutoff_at=datetime.datetime(2026, 9, 11, 20, 30, tzinfo=datetime.timezone.utc), exchange_timez...swinglens-us-equities-v2', bar_readiness_version='daily-close-plus-15m-v1', cutoff_reason='T10C_TEST', context_id=None).latest_completed_session
+============================== warnings summary ===============================
+..\..\..\..\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_contextual_calculation_identity_adoption.py::test_revised_calendar_does_not_admit_legacy_ibmi_identity[VOLATILITY]
+FAILED tests/test_contextual_calculation_identity_adoption.py::test_revised_calendar_does_not_admit_legacy_ibmi_identity[SHORT_PRESSURE]
+2 failed, 1 warning in 4.99s

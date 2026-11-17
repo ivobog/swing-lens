@@ -147,6 +147,8 @@ def _transition_allowed(
             return target in QUEUED_PIPELINE_STATES | {"RUNNING"} | TERMINAL_PIPELINE_STATES
         return target in CANCELLING_PIPELINE_STATES | TERMINAL_PIPELINE_STATES
     if source in QUEUED_PIPELINE_STATES:
+        if actor == "recovery" and target in QUEUED_PIPELINE_STATES:
+            return True
         return target in (
             ACTIVE_PIPELINE_STATES
             | WAITING_PIPELINE_STATES

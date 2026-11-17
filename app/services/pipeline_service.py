@@ -406,8 +406,11 @@ def start_pipeline(
         payload={
             "pipeline_run_id": pipeline.id,
             "market_data_availability_policy": availability,
-            **({"market_data_recovery_source": market_data_recovery_source}
-               if market_data_recovery_source is not None else {}),
+            **(
+                {"market_data_recovery_source": market_data_recovery_source}
+                if market_data_recovery_source is not None
+                else {}
+            ),
             "market_calculation_context_id": market_cutoff.context_id,
             "market_cutoff_at": CanonicalEvidenceSerializer.canonicalize(market_cutoff.cutoff_at),
             "input_as_of_session": market_cutoff.latest_completed_session.isoformat(),
@@ -456,8 +459,11 @@ def start_pipeline(
         "background_job_id": job.id,
         "market_data_policy": policy.value,
         "market_data_availability_policy": availability,
-        **({"market_data_recovery_source": market_data_recovery_source}
-           if market_data_recovery_source is not None else {}),
+        **(
+            {"market_data_recovery_source": market_data_recovery_source}
+            if market_data_recovery_source is not None
+            else {}
+        ),
         **({"partial_scope": partial_scope} if partial_scope is not None else {}),
         "ib_preflight_status": preflight.get("status"),
         "ib_preflight_checked_at": preflight.get("checked_at"),
@@ -1394,9 +1400,6 @@ def enqueue_pipeline_after_ceri_completion(
 ) -> BackgroundJob | None:
     """Release a provider-owned pipeline exactly once after certified CERI completion."""
 
-    from sqlalchemy import func
-
-    from app.models.ceri_tables import CeriScoreSnapshot
     from app.services.configuration_delivery import (
         binding_reference,
         execution_configuration_reference,
@@ -1466,37 +1469,21 @@ def enqueue_pipeline_after_ceri_completion(
         )
         return None
 
-    expected = int(
-        db.scalar(
-            select(func.count(func.distinct(RawCompanyRow.ticker))).where(
-                RawCompanyRow.run_id == pipeline.upload_run_id
-            )
+    from app.services.ceri.score_population import certified_scores
+
+    receipt = payload.get("score_ids")
+    try:
+        if not receipt:
+            raise ValueError("CERI_CERTIFIED_CAPTURE_RECEIPT_MISSING")
+        scores = certified_scores(
+            db, pipeline.id, payload.get("calculation_context_id"), expected_ids=receipt
         )
-        or 0
-    )
-    context_id = int(payload.get("calculation_context_id") or 0)
-    certified = int(
-        db.scalar(
-            select(func.count(func.distinct(CeriScoreSnapshot.ticker))).where(
-                CeriScoreSnapshot.run_id == pipeline.upload_run_id,
-                CeriScoreSnapshot.calculation_context_id == context_id,
-                CeriScoreSnapshot.evidence_id.is_not(None),
-            )
-        )
-        or 0
-    )
-    if expected <= 0 or certified != expected:
+    except ValueError as exc:
         _roll_up_ceri_pipeline_failure(
-            db,
-            pipeline,
-            workflow_key=workflow_key,
-            failed_jobs=(),
-            reason=(
-                "CERI_CERTIFIED_CAPTURE_INCOMPLETE: "
-                f"expected {expected} certified run snapshots, observed {certified}"
-            ),
+            db, pipeline, workflow_key=workflow_key, failed_jobs=(), reason=str(exc)
         )
         return None
+    certified = len(scores)
 
     resume_from_step = DECISION_HANDOFF_PIPELINE_STEP
     request_key = f"resume-pipeline:{pipeline.id}:after-ceri:{workflow_key}:from:{resume_from_step}"
@@ -1586,6 +1573,7 @@ def enqueue_pipeline_after_ceri_completion(
         "ceri_completion_state": "CERTIFIED",
         "ceri_async_state": "CONTINUATION_QUEUED",
         "ceri_certified_capture_count": certified,
+        "ceri_certified_score_ids": receipt,
         "ceri_continuation_request_key": request_key,
         "ceri_continuation_job_id": continuation.id,
     }
@@ -2028,8 +2016,13 @@ def _admit_pipeline_authority(
             "stages": list(step_names),
             **({"partial_scope": partial_scope} if partial_scope is not None else {}),
         },
-        parent_scope_id=(partial_scope["source_scope_id"] if partial_scope
-                         else recovery_source["source_scope_id"] if recovery_source else None),
+        parent_scope_id=(
+            partial_scope["source_scope_id"]
+            if partial_scope
+            else recovery_source["source_scope_id"]
+            if recovery_source
+            else None
+        ),
         refresh_reason="FULL_PIPELINE_ADMISSION",
     )
 

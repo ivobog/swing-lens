@@ -117,9 +117,9 @@ def test_legacy_estimate_without_possession_is_explicitly_ineligible() -> None:
 def test_deployment_identity_reports_current_database_head_and_separate_evidence_schema() -> None:
     identity = current_deployment_identity(config_hash="cfg", calculation_version="calc")
 
-    assert identity["schema_revision"] == "0094_sector_acquisition"
-    assert identity["database_schema_revision"] == "0094_sector_acquisition"
-    assert identity["repository_schema_revision"] == "0094_sector_acquisition"
+    assert identity["schema_revision"] == "0096_ceri_native_context"
+    assert identity["database_schema_revision"] == "0096_ceri_native_context"
+    assert identity["repository_schema_revision"] == "0096_ceri_native_context"
     assert identity["schema_revision_match"] is True
     assert identity["ceri_evidence_schema_revision"] == CERI_EVIDENCE_SCHEMA_REVISION
 

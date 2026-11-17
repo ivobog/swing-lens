@@ -285,9 +285,7 @@ def test_capture_penalties_are_isolated_per_company(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(
         capture_module,
         "_provider_feed_freshness_days",
-        lambda _checks, *, ticker, **_kwargs: {
-            "estimates": 9 if ticker == "BBB" else 0
-        },
+        lambda _checks, *, ticker, **_kwargs: {"estimates": 9 if ticker == "BBB" else 0},
     )
 
     class Spy:
@@ -837,6 +835,11 @@ class IdentityDb(TraceDb):
 
     def get(self, model, row_id):
         return self.company if model is CeriCompany and row_id == self.company.id else None
+
+    def scalars(self, statement):
+        cik = statement.compile().params.get("cik_1")
+        owners = [self.company] if self.company.cik == cik else []
+        return SimpleNamespace(all=lambda: owners)
 
 
 class PurgeDb(TraceDb):

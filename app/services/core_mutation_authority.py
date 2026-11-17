@@ -245,11 +245,26 @@ def validate_core_mutation_authority(
                 market_calculation_context_fingerprint,
             )
 
+            if domain == MutationDomain.CERI:
+                from sqlalchemy import select
+
+                from app.models.tables import PipelineRun
+                from app.services.ceri.score_ownership import bound_pipeline_id
+                from app.services.pipeline_execution_authority import (
+                    require_pipeline_execution_authority,
+                )
+
+                require_pipeline_execution_authority(db.get(PipelineRun, context.pipeline_run_id))
+                if db.scalar(select(bound_pipeline_id(
+                    context.run_id, context.temporal.context_id
+                ))) != context.pipeline_run_id:
+                    raise ValueError("MUTATION_CERI_OWNER_BINDING_MISMATCH")
             authoritative = assert_pipeline_calculation_context(
                 db,
                 pipeline_run_id=context.pipeline_run_id,
                 upload_run_id=context.run_id,
                 supplied_context=context.temporal,
+                context_role="CERI" if domain == MutationDomain.CERI else "MAIN",
             )
             fingerprint = identity.calculation_context.context_fingerprint.value
             if fingerprint is None or fingerprint.digest != market_calculation_context_fingerprint(

@@ -218,6 +218,11 @@ def _company_bundle(
 
 
 def _seed_manifest_authority(db: Session, *, tickers: tuple[str, ...] = ("AAA",)) -> BackgroundJob:
+    from app.services.market_clock_service import MarketClockService
+
+    frozen = MarketClockService().cutoff_for(
+        datetime(2026, 9, 25, 18, tzinfo=UTC), reason="CERI_POST_ACQUISITION_FROZEN"
+    )
     run = UploadRun(filename="manifest.csv", row_count=len(tickers), status="COMPLETED")
     db.add(run)
     db.flush()
@@ -229,12 +234,13 @@ def _seed_manifest_authority(db: Session, *, tickers: tuple[str, ...] = ("AAA",)
         # owned through PipelineRun.result_json rather than the run-start FK.
         pipeline_run_id=None,
         upload_run_id=run.id,
-        cutoff_at=datetime(2026, 9, 25, 18, tzinfo=UTC),
-        exchange_timezone="America/New_York",
-        latest_completed_session=date(2026, 9, 25),
-        calendar_version="test-calendar-v1",
-        bar_readiness_version="test-bars-v1",
-        cutoff_reason="TEST",
+        cutoff_at=frozen.cutoff_at,
+        exchange_timezone=frozen.exchange_timezone,
+        latest_completed_session=frozen.latest_completed_session,
+        daily_bar_ready_at=frozen.daily_bar_ready_at,
+        calendar_version=frozen.calendar_version,
+        bar_readiness_version=frozen.bar_readiness_version,
+        cutoff_reason=frozen.cutoff_reason,
     )
     db.add(context)
     db.add_all(CeriCompany(ticker=ticker, exchange="US") for ticker in tickers)

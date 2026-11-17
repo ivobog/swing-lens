@@ -370,8 +370,7 @@ class CeriIngestionRunSourceRecord(Base):
             name="ck_ceri_ingestion_source_outcome",
         ),
         CheckConstraint(
-            "normalization_state IN "
-            "('PENDING', 'NORMALIZED', 'REUSED', 'QUARANTINED', 'REJECTED')",
+            "normalization_state IN ('PENDING', 'NORMALIZED', 'REUSED', 'QUARANTINED', 'REJECTED')",
             name="ck_ceri_ingestion_source_normalization_state",
         ),
         Index(
@@ -1245,12 +1244,27 @@ class CeriScoreSnapshot(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint(
+        Index(
+            "uq_ceri_native_score",
+            "run_id",
+            "company_id",
+            "calculation_context_id",
+            unique=True,
+            postgresql_nulls_not_distinct=True,
+            postgresql_where=text(
+                "controlled_replay_id IS NULL AND calculation_context_id IS NOT NULL"
+            ),
+        ),
+        Index(
+            "uq_ceri_legacy_score",
             "run_id",
             "company_id",
             "config_hash",
             "calculation_version",
-            name="uq_ceri_score_snapshots_run_company_version",
+            unique=True,
+            postgresql_where=text(
+                "controlled_replay_id IS NULL AND calculation_context_id IS NULL"
+            ),
         ),
         Index("ix_ceri_score_snapshots_run_ticker", "run_id", "ticker"),
         Index(

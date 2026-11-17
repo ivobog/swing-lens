@@ -1,0 +1,11 @@
+{
+  "archive_verification": "PASS",
+  "archive": "C:\\Users\\Ivica\\Documents\\SwingLens\\.worktrees\\ceri-context-remediation\\artifacts\\ceri-context-116-remediation\\SwingLens_CERI_Capture_Remediation.zip",
+  "archive_sha256": "cab31cfd192487555d7b8a45b5ab42343cca86705de9ab8cb6f4187173020bb3",
+  "bytes": 4266011,
+  "entries": 148,
+  "source_files_verified": 39,
+  "required_evidence_files_verified": 20,
+  "patch_sha256": "a9dc89974885a8519966d353fee38a600047b4e7c285d7718ffd6b97647282e1",
+  "patch_apply_check": "PASS"
+}

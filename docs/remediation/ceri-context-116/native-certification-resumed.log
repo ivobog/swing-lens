@@ -1,0 +1,14 @@
+verified disposable database before Alembic: database=swinglens_qa_ceri_context_1794788997961 server=127.0.0.1/32:5432 url=postgresql+psycopg://<restricted:userinfo>@127.0.0.1:5432/swinglens_qa_ceri_context_1794788997961
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+completed native job 2550 CERI_CHANGE_DETECTION
+completed native job 2551 CERI_ALERT_REBUILD
+Traceback (most recent call last):
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\scripts\qa\ceri_context_116_certification.py", line 417, in main
+    manifest = freeze_transition_decision_handoff_manifest(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\transition_preflight_plan_service.py", line 661, in freeze_transition_decision_handoff_manifest
+    _validate_handoff_temporal_lineage(
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\transition_preflight_plan_service.py", line 1510, in _validate_handoff_temporal_lineage
+    raise TransitionPreflightError(
+app.services.transition_preflight_plan_service.TransitionPreflightError: DECISION_LINEAGE_MISMATCH: decision artifacts do not descend from the frozen cutoff: AAMI:combined_evidence_sources,AAMI:combined_sources,AAMI:technical_missing,AAPL:combined_evidence_sources,AAPL:combined_sources,AAPL:technical_missing,ABBV:combined_evidence_sources,ABBV:combined_sources,ABBV:technical_missing,ABM:combined_evidence_sources,ABM:combined_sources,ABM:technical_missing,ABNB:combined_evidence_sources,ABNB:combined_sources,ABNB:technical_missing,ABT:combined_evidence_sources,ABT:combined_sources,ABT:technical_missing,ACGL:combined_evidence_sources,ACGL:combined_sources,ACGL:technical_missing,ACN:combined_evidence_sources,ACN:combined_sources,ACN:technical_missing,ADP:combined_evidence_sources

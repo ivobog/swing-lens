@@ -621,6 +621,7 @@ def decision_authority(
             pipeline_run_id=pipeline_id,
             upload_run_id=run_id,
             supplied_context=context.temporal,
+            context_role="CERI" if writer == "persist_ceri_change" else "MAIN",
         )
         fingerprint = identity.calculation_context.context_fingerprint.value
         if fingerprint is None or fingerprint.digest != market_calculation_context_fingerprint(

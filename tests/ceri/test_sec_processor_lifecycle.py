@@ -40,11 +40,7 @@ class LifecycleDb:
 
     def get(self, _model, processor_signature):
         return next(
-            (
-                row
-                for row in self.releases
-                if row.processor_signature == processor_signature
-            ),
+            (row for row in self.releases if row.processor_signature == processor_signature),
             None,
         )
 
@@ -103,11 +99,10 @@ def test_normal_worker_startup_retains_processor_registration() -> None:
 
 
 def test_processor_registration_rejects_untyped_authority() -> None:
-    with pytest.raises(
-        RuntimeMutationAuthorityError, match="RUNTIME_MUTATION_AUTHORITY_REQUIRED"
-    ):
+    with pytest.raises(RuntimeMutationAuthorityError, match="RUNTIME_MUTATION_AUTHORITY_REQUIRED"):
         register_deployed_processor(
-            LifecycleDb([]), authority=None  # type: ignore[arg-type]
+            LifecycleDb([]),
+            authority=None,  # type: ignore[arg-type]
         )
 
 
@@ -122,12 +117,8 @@ def test_certification_worker_startup_is_repeatable_and_read_only() -> None:
         "worker.startup.sec_identity", session_id="cert-session"
     )
 
-    first = establish_worker_processor_identity(
-        db, authority=authority, git_sha="abc123"
-    )
-    second = establish_worker_processor_identity(
-        db, authority=authority, git_sha="abc123"
-    )
+    first = establish_worker_processor_identity(db, authority=authority, git_sha="abc123")
+    second = establish_worker_processor_identity(db, authority=authority, git_sha="abc123")
 
     assert first is release and second is release
     assert db.added == []
@@ -156,9 +147,7 @@ def test_certification_worker_startup_fails_closed_for_missing_or_mismatched_ide
     with pytest.raises(
         RuntimeMutationAuthorityError, match="CERTIFICATION_PROCESSOR_IDENTITY_MISMATCH"
     ):
-        establish_worker_processor_identity(
-            mismatch, authority=authority, git_sha="current-sha"
-        )
+        establish_worker_processor_identity(mismatch, authority=authority, git_sha="current-sha")
 
     assert mismatch.added == []
     assert mismatch.flushes == 0
@@ -203,9 +192,7 @@ def test_recertifying_current_active_processor_does_not_demote_it() -> None:
 
 
 def test_uncertified_processor_cannot_be_promoted() -> None:
-    db = LifecycleDb(
-        [CeriSecProcessorRelease(processor_signature="new", status="DEPLOYED")]
-    )
+    db = LifecycleDb([CeriSecProcessorRelease(processor_signature="new", status="DEPLOYED")])
 
     with pytest.raises(ValueError, match="CERTIFIED"):
         promote_processor(db, processor_signature="new", actor="operator")
@@ -288,7 +275,7 @@ def test_readiness_diagnostics_reject_invalid_ticker_syntax() -> None:
     assert result.tickers[0].category.value == "INVALID_TICKER"
 
 
-def test_readiness_requires_current_signature_for_every_required_cik() -> None:
+def test_ambiguous_ticker_ciks_fail_closed_before_sync_readiness() -> None:
     result = diagnose_sec_readiness(
         DiagnosticDb(
             [CeriCompany(ticker="DUAL", cik="1"), CeriCompany(ticker="DUAL", cik="2")],
@@ -298,5 +285,23 @@ def test_readiness_requires_current_signature_for_every_required_cik() -> None:
         processor_signature="current",
     )
 
-    assert result.tickers[0].category.value == "SYNC_STATE_MISSING"
+    assert result.tickers[0].category.value == "OTHER_BLOCKING_REASON"
+    assert result.tickers[0].ciks == ("1", "2")
+    assert result.tickers[0].reason.startswith("Conflicting SEC identity candidates:")
+    assert result.complete is False
+
+
+def test_readiness_requires_current_signature_for_every_required_cik() -> None:
+    result = diagnose_sec_readiness(
+        DiagnosticDb(
+            [CeriCompany(ticker="READY", cik="1"), CeriCompany(ticker="MISSING", cik="2")],
+            [CeriSecSyncState(cik="1", dataset="guidance", processor_signature="current")],
+        ),
+        tickers=["READY", "MISSING"],
+        processor_signature="current",
+    )
+    assert {row.ticker: row.category.value for row in result.tickers} == {
+        "READY": "READY",
+        "MISSING": "SYNC_STATE_MISSING",
+    }
     assert result.complete is False

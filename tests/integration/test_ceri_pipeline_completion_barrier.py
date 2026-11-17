@@ -13,7 +13,6 @@ from app.models.ceri_tables import CeriCompany, CeriScoreSnapshot
 from app.models.tables import (
     BackgroundJob,
     CoreCalculationEvidence,
-    PipelineDependency,
     PipelineStep,
     RawCompanyRow,
     SetupSignalSnapshot,
@@ -47,65 +46,19 @@ def enabled_ceri_pipeline(monkeypatch):
     get_settings.cache_clear()
 
 
-def test_ceri_completion_barrier_is_restart_safe_and_exactly_once(
+def test_ceri_completion_barrier_rejects_legacy_seal_without_receipt(
     disposable_postgres_database: str,
-    monkeypatch,
 ) -> None:
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
-    settings = Settings(_env_file=None, winner_probability_capture_in_pipeline=True)
-    monkeypatch.setattr("app.services.pipeline_service.get_settings", lambda: settings)
-
     with Session(engine) as db:
-        pipeline, workflow_key, alert_id = _seed_waiting_pipeline(db, certified=True)
-        pipeline_id = pipeline.id
-        db.commit()
-
-    # A fresh Session represents a worker restart after the provider DAG was
-    # committed but before its terminal continuation was evaluated.
-    with Session(engine) as db:
-        alert = db.get(BackgroundJob, alert_id)
-        first = enqueue_pipeline_after_ceri_completion(db, alert)
-        db.commit()
-        first_id = first.id
-
-    with Session(engine) as db:
-        alert = db.get(BackgroundJob, alert_id)
-        duplicate = enqueue_pipeline_after_ceri_completion(db, alert)
-        db.commit()
-        pipeline = db.get(type(pipeline), pipeline_id)
-        continuations = list(
-            db.scalars(
-                select(BackgroundJob).where(
-                    BackgroundJob.job_type == FULL_PIPELINE_JOB_TYPE,
-                    BackgroundJob.request_key
-                    == (
-                        f"resume-pipeline:{pipeline_id}:after-ceri:{workflow_key}:"
-                        f"from:{DECISION_HANDOFF_PIPELINE_STEP}"
-                    ),
-                )
-            )
+        pipeline, _, alert_id = _seed_waiting_pipeline(db, certified=True)
+        assert enqueue_pipeline_after_ceri_completion(db, db.get(BackgroundJob, alert_id)) is None
+        assert pipeline.status == PipelineStatus.FAILED
+        assert (
+            pipeline.result_json["ceri_failure_reason"] == "CERI_CERTIFIED_CAPTURE_RECEIPT_MISSING"
         )
-        assert duplicate.id == first_id
-        assert len(continuations) == 1
-        assert pipeline.status == PipelineStatus.PENDING
-        assert pipeline.current_step == DECISION_HANDOFF_PIPELINE_STEP
-        assert pipeline.result_json["ceri_completion_state"] == "CERTIFIED"
-        assert pipeline.result_json["ceri_certified_capture_count"] == 1
-        assert continuations[0].payload_json["pipeline_run_id"] == pipeline_id
-        assert continuations[0].payload_json["ceri_provider_workflow_key"] == workflow_key
-        dependency = db.scalar(
-            select(PipelineDependency).where(
-                PipelineDependency.pipeline_run_id == pipeline_id,
-                PipelineDependency.dependency_type == "CERI_WORKFLOW",
-            )
-        )
-        assert dependency.state == "COMPLETED"
-        assert dependency.child_job_id == alert.id
-        assert dependency.continuation_job_id == first_id
-        assert continuations[0].pipeline_dependency_id == dependency.id
-        assert require_semantic_authority(continuations[0]) == require_semantic_authority(pipeline)
-
+        assert pipeline.result_json.get("ceri_continuation_job_id") is None
     engine.dispose()
 
 
@@ -174,8 +127,8 @@ def test_ceri_completion_barrier_rejects_missing_certified_capture(
     with Session(engine) as db:
         pipeline = db.get(type(pipeline), pipeline_id)
         assert pipeline.status == PipelineStatus.FAILED
-        assert pipeline.result_json["ceri_failure_reason"].startswith(
-            "CERI_CERTIFIED_CAPTURE_INCOMPLETE"
+        assert (
+            pipeline.result_json["ceri_failure_reason"] == "CERI_CERTIFIED_CAPTURE_RECEIPT_MISSING"
         )
         assert pipeline.result_json.get("ceri_continuation_job_id") is None
 

@@ -1,0 +1,214 @@
+[
+  {
+    "sql": "SHOW server_version",
+    "columns": [
+      "server_version"
+    ],
+    "rows": [
+      [
+        "18.3"
+      ]
+    ]
+  },
+  {
+    "sql": "SELECT version_num FROM alembic_version",
+    "columns": [
+      "version_num"
+    ],
+    "rows": [
+      [
+        "0095_ib_bar_admission_receipts"
+      ]
+    ]
+  },
+  {
+    "sql": "SELECT controlled_replay_id IS NOT NULL AS replay,\n       calculation_context_id IS NULL AS legacy_context, run_id IS NULL AS null_upload,\n       count(*) AS rows, count(DISTINCT calculation_context_id) AS contexts\nFROM ceri_score_snapshots GROUP BY 1,2,3 ORDER BY 1,2,3",
+    "columns": [
+      "replay",
+      "legacy_context",
+      "null_upload",
+      "rows",
+      "contexts"
+    ],
+    "rows": [
+      [
+        false,
+        false,
+        false,
+        5496,
+        47
+      ]
+    ]
+  },
+  {
+    "sql": "SELECT run_id, company_id, calculation_context_id, count(*)\nFROM ceri_score_snapshots\nWHERE controlled_replay_id IS NULL AND calculation_context_id IS NOT NULL\nGROUP BY 1,2,3 HAVING count(*) > 1",
+    "columns": [
+      "run_id",
+      "company_id",
+      "calculation_context_id",
+      "count"
+    ],
+    "rows": []
+  },
+  {
+    "sql": "SELECT run_id, company_id, config_hash, calculation_version, count(*)\nFROM ceri_score_snapshots\nWHERE controlled_replay_id IS NULL AND calculation_context_id IS NULL AND run_id IS NOT NULL\nGROUP BY 1,2,3,4 HAVING count(*) > 1",
+    "columns": [
+      "run_id",
+      "company_id",
+      "config_hash",
+      "calculation_version",
+      "count"
+    ],
+    "rows": []
+  },
+  {
+    "sql": "SELECT controlled_replay_id, company_id, count(*)\nFROM ceri_score_snapshots WHERE controlled_replay_id IS NOT NULL\nGROUP BY 1,2 HAVING count(*) > 1",
+    "columns": [
+      "controlled_replay_id",
+      "company_id",
+      "count"
+    ],
+    "rows": []
+  },
+  {
+    "sql": "SELECT indexname, indexdef FROM pg_indexes WHERE tablename='ceri_score_snapshots'",
+    "columns": [
+      "indexname",
+      "indexdef"
+    ],
+    "rows": [
+      [
+        "ceri_score_snapshots_pkey",
+        "CREATE UNIQUE INDEX ceri_score_snapshots_pkey ON public.ceri_score_snapshots USING btree (id)"
+      ],
+      [
+        "uq_ceri_score_snapshots_controlled_replay_company",
+        "CREATE UNIQUE INDEX uq_ceri_score_snapshots_controlled_replay_company ON public.ceri_score_snapshots USING btree (controlled_replay_id, company_id)"
+      ],
+      [
+        "uq_ceri_score_snapshots_run_company_version",
+        "CREATE UNIQUE INDEX uq_ceri_score_snapshots_run_company_version ON public.ceri_score_snapshots USING btree (run_id, company_id, config_hash, calculation_version)"
+      ],
+      [
+        "ix_ceri_score_snapshots_company_temporal",
+        "CREATE INDEX ix_ceri_score_snapshots_company_temporal ON public.ceri_score_snapshots USING btree (company_id, as_of_session, cutoff_at, id)"
+      ],
+      [
+        "ix_ceri_score_snapshots_comparison_state",
+        "CREATE INDEX ix_ceri_score_snapshots_comparison_state ON public.ceri_score_snapshots USING btree (comparison_state)"
+      ],
+      [
+        "ix_ceri_score_snapshots_confidence",
+        "CREATE INDEX ix_ceri_score_snapshots_confidence ON public.ceri_score_snapshots USING btree (data_confidence)"
+      ],
+      [
+        "ix_ceri_score_snapshots_controlled_replay",
+        "CREATE INDEX ix_ceri_score_snapshots_controlled_replay ON public.ceri_score_snapshots USING btree (controlled_replay_id)"
+      ],
+      [
+        "ix_ceri_score_snapshots_evidence",
+        "CREATE INDEX ix_ceri_score_snapshots_evidence ON public.ceri_score_snapshots USING btree (evidence_id)"
+      ],
+      [
+        "ix_ceri_score_snapshots_run_ticker",
+        "CREATE INDEX ix_ceri_score_snapshots_run_ticker ON public.ceri_score_snapshots USING btree (run_id, ticker)"
+      ],
+      [
+        "ix_ceri_score_snapshots_scores",
+        "CREATE INDEX ix_ceri_score_snapshots_scores ON public.ceri_score_snapshots USING btree (opportunity_score, event_risk_score)"
+      ]
+    ]
+  },
+  {
+    "sql": "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint\nWHERE conrelid='ceri_score_snapshots'::regclass ORDER BY conname",
+    "columns": [
+      "conname",
+      "pg_get_constraintdef"
+    ],
+    "rows": [
+      [
+        "ceri_score_snapshots_as_of_session_not_null",
+        "NOT NULL as_of_session"
+      ],
+      [
+        "ceri_score_snapshots_calculation_version_not_null",
+        "NOT NULL calculation_version"
+      ],
+      [
+        "ceri_score_snapshots_company_id_not_null",
+        "NOT NULL company_id"
+      ],
+      [
+        "ceri_score_snapshots_comparison_state_not_null",
+        "NOT NULL comparison_state"
+      ],
+      [
+        "ceri_score_snapshots_config_hash_not_null",
+        "NOT NULL config_hash"
+      ],
+      [
+        "ceri_score_snapshots_config_version_not_null",
+        "NOT NULL config_version"
+      ],
+      [
+        "ceri_score_snapshots_coverage_pct_not_null",
+        "NOT NULL coverage_pct"
+      ],
+      [
+        "ceri_score_snapshots_created_at_not_null",
+        "NOT NULL created_at"
+      ],
+      [
+        "ceri_score_snapshots_cutoff_at_not_null",
+        "NOT NULL cutoff_at"
+      ],
+      [
+        "ceri_score_snapshots_data_confidence_not_null",
+        "NOT NULL data_confidence"
+      ],
+      [
+        "ceri_score_snapshots_evidence_contract_version_not_null",
+        "NOT NULL evidence_contract_version"
+      ],
+      [
+        "ceri_score_snapshots_evidence_hash_not_null",
+        "NOT NULL evidence_hash"
+      ],
+      [
+        "ceri_score_snapshots_id_not_null",
+        "NOT NULL id"
+      ],
+      [
+        "ceri_score_snapshots_pkey",
+        "PRIMARY KEY (id)"
+      ],
+      [
+        "ceri_score_snapshots_posture_not_null",
+        "NOT NULL posture"
+      ],
+      [
+        "ceri_score_snapshots_ticker_not_null",
+        "NOT NULL ticker"
+      ],
+      [
+        "uq_ceri_score_snapshots_controlled_replay_company",
+        "UNIQUE (controlled_replay_id, company_id)"
+      ],
+      [
+        "uq_ceri_score_snapshots_run_company_version",
+        "UNIQUE (run_id, company_id, config_hash, calculation_version)"
+      ]
+    ]
+  },
+  {
+    "sql": "SELECT run_id, company_id, config_hash, calculation_version, count(*)\nFROM ceri_score_snapshots WHERE run_id IS NOT NULL\nGROUP BY 1,2,3,4 HAVING count(*) > 1",
+    "columns": [
+      "run_id",
+      "company_id",
+      "config_hash",
+      "calculation_version",
+      "count"
+    ],
+    "rows": []
+  }
+]
