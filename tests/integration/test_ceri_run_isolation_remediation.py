@@ -29,7 +29,12 @@ from app.models.tables import (
 from app.services.ceri.capture_service import CeriRunCaptureService
 from app.services.ceri.dtos import RawProviderRecord
 from app.services.ceri.enums import CeriDataset
-from app.services.ceri.evidence_eligibility import eligible_snapshot_select
+from app.services.ceri.evidence_eligibility import (
+    EXCLUDED,
+    EvidenceDispositionRequest,
+    append_evidence_dispositions,
+    eligible_snapshot_select,
+)
 from app.services.ceri.normalization_service import CeriNormalizationService
 from app.services.ceri.pipeline_containment_service import (
     reconcile_unsuccessful_pipeline_ceri,
@@ -39,6 +44,8 @@ from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.ceri.source_record_service import CeriSourceRecordService
 from app.services.contextual_effective_configuration import resolve_ceri_configuration
 from app.services.market_clock_service import MarketClockService
+from app.services.pipeline_outcome import derive_pipeline_outcome
+from app.services.pipeline_state_machine import transition_pipeline
 
 
 def test_cancelled_source_owner_does_not_own_later_deduplicated_normalization(
@@ -404,6 +411,92 @@ def test_unresolved_legacy_owner_is_contained_with_multiple_upload_siblings(
         assert disposition.incident_reference == f"ceri-snapshot:{snapshot.id}"
         assert snapshot.evidence_lineage_json == retained_identity
         assert reconcile_unsuccessful_pipeline_ceri(db, failed)["excluded"] == 0
+    engine.dispose()
+
+
+@pytest.mark.parametrize("scope", [None, "absent", {"excluded_tickers": ["ROKU"]}])
+def test_safe_partial_terminal_transition_preserves_evidence_and_independent_exclusion(
+    disposable_postgres_database: str, scope,
+) -> None:
+    """Pipeline 67's terminal path must retain safe CERI, including on replay."""
+    _upgrade(disposable_postgres_database)
+    engine = create_engine(disposable_postgres_database)
+    with Session(engine, expire_on_commit=False) as db:
+        db.add(UploadRun(id=63, filename="run63.csv", row_count=136, status="COMPLETED"))
+        db.flush()
+        result = {"uploaded_rows": 136, "combined_results": 136, "incomplete_rows": 28,
+                  "ib_failure_count": 2, "technical_error_count": 4, "ceri_failed": 0}
+        if scope != "absent":
+            result["partial_scope"] = scope
+        result["pipeline_outcome_summary"] = derive_pipeline_outcome("PARTIAL", result)
+        pipeline = PipelineRun(id=67, upload_run_id=63, status="RUNNING", result_json=result)
+        db.add(pipeline)
+        db.flush()
+        context = MarketCalculationContext(
+            pipeline_run_id=67, upload_run_id=63,
+            cutoff_at=datetime(2026, 11, 17, 12, tzinfo=UTC),
+            exchange_timezone="America/New_York", latest_completed_session=date(2026, 11, 16),
+            calendar_version="test-v1", bar_readiness_version="test-v1", cutoff_reason="TEST",
+        )
+        company = CeriCompany(ticker="AAA", exchange="US")
+        excluded_company = CeriCompany(ticker="BBB", exchange="US")
+        db.add_all([context, company, excluded_company])
+        db.flush()
+        evidence = CoreCalculationEvidence(
+            artifact_kind="CERI", run_id=63, ticker="AAA",
+            calculation_identity_fingerprint="identity", calculation_identity_json={"test": True},
+            payload_fingerprint="payload", payload_json={"test": True},
+            source_evidence_ids_json={}, evidence_key="safe-evidence",
+            calculated_at=context.cutoff_at,
+        )
+        excluded_evidence = CoreCalculationEvidence(
+            artifact_kind="CERI", run_id=63, ticker="BBB",
+            calculation_identity_fingerprint="excluded-identity",
+            calculation_identity_json={"test": True},
+            payload_fingerprint="excluded-payload", payload_json={"test": True},
+            source_evidence_ids_json={}, evidence_key="independently-excluded-evidence",
+            calculated_at=context.cutoff_at,
+        )
+        db.add_all([evidence, excluded_evidence])
+        db.flush()
+        safe = _snapshot(run_id=63, company_id=company.id, context_id=context.id,
+                         evidence_id=evidence.id)
+        excluded = _snapshot(run_id=63, company_id=excluded_company.id, context_id=context.id,
+                             evidence_id=excluded_evidence.id)
+        excluded.ticker = "BBB"
+        processing = CeriProcessingRun(
+            job_type="CERI_NORMALIZE_BATCH", status="COMPLETED",
+            deterministic_request_key="ceri:pipeline:67:normalize:AAA",
+            scope_json={"run_id": 63}, completed_at=datetime.now(UTC),
+        )
+        db.add_all([safe, excluded, processing, CoreCalculationCurrentProjection(
+            artifact_kind="CERI", run_id=63, ticker="AAA", ranking_profile_key="",
+            evidence_id=evidence.id,
+        )])
+        db.flush()
+        append_evidence_dispositions(db, [EvidenceDispositionRequest(
+            ceri_snapshot_id=excluded.id, disposition=EXCLUDED,
+            reason_code="MANUAL_INTEGRITY_REVIEW", incident_reference="independent-review",
+            actor_source="pytest",
+        )])
+        db.commit()
+        originals = [(s.id, s.evidence_hash, s.created_at, s.evidence_id) for s in (safe, excluded)]
+
+        transition_pipeline(db, pipeline, "PARTIAL", actor="pipeline_orchestrator")
+        db.commit()
+        assert db.scalar(select(func.count()).select_from(CeriEvidenceDisposition)) == 1
+        assert list(db.scalars(eligible_snapshot_select(CeriScoreSnapshot.id))) == [safe.id]
+        assert db.scalar(select(CoreCalculationCurrentProjection.evidence_id)) == evidence.id
+        assert processing.status == "COMPLETED"
+        assert reconcile_unsuccessful_pipeline_ceri(db, pipeline) == {
+            "excluded": 0, "projections_repaired": 0, "processing_terminalized": 0,
+        }
+        db.commit()
+        db.expire_all()
+        assert [
+            (s.id, s.evidence_hash, s.created_at, s.evidence_id) for s in (safe, excluded)
+        ] == originals
+        assert db.scalar(select(func.count()).select_from(CeriEvidenceDisposition)) == 1
     engine.dispose()
 
 
