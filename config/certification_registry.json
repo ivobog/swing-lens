@@ -1133,7 +1133,9 @@
           "app/services/combined_decision.py",
           "app/services/ranking_profile_engine.py",
           "app/services/warning_taxonomy.py",
-          "app/services/ranking_profile_service.py"
+          "app/services/ranking_profile_service.py",
+          "docs/remediation/calculation-lineage/T14D_semantic_review_source_pins.json",
+          "tests/test_contextual_calculation_identity_adoption.py"
         ],
         "tests": [
           {
@@ -1640,7 +1642,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "32d5839bced4ede4e6617321d88fd442025c332d3e06ee4c60a51df85a03accf",
+        "review_sha256": "41bb98606d6ce693af586d5e90b20cb7c419191e1d977097f6295a6a6ee69f25",
         "review_addenda": [
           {
             "task": "PIPELINE55-20261109",
@@ -1673,6 +1675,14 @@
             "evidence": "docs/remediation/ceri-context-116-publication/configuration-material-review.md",
             "scope": "Bounded pure configuration calculations keyed by complete type-preserving immutable field values. Every supplied hash/identity, complete retained canonical material, live binding and native mutation guard remains checked. Nonstandard shapes keep uncached behavior. Type-hint reuse is bounded to each reconstruction call; live schemas are resolved again across calls and native outputs remain fresh.",
             "claim": "STATIC_INTENT only; eleven unit-double cache/reconstruction controls do not replace native fault/rollback regressions, current scale budgets, A04 financial validation or authenticated owner acknowledgement."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
           }
         ]
       },
@@ -1725,7 +1735,21 @@
           "tests/test_market_data_session_readiness.py",
           "tests/test_ib_historical_errors.py",
           "tests/integration/test_market_data_readiness_postgresql.py",
-          "docs/operations/market_data_recovery.md"
+          "docs/operations/market_data_recovery.md",
+          "docs/operations/pipeline_market_data_retry.md",
+          "docs/remediation/pipeline58-market-readiness/implementation.md",
+          "docs/remediation/pipeline58-market-readiness/raw-bootstrap-caller-review.json",
+          "tests/integration/test_ib_bar_admission_receipts_postgresql.py",
+          "tests/integration/test_ib_gap_repair_delivery_postgresql.py",
+          "tests/integration/test_market_data_availability_postgresql.py",
+          "tests/integration/test_market_data_initial_admission_durability_postgresql.py",
+          "tests/integration/test_market_data_recovery_postgresql.py",
+          "tests/integration/test_unstarted_market_data_resume_postgresql.py",
+          "tests/test_ib_gap_repair_service.py",
+          "tests/test_ib_history_gap_admission.py",
+          "tests/test_market_data_availability_policy.py",
+          "tests/test_market_data_unstarted_resume.py",
+          "tests/test_pipeline61_price_projection.py"
         ],
         "tests": [
           {
@@ -2538,7 +2562,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "369e55e79a0f0f4cf43ee73da9e1de86f5b4be47c29197b953b622354f2045b7",
+        "review_sha256": "f1b5e203c7ff31263f2d363b21b2c1d60875524e567c056a3988b2347cde4594",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -2649,6 +2673,14 @@
               }
             ],
             "claim": "STATIC_INTENT only. Exact prerequisite paths are assigned to existing accountable domains and existing mandatory validation. Unknown high-risk paths still fail closed; manual replay is not an automated producer. No financial oracle, historical source identity, authenticated approval or certificate is changed."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
           }
         ]
       },
@@ -2719,7 +2751,138 @@
           "tests/test_alembic_heads.py",
           "tests/ceri/test_t15d_residual_findings.py",
           "tests/integration/test_ceri_change_rebuild_scoping_postgresql.py",
-          "tests/sector_native_helpers.py"
+          "tests/sector_native_helpers.py",
+          "artifacts/ceri-context-116-remediation/SwingLens_CERI_Capture_Remediation.zip",
+          "artifacts/ceri-context-116-remediation/SwingLens_CERI_Capture_Remediation.zip.sha256",
+          "artifacts/ceri-context-116-remediation/delivery-verification.json",
+          "artifacts/ceri-context-116-remediation/implementation.patch",
+          "docs/operations/ceri_filing_authorities.md",
+          "docs/operations/decision_handoff_recovery.md",
+          "docs/remediation/ceri-context-116/EVIDENCE_INDEX.md",
+          "docs/remediation/ceri-context-116/FILE_INVENTORY.md",
+          "docs/remediation/ceri-context-116/IDENTITY_AND_OWNERSHIP.md",
+          "docs/remediation/ceri-context-116/IMPLEMENTATION_REPORT.md",
+          "docs/remediation/ceri-context-116/MIGRATION_AND_RECOVERY.md",
+          "docs/remediation/ceri-context-116/affected-regressions-current-source.log",
+          "docs/remediation/ceri-context-116/affected-regressions-final.xml",
+          "docs/remediation/ceri-context-116/affected-regressions-initial-failures.json",
+          "docs/remediation/ceri-context-116/affected-regressions-initial.xml",
+          "docs/remediation/ceri-context-116/attempt-2-terminalization.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/certification-environment-blocker.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/certification-harness-at-attempt.py",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/context-116-certification.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/historical-after.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/historical-before.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/migration-postflight.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/native-certification.log",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/postflight-attempt-1.log",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/qa-capture-stack-final.txt",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/qa-capture-stack.txt",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/qa-claim-deadline.log",
+          "docs/remediation/ceri-context-116/attempts/attempt-2/attempt-2-terminalization.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-2/context-116-certification.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-2/historical-after.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-2/historical-before.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-2/migration-postflight.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-2/native-certification.log",
+          "docs/remediation/ceri-context-116/attempts/attempt-2/postflight-attempt-2.log",
+          "docs/remediation/ceri-context-116/attempts/attempt-3-final-check-harness/context-116-certification.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-3-final-check-harness/native-certification-handoff-resumed.log",
+          "docs/remediation/ceri-context-116/attempts/attempt-3-handoff-prerequisite/context-116-certification.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-3-handoff-prerequisite/native-certification-resumed.log",
+          "docs/remediation/ceri-context-116/attempts/attempt-3/context-116-certification.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-3/native-certification.log",
+          "docs/remediation/ceri-context-116/attempts/regression-before-authority-fix/affected-regressions-final.xml",
+          "docs/remediation/ceri-context-116/attempts/regression-before-authority-fix/regression-summary.json",
+          "docs/remediation/ceri-context-116/authoritative-input/6d6952f.patch",
+          "docs/remediation/ceri-context-116/authoritative-input/7e113f7.patch",
+          "docs/remediation/ceri-context-116/authoritative-input/REPORT.md",
+          "docs/remediation/ceri-context-116/authoritative-input/checkout-audit.txt",
+          "docs/remediation/ceri-context-116/authoritative-input/evidence.json",
+          "docs/remediation/ceri-context-116/authoritative-input/history.txt",
+          "docs/remediation/ceri-context-116/authoritative-input/queries.sql",
+          "docs/remediation/ceri-context-116/authoritative-input/replay.py",
+          "docs/remediation/ceri-context-116/authoritative-input/replay.txt",
+          "docs/remediation/ceri-context-116/authorized-closure-tables.json",
+          "docs/remediation/ceri-context-116/authorized-fixture-copy.json",
+          "docs/remediation/ceri-context-116/authorized-handoff-prerequisites-copy.json",
+          "docs/remediation/ceri-context-116/authorized-scope-members-copy.json",
+          "docs/remediation/ceri-context-116/baseline-ibmi-calendar-pristine.log",
+          "docs/remediation/ceri-context-116/baseline-ibmi-pristine.log",
+          "docs/remediation/ceri-context-116/baseline-integration.log",
+          "docs/remediation/ceri-context-116/certification-environment-blocker.json",
+          "docs/remediation/ceri-context-116/certification-harness-at-attempt.py",
+          "docs/remediation/ceri-context-116/comparison-evidence-size.json",
+          "docs/remediation/ceri-context-116/context-116-certification.json",
+          "docs/remediation/ceri-context-116/disposable-environment.json",
+          "docs/remediation/ceri-context-116/file-inventory.json",
+          "docs/remediation/ceri-context-116/final-certification-review.json",
+          "docs/remediation/ceri-context-116/final-certification-review.log",
+          "docs/remediation/ceri-context-116/final-postflight.log",
+          "docs/remediation/ceri-context-116/focused-test-results/dedicated-context-change.xml",
+          "docs/remediation/ceri-context-116/focused-test-results/focused-pg.xml",
+          "docs/remediation/ceri-context-116/focused-test-results/immutability-and-ambiguity.xml",
+          "docs/remediation/ceri-context-116/focused-test-results/native-identity-ownership.xml",
+          "docs/remediation/ceri-context-116/focused-test-results/native-positive-negative.xml",
+          "docs/remediation/ceri-context-116/focused-test-results/shared-main-ceri-authority.xml",
+          "docs/remediation/ceri-context-116/focused-test-summary.json",
+          "docs/remediation/ceri-context-116/foreign-keys-restore.list",
+          "docs/remediation/ceri-context-116/foreign-keys-restore.log",
+          "docs/remediation/ceri-context-116/frozen-scope-prerequisites.json",
+          "docs/remediation/ceri-context-116/handoff-prerequisites-copy.log",
+          "docs/remediation/ceri-context-116/handoff-technical-prerequisites.json",
+          "docs/remediation/ceri-context-116/historical-after.json",
+          "docs/remediation/ceri-context-116/historical-before.json",
+          "docs/remediation/ceri-context-116/historical-state-and-prerequisites.json",
+          "docs/remediation/ceri-context-116/initial-status.txt",
+          "docs/remediation/ceri-context-116/keys-restore.list",
+          "docs/remediation/ceri-context-116/keys-restore.log",
+          "docs/remediation/ceri-context-116/migration-postflight.json",
+          "docs/remediation/ceri-context-116/migration-preflight.json",
+          "docs/remediation/ceri-context-116/native-certification-final-checks.log",
+          "docs/remediation/ceri-context-116/native-certification-handoff-resumed.log",
+          "docs/remediation/ceri-context-116/native-certification-resumed.log",
+          "docs/remediation/ceri-context-116/native-certification.log",
+          "docs/remediation/ceri-context-116/new-context-116-scores.json",
+          "docs/remediation/ceri-context-116/patch-apply-check.txt",
+          "docs/remediation/ceri-context-116/pipeline-66-continuation.json",
+          "docs/remediation/ceri-context-116/pipeline-66-continuation.log",
+          "docs/remediation/ceri-context-116/pipeline-66-progress.jsonl",
+          "docs/remediation/ceri-context-116/postflight-attempt-1.log",
+          "docs/remediation/ceri-context-116/postflight-attempt-2.log",
+          "docs/remediation/ceri-context-116/postflight.sql",
+          "docs/remediation/ceri-context-116/preflight.sql",
+          "docs/remediation/ceri-context-116/production-read-only-final-check.json",
+          "docs/remediation/ceri-context-116/production-read-only-final-check.log",
+          "docs/remediation/ceri-context-116/qa-capture-stack-final.txt",
+          "docs/remediation/ceri-context-116/qa-capture-stack.txt",
+          "docs/remediation/ceri-context-116/qa-claim-deadline.log",
+          "docs/remediation/ceri-context-116/qa-handoff-restored-stack-2.txt",
+          "docs/remediation/ceri-context-116/qa-handoff-restored-stack.txt",
+          "docs/remediation/ceri-context-116/qa-handoff-stack-latest.txt",
+          "docs/remediation/ceri-context-116/qa-handoff-stack.txt",
+          "docs/remediation/ceri-context-116/qa-heartbeat-supervisor.log",
+          "docs/remediation/ceri-context-116/qa-regression-stack.txt",
+          "docs/remediation/ceri-context-116/regression-summary.json",
+          "docs/remediation/ceri-context-116/restored-technical-context-compatibility.json",
+          "docs/remediation/ceri-context-116/schema-restore.log",
+          "tests/ceri/test_batched_workflow_v2.py",
+          "tests/ceri/test_ceri_acceptance_fixture.py",
+          "tests/ceri/test_ceri_schema.py",
+          "tests/ceri/test_filing_authority.py",
+          "tests/ceri/test_sec_continuation_downstream.py",
+          "tests/ceri/test_sec_coverage.py",
+          "tests/ceri/test_sec_coverage_export.py",
+          "tests/ceri/test_sec_identity_repair.py",
+          "tests/ceri/test_sec_issuer_succession.py",
+          "tests/ceri/test_sec_pipeline_preflight.py",
+          "tests/ceri/test_sec_processor_lifecycle.py",
+          "tests/ceri/test_wave1_p0.py",
+          "tests/integration/test_ceri_pipeline_completion_barrier.py",
+          "tests/integration/test_ceri_run_isolation_remediation.py",
+          "tests/integration/test_ceri_systemic_remediation.py",
+          "tests/integration/test_sec_readiness_repair_postgresql.py",
+          "tests/test_sec_continuation_executor.py"
         ],
         "tests": [
           {
@@ -2966,7 +3129,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "97273db57a25c3fae8ba68b664da10ec8020f6787d31c693be413b6d2a4babaf",
+        "review_sha256": "3dde2e85ea49f5b6eb7184432b5ff10aad558c846b4b3a4c1eff9ff77c2bb73f",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -3059,6 +3222,14 @@
             "evidence": "docs/remediation/ceri-context-116-publication/browser-fixture-review.md",
             "scope": "Seed true persisted dedicated context/reverse-owner links for positive current-presentation fixtures. Preserve the excluded legacy row and all browser/financial assertions; add explicit unattributed-context refusal. Reader payloads remain doubles and are not promoted to financial-writer certification.",
             "claim": "STATIC_INTENT only; native seals, current CI evidence and authenticated golden approval remain separately required."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
           }
         ]
       },
@@ -3130,7 +3301,22 @@
           "tests/test_market_sector_intelligence_technical_pit.py",
           "tests/test_market_sector_refresh.py",
           "tests/test_sector_read_budget.py",
-          "tests/test_sector_refresh_browser.py"
+          "tests/test_sector_refresh_browser.py",
+          "docs/remediation/pipeline59-sector-locality-liveness/README.md",
+          "docs/remediation/pipeline59-sector-locality-liveness/qualification.json",
+          "docs/remediation/pipeline59-sector-locality-liveness/source-review.json",
+          "docs/remediation/pipeline59-sector-memory-recovery/README.md",
+          "docs/remediation/pipeline59-sector-memory-recovery/qualify_registry.py",
+          "docs/remediation/pipeline59-sector-memory-recovery/source-review.json",
+          "tests/integration/test_sector_evidence_memory_postgresql.py",
+          "tests/integration/test_sector_memory_continuation_postgresql.py",
+          "tests/integration/test_sector_memory_scale_postgresql.py",
+          "tests/integration/test_sector_universe_residency_postgresql.py",
+          "tests/sector_full_native_scale_probe.py",
+          "tests/sector_memory_scale_probe.py",
+          "tests/test_sector_locality_liveness.py",
+          "tests/test_sector_recovery_continuation.py",
+          "tests/test_sector_serialization.py"
         ],
         "tests": [
           {
@@ -3295,7 +3481,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "b6f7e755bd2a6d9107fa125733e0d900cb6b6f38d56ce9f06309c853f90e3a78",
+        "review_sha256": "cced07a41c1d9753f5d942f0eaacf830810d697d51f09f0676aec40dfc6c1321",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -3430,6 +3616,14 @@
               }
             ],
             "claim": "STATIC_INTENT only. Exact prerequisite paths are assigned to existing accountable domains and existing mandatory validation. Unknown high-risk paths still fail closed; manual replay is not an automated producer. No financial oracle, historical source identity, authenticated approval or certificate is changed."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
           }
         ]
       },
@@ -3637,7 +3831,16 @@
           "tests/integration/test_ib_market_intelligence_runtime_resilience.py",
           "tests/ops/test_lifecycle_config.py",
           "tests/ops/test_readiness_metrics.py",
-          "tests/ops/test_worker_quiesce.py"
+          "tests/ops/test_worker_quiesce.py",
+          "docs/remediation/pipeline-scheduler-readiness-20261111/README.md",
+          "tests/integration/test_pipeline_scheduler_readiness_postgresql.py",
+          "tests/integration/test_supervisor_recovery_isolation_postgresql.py",
+          "tests/test_background_job_service.py",
+          "tests/test_background_queue.py",
+          "tests/test_memory_failure_recovery.py",
+          "tests/test_pipeline61_progress_diagnostics.py",
+          "tests/test_pipeline_execution_authority.py",
+          "tests/test_worker_supervisor_reliability.py"
         ],
         "tests": [
           {
@@ -3696,7 +3899,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "d8c0da1ff70d76f96d9aa90d6f03bde367e9bd41e482b6d4ba4c0bb345d66be1",
+        "review_sha256": "ffb42030a939a4405d6b3ddd2a0fe0c4d03f1c6757627c6639cba58cca14473a",
         "review_addenda": [
           {
             "task": "FR02",
@@ -3802,6 +4005,14 @@
               }
             ],
             "claim": "STATIC_INTENT only. Exact prerequisite paths are assigned to existing accountable domains and existing mandatory validation. Unknown high-risk paths still fail closed; manual replay is not an automated producer. No financial oracle, historical source identity, authenticated approval or certificate is changed."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
           }
         ]
       },
@@ -3876,7 +4087,18 @@
           "tests/test_pipeline_gui_semantics.py",
           "tests/test_pipeline_partial_results.py",
           "docs/verification/pipeline55-symbol-change-review-20261109.md",
-          "app/templates/history_gap_repair.html"
+          "app/templates/history_gap_repair.html",
+          "tests/integration/test_pipeline61_handoff_postgresql.py",
+          "tests/integration/test_terminal_publication_recovery_postgresql.py",
+          "tests/test_pipeline61_handoff_progress.py",
+          "tests/test_pipeline_dependency_progress.py",
+          "tests/test_pipeline_gap_routes.py",
+          "tests/test_pipeline_progress_route.py",
+          "tests/test_pipeline_recovery_transition.py",
+          "tests/test_pipeline_recovery_visibility.py",
+          "tests/test_pipeline_service.py",
+          "tests/test_run_detail_view_models.py",
+          "tests/test_scheduler_release_qualification.py"
         ],
         "tests": [
           {
@@ -4150,7 +4372,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "44b7d148c11db01faee073a501ee62024cbbf65c69e8accdcca5aaf29b2d8522",
+        "review_sha256": "191403f2f2b1f3ff537cfe412e82eeeaf0e879308c4d4136e049276357edee10",
         "review_addenda": [
           {
             "task": "MSI-20261104-renderer",
@@ -4254,6 +4476,14 @@
               }
             ],
             "claim": "STATIC_INTENT only. Exact prerequisite paths are assigned to existing accountable domains and existing mandatory validation. Unknown high-risk paths still fail closed; manual replay is not an automated producer. No financial oracle, historical source identity, authenticated approval or certificate is changed."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
           }
         ]
       },
@@ -4306,7 +4536,8 @@
           "tests/e2e/single_run_certification/golden_*.py",
           "config/*.yaml",
           ".gitattributes",
-          ".env.example"
+          ".env.example",
+          "docs/testing/golden-update-proposal.json"
         ],
         "tests": [
           {
@@ -4480,7 +4711,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "9a93d47262564a23e9359a1f439deb221659811daa48d70a91d21a6e91cd0f1e",
+        "review_sha256": "aa2b2d8bac228703a645c3e169d33f590565d4a0d81579af3096b99b24df4e88",
         "policy_amendment": {
           "id": "A13-R10",
           "date": "2026-11-01",
@@ -4505,6 +4736,14 @@
             "evidence": "docs/remediation/ceri-context-116-publication/ci-prerequisite-review.md",
             "scope": "Four candidate-integrity controls preserve historical v3, exact financial literals and variants, corruption rejection, foreign-binding rejection and non-activation. Only the version and ten independently derived current CERI owner states change. Native immutable scope now requires the exact parent ID.",
             "claim": "STATIC_INTENT only; candidate validation cannot authorize or activate a golden. Current native A04 and the unchanged trusted A13 owner acknowledgement remain required."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
           }
         ]
       },
@@ -4569,7 +4808,21 @@
           "docs/audit/whole-application-closure/MUTATION_WRITER_REGISTRY.md",
           "docs/audit/whole-application-closure/TRANSACTION_BOUNDARY_REGISTRY.md",
           "docs/routes_exports.md",
-          "docs/testing/ci_snapshot_baseline.md"
+          "docs/testing/ci_snapshot_baseline.md",
+          "docs/remediation/ceri-context-116-publication/README.md",
+          "docs/remediation/ceri-context-116-publication/architecture-check.log",
+          "docs/remediation/ceri-context-116-publication/browser-fixture-review.md",
+          "docs/remediation/ceri-context-116-publication/ci-prerequisite-review.md",
+          "docs/remediation/ceri-context-116-publication/configuration-material-review.md",
+          "docs/remediation/ceri-context-116-publication/integration-tests.log",
+          "docs/remediation/ceri-context-116-publication/integration-tests.xml",
+          "docs/remediation/ceri-context-116-publication/lint-check.log",
+          "docs/remediation/ceri-context-116-publication/prerequisite-ownership-review.md",
+          "docs/remediation/ceri-context-116-publication/publication-summary.json",
+          "docs/remediation/ceri-context-116-publication/source-contract-review.json",
+          "docs/remediation/ceri-context-116-publication/source-contract-review.md",
+          "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+          "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json"
         ],
         "tests": [
           {
@@ -5545,7 +5798,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "36220adc34a9b7728c9f2832f2462085500c08267d3060cc7b7c1b2bc1e59332",
+        "review_sha256": "0aeeed4563adffb7c4c4ffa923d837122d38307b14be981f4b99d66a70feb6bf",
         "review_addenda": [
           {
             "task": "INTEGRATION-20261107-budget-retention",
@@ -5553,6 +5806,14 @@
             "claim": "STATIC_INTENT: retain owned native inputs when the original test passes but its stage budget fails. Preserve the original report and sealed certificate files; passing cases within budgets avoid a dump. Existing ownership rejection remains.",
             "source_sha256": "bc94eb1a075232b78384340611582ff1a3de6da1805779c408f65e3766bd6447",
             "test_sha256": "029a86842da7404d9bd2907f915ff70a1342a4d591a26b3d3120e02a173ffda8"
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
           }
         ]
       }

@@ -1,0 +1,2281 @@
+{
+  "schema": "swinglens.exact-impact-ownership-review.v1",
+  "reviewed_revision": "ca96e5f8e8aefb79f320e7e4a43b7109260e709a",
+  "claim": "STATIC_INTENT",
+  "review_scope": "Contract ownership of the exact retained evidence and prerequisite tests/helpers; no new execution, fidelity, approval or numerical claim.",
+  "existing_policy": "Unchanged approved-pr-native-100-88-lifecycle-scale-v1; all original obligations retained; broader scale deferral remains NOT_RUN and needs current native/UI proof.",
+  "known_broader_scale_failure": {
+    "run_id": 44016055359,
+    "job_id": 133814360309,
+    "test_id": "tests/integration/test_slse_performance_certification.py::test_slse_phase_12_performance_certification",
+    "evaluation_1000_seconds": 457.040354,
+    "unchanged_limit_seconds": 60,
+    "outcome": "FAIL",
+    "full_release_certified": false
+  },
+  "paths": [
+    {
+      "path": "artifacts/ceri-context-116-remediation/SwingLens_CERI_Capture_Remediation.zip",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "cab31cfd192487555d7b8a45b5ab42343cca86705de9ab8cb6f4187173020bb3"
+    },
+    {
+      "path": "artifacts/ceri-context-116-remediation/SwingLens_CERI_Capture_Remediation.zip.sha256",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "deb4e33d46d947fe5b2d4e8e1c1f2e6d92595f336a5eacd6981b2e12840efc1c"
+    },
+    {
+      "path": "artifacts/ceri-context-116-remediation/delivery-verification.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "24a51a75b044eae2c28f9b926991c10683a0741bfca2c82fe135d5f118344250"
+    },
+    {
+      "path": "artifacts/ceri-context-116-remediation/implementation.patch",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "a9dc89974885a8519966d353fee38a600047b4e7c285d7718ffd6b97647282e1"
+    },
+    {
+      "path": "docs/operations/ceri_filing_authorities.md",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "CERI_OPERATIONAL_RUNBOOK",
+      "sha256": "8e2ccf68803affa509d36efcdb524536940f6466cc93aa6e340683fe7ab5e97e"
+    },
+    {
+      "path": "docs/operations/decision_handoff_recovery.md",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "CERI_OPERATIONAL_RUNBOOK",
+      "sha256": "6bf426c7eb6bbbb69cd7d1ec3067d4d4563d4f2faaad633e59271176a208edff"
+    },
+    {
+      "path": "docs/operations/pipeline_market_data_retry.md",
+      "contract": "IB_ADMISSION",
+      "role": "MARKET_DATA_RUNBOOK_OR_PREREQUISITE_REVIEW",
+      "sha256": "e75dd63d5d70bbb48c1ab7605b445d720c0d5d9ae2f3057ef148a85f81a92abb"
+    },
+    {
+      "path": "docs/remediation/calculation-lineage/T14D_semantic_review_source_pins.json",
+      "contract": "CORE_CONFIGURATION",
+      "role": "RETAINED_MUTATION_AUTHORITY_REVIEW",
+      "sha256": "89b944591acdecabd2efa13de19522d33b6f2c21c2633d88058aa2aa00aa72cb"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116-publication/README.md",
+      "contract": "CI_RELEASE_GOVERNANCE",
+      "role": "PUBLICATION_REVIEW_EVIDENCE_NOT_EXECUTED",
+      "sha256": "05c4af41672c7b9ff1116cc38e26b144febb9efbb27fd763731d605cde504e9b"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116-publication/architecture-check.log",
+      "contract": "CI_RELEASE_GOVERNANCE",
+      "role": "PUBLICATION_REVIEW_EVIDENCE_NOT_EXECUTED",
+      "sha256": "97c1aefc06ff06454d2960d982ee33ea616b145389f8a5953bf86d716cdfd2f6"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116-publication/browser-fixture-review.md",
+      "contract": "CI_RELEASE_GOVERNANCE",
+      "role": "PUBLICATION_REVIEW_EVIDENCE_NOT_EXECUTED",
+      "sha256": "5764f803bfaed9fa2a368b6a5628825ed05f5bd76ef6e119cdc8dde1dd68b4eb"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116-publication/ci-prerequisite-review.md",
+      "contract": "CI_RELEASE_GOVERNANCE",
+      "role": "PUBLICATION_REVIEW_EVIDENCE_NOT_EXECUTED",
+      "sha256": "c83e8046cae23d9128bd78447ff9f191a0915b832b1a84433cf81888c2a1a666"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116-publication/configuration-material-review.md",
+      "contract": "CI_RELEASE_GOVERNANCE",
+      "role": "PUBLICATION_REVIEW_EVIDENCE_NOT_EXECUTED",
+      "sha256": "893488a2dc2d69323e05bf40fb73afcbfe3620bcff41da33752c89aa19131278"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116-publication/integration-tests.log",
+      "contract": "CI_RELEASE_GOVERNANCE",
+      "role": "PUBLICATION_REVIEW_EVIDENCE_NOT_EXECUTED",
+      "sha256": "df7f3e9140f8d23e748869b6a69a6acb0c3035b7055912b0b5bc11dbce256ddc"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116-publication/integration-tests.xml",
+      "contract": "CI_RELEASE_GOVERNANCE",
+      "role": "PUBLICATION_REVIEW_EVIDENCE_NOT_EXECUTED",
+      "sha256": "4583f101e3ec4455204eac602b2609d4c5832cea18f0389d958da6cc972a5deb"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116-publication/lint-check.log",
+      "contract": "CI_RELEASE_GOVERNANCE",
+      "role": "PUBLICATION_REVIEW_EVIDENCE_NOT_EXECUTED",
+      "sha256": "a4443afdcfb6d7363adb285762515ccf7cf50473b1a05c20c1a50f6bed4d26b0"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116-publication/prerequisite-ownership-review.md",
+      "contract": "CI_RELEASE_GOVERNANCE",
+      "role": "PUBLICATION_REVIEW_EVIDENCE_NOT_EXECUTED",
+      "sha256": "9f3f139528db663efda4900571e1e005e78cd401086ab3cf924112d22dc13a2b"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116-publication/publication-summary.json",
+      "contract": "CI_RELEASE_GOVERNANCE",
+      "role": "PUBLICATION_REVIEW_EVIDENCE_NOT_EXECUTED",
+      "sha256": "1badd74484e6e819c82535567615a48ce9d5b14d1dc3f5e64aa91603e51db4a6"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116-publication/source-contract-review.json",
+      "contract": "CI_RELEASE_GOVERNANCE",
+      "role": "PUBLICATION_REVIEW_EVIDENCE_NOT_EXECUTED",
+      "sha256": "a8a382d14d4ae4d1372d35cdb0c0f45926643198530fe444ef6515e288308450"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116-publication/source-contract-review.md",
+      "contract": "CI_RELEASE_GOVERNANCE",
+      "role": "PUBLICATION_REVIEW_EVIDENCE_NOT_EXECUTED",
+      "sha256": "417a997b0c749b69ad52fbfe8b3c6c932657e8ff3abf28569868b13291435a44"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/EVIDENCE_INDEX.md",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "c20e7b8639f63401cfd8ef0956ec23c55ec081561b801c954473190f1156c6c8"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/FILE_INVENTORY.md",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "4ff5204aada5c2c33ed6018ea3ec5001e298fca3cdea25f1d8bdb794ec21bfd7"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/IDENTITY_AND_OWNERSHIP.md",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "55edc79b7a63edee4586633164dc5ca55cf22b8f64dfa1663fdab12083c7ad5a"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/IMPLEMENTATION_REPORT.md",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "56eddf6e1c0217aed7d87bf1864f27d63463c6b6c5d48334dd970ebfaa75af8f"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/MIGRATION_AND_RECOVERY.md",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "7d9e57ba161d8e593f044e7d0a8f2873d87317f2cb82e5cd60a9d65c57895b11"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/affected-regressions-current-source.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "72cff1967b8b0763275f873edbe9d5fbbd5f586df1486063b66fbe26d96718f0"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/affected-regressions-final.xml",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "9c5c5589e60e8bfc4285b58aa2c250b2727c619eeab2e3c58a96c9bfb7cf6c24"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/affected-regressions-initial-failures.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "813c2bf4a467b56fad6656bf0cc7a5f414fc79df1fb4c1731b6b1dc28c71bd78"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/affected-regressions-initial.xml",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "1becbaacdd87df117788ff4f479b066c31c60eb95db0e9d2dc535ea9fad8c20b"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempt-2-terminalization.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "f8455376b94642209bd3ab228368d87c6d7f04afed24145a86db0fc5b9feec91"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-1/certification-environment-blocker.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "6039c56ed6d2cf1f44a4e6d30e1278d2c42f59030db880f1d85c274cb67c5e3c"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-1/certification-harness-at-attempt.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "06f0cc05a7f049f18b4be75d5f218882992ce6715c929038f02aea8490f21c03"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-1/context-116-certification.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "4ff3ee310a2e5b358b189405268f462a6886f44b20a7cca41a942e57246bd42c"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-1/historical-after.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "89d1b678868eb97dd9c382142966eb84d6ced122c2ef0ef2b0314d3c366d60c2"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-1/historical-before.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "89d1b678868eb97dd9c382142966eb84d6ced122c2ef0ef2b0314d3c366d60c2"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-1/migration-postflight.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "63622f2d0b91406d6a04f64fa0df8e5ffb35ec2ed17a446df9152046379572e0"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-1/native-certification.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "0fcc70362520a6e6f22b7e2ceb26dce7e482b363e5b92c9ad1343ad752f132c1"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-1/postflight-attempt-1.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "b4be80e6b9e3420e998d1012c983218767765db5fd65f68f7682c115882eafbb"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-1/qa-capture-stack-final.txt",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "e97b90b0aab1b8ca176e5526706b59e8eb392790a3b3c014a367b04f35524d4d"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-1/qa-capture-stack.txt",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "1a287949bd214e075bedb3a5c6cc22637cd4aab5d0ca0a16252b248b4424f391"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-1/qa-claim-deadline.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "031bb1d8820ea07b5456ac176d619337b25f2fc8093486e82bc07ca18dc9bd2c"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-2/attempt-2-terminalization.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "f8455376b94642209bd3ab228368d87c6d7f04afed24145a86db0fc5b9feec91"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-2/context-116-certification.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "7671bf5a9bc1dc01bda109b8e13c792cad0fe4d7ddd8077df9705e6cbd0ec4e2"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-2/historical-after.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "89d1b678868eb97dd9c382142966eb84d6ced122c2ef0ef2b0314d3c366d60c2"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-2/historical-before.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "89d1b678868eb97dd9c382142966eb84d6ced122c2ef0ef2b0314d3c366d60c2"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-2/migration-postflight.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "65ec2a1d3996f9fe46c16090bd07a2bff65534ab99a16bb47f53c5bb100e4c8e"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-2/native-certification.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "b18cf7f256fedc19f90844b8508d098f86d2adeb00fde6a9297d9c9a37a0293c"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-2/postflight-attempt-2.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "b4be80e6b9e3420e998d1012c983218767765db5fd65f68f7682c115882eafbb"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-3-final-check-harness/context-116-certification.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "9650a19800cd7a3e9d62bf153eab8778b9d1a3ae6eee8e37778a77ec94bc5961"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-3-final-check-harness/native-certification-handoff-resumed.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "80a3daf281a132e9bcc610e12ed284b725b652370a4ce50e080df9716cc03ae4"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-3-handoff-prerequisite/context-116-certification.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "d267b6b1408bf67fe3c89f528f27d1ab35a9ace6c011319851814287856f99da"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-3-handoff-prerequisite/native-certification-resumed.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "4d44216a6d4211e664c14ca31b26aaf5376730251ca325424dda454d92056f87"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-3/context-116-certification.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "7318021467ae5faa64c0837ba6ee9e11979bc8cd5a8b3c61bd332097993e2a53"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/attempt-3/native-certification.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "fb4499e2c01951715f49cf65c8cf878d0d88500bcfc9bab2f39ce651c5b93a35"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/regression-before-authority-fix/affected-regressions-final.xml",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "339a8d938def4ed340c53e8999bd16f007818cb268eca0e6a33d37e020e88a84"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/attempts/regression-before-authority-fix/regression-summary.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "d1e7dfe8888931af1470dd5765c25d7e08cdc1d67cddeebf26a69082ba645b4c"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/authoritative-input/6d6952f.patch",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "d64b35f8d785eeb56ba121a9b47743f7b6fe96fc9ecabaa2e5a7a9c5e6718eac"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/authoritative-input/7e113f7.patch",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "b42bdaa35379afb2ee08c8c376cc86b6abbb27e87d3786b747f6fc395e2b882e"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/authoritative-input/REPORT.md",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "c94de377068b8542509bd75dec7135baf8c4f373b6bbb5f51053ee76ce95b3af"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/authoritative-input/checkout-audit.txt",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "6c1a3c0a013821203d924eb6839a1ec7373d6c2b9810520dc31dc9a9b9e8183e"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/authoritative-input/evidence.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "71fba9ce36d5e0d426e218734d827c4faaf9589faa78d7280b1aea71e5bb3a34"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/authoritative-input/history.txt",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "6d37b2467cdf08fd513ca5437e320ba484daf3d45482ab2dfa7abc5e4327e2d8"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/authoritative-input/queries.sql",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "753fc0a22debbee1f26569c8d75847b966b33c56502e9160fe179bbcb69ec681"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/authoritative-input/replay.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "91e09a94d5aa4495fedd7fbaa3512e80ae857a688947f34a03a24ab51e233cbd"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/authoritative-input/replay.txt",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "7f81ebf6f564e426cfcb9ace1d638c767ce5687e8046994b7aa0d96fdb7fca83"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/authorized-closure-tables.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "a585b7b798cc8f460d5e6ffc0110012aba45b83ac61dfa2cf2c5d76692e4f2db"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/authorized-fixture-copy.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "6d177169b2ca0c74f6d2cc7a86a8237b9845061add4e312e87f8a269b4d4db0f"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/authorized-handoff-prerequisites-copy.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "7cc705ba858cda1d6c2875e01b8e8e81852f91008cb3031d27169fa1c0228713"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/authorized-scope-members-copy.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "6063b8bee22f7100d841e888522edf20888dd7533dd2f887dbc7b8583e190c79"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/baseline-ibmi-calendar-pristine.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "07692d15e4db491622738a112cff7072f56fd9639c869a9673d6f8506cd68327"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/baseline-ibmi-pristine.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "f89b549489d1df806c5c22cf24f352ae1a7196da158edd9ce55bb70fbeefd506"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/baseline-integration.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "ddcdc6783d6f052c3bc24d627a69acfbc42aaeb5a23a005dd499ffcee4c03ff0"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/certification-environment-blocker.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "6039c56ed6d2cf1f44a4e6d30e1278d2c42f59030db880f1d85c274cb67c5e3c"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/certification-harness-at-attempt.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "06f0cc05a7f049f18b4be75d5f218882992ce6715c929038f02aea8490f21c03"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/comparison-evidence-size.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "9815ec9a0ba142afbe66337c0f6d608c17754122b0b978a434595b1031a8b45d"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/context-116-certification.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "df3f7cf6947148db3f2b6633de454de5b5e40cc5cb5ac63fe167d2c8e4cb32e2"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/disposable-environment.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "5348c8f525e19c73d4d12641997de1622f98a6b6eb2bc926d07c8bb1be0d7ca0"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/file-inventory.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "deb595fd969c16b0d0024df12a4ea493c5c91b1c3b966433f179691fdfb7b906"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/final-certification-review.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "97d1c32591324aed5954e6e9a30576e0b7a9e66eb3ba34b4662a0c01644e8c4c"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/final-certification-review.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "c4beef929fe54fef64e46c6ff16d0904795e1ef2e33e5bbfd9f81b4c5a3d9825"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/final-postflight.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "b4be80e6b9e3420e998d1012c983218767765db5fd65f68f7682c115882eafbb"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/focused-test-results/dedicated-context-change.xml",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "f730863df2db43a76cf3e1deba5557d0d869277e4e5e0192796b68236b7b8551"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/focused-test-results/focused-pg.xml",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "9ba8c096bd61193536ac6236667cbff72b32727a8ccdcf80daa00f08dc4efb8b"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/focused-test-results/immutability-and-ambiguity.xml",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "1cabec8c64c77a7cf1baba75b5ab1ec99ac58db3b42ed6125b22e6b1788618ff"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/focused-test-results/native-identity-ownership.xml",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "5be91a91b5b1095cebb8a3b754fd36b17e15576a17b18d13ccc0db3baa22c866"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/focused-test-results/native-positive-negative.xml",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "6061de6648cb3d4a50cd2eb564b647d1499710ba9825883b2b9469ed7d0426e8"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/focused-test-results/shared-main-ceri-authority.xml",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "0df6f19f3565a584f199001eb970a6e801b8c5d6f65b54d9671a298e5b3b9d4f"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/focused-test-summary.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "99b63f979ce7a2d1e92f4705ce2e2d8d72b6ecdc037fba9958104911d9d859b7"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/foreign-keys-restore.list",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "62a6fe5df95ea253ec0ee26b9682539f946c464610e1e6e2fe3f8a8420cb1ac6"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/foreign-keys-restore.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/frozen-scope-prerequisites.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "63eed160c5afbdcdff9721a692754ea743acd1a09beea7e50b6ac573ebfb3cd8"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/handoff-prerequisites-copy.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "66b08341e614ffda341cb1ef28f48feee7f31ce93b1236680351c0388aa803e8"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/handoff-technical-prerequisites.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "4cfed3c3cd209b302bbb3c2594bab520996358eb745df733923435c28f454fb0"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/historical-after.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "89d1b678868eb97dd9c382142966eb84d6ced122c2ef0ef2b0314d3c366d60c2"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/historical-before.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "89d1b678868eb97dd9c382142966eb84d6ced122c2ef0ef2b0314d3c366d60c2"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/historical-state-and-prerequisites.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "0a473ea31412e1f6857113274cbee08bda70df3a6153751d4e9fc0ccca524c84"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/initial-status.txt",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "0bc0d94c58894b334138e872d1b1e0ce0944bbe445e52b0b84f8f595ba0cb5a9"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/keys-restore.list",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "a9b8dff49f127fa54b3aa326fe80088042771ea75febea6b09f0d6e802a8d7a8"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/keys-restore.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/migration-postflight.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "6f88e104a18a43139bd01dd765c0fbafa5c2dd1f9c6e22584f3930349fcd4606"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/migration-preflight.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "2170065bc636009342b5db1999a5596950a5bdcefca3c0a047351754a1a07d2c"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/native-certification-final-checks.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "57d4a35521495e1839bd673a7406daba7ffa58321f50c8d42b6f962ab3e53326"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/native-certification-handoff-resumed.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "80a3daf281a132e9bcc610e12ed284b725b652370a4ce50e080df9716cc03ae4"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/native-certification-resumed.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "4d44216a6d4211e664c14ca31b26aaf5376730251ca325424dda454d92056f87"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/native-certification.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "fb4499e2c01951715f49cf65c8cf878d0d88500bcfc9bab2f39ce651c5b93a35"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/new-context-116-scores.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "9290ecf9acdc88ff1bc954168af384ba909796d5e8b7a9cfa9e57ef6c10bdcd4"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/patch-apply-check.txt",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "a9f58776a09b5dac438049683f24bf85764e0ff8e7455952456165c68c158627"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/pipeline-66-continuation.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "e9bafeb44a47df6fb35584ba14c7b68ab60ff0a33ef5480e8ad341e47f71b5fa"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/pipeline-66-continuation.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "fee7c48cab35333391142bfbb0e3e63da8c1fe3248671ca41ec89f370de77794"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/pipeline-66-progress.jsonl",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "19c9678f59e46ffa9014cdb37cd71b4b3b8307cb8350e3ae3937e5ee4d8f095f"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/postflight-attempt-1.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "b4be80e6b9e3420e998d1012c983218767765db5fd65f68f7682c115882eafbb"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/postflight-attempt-2.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "b4be80e6b9e3420e998d1012c983218767765db5fd65f68f7682c115882eafbb"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/postflight.sql",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "824beb6e0f983a19740d8fbedd1263a93c3b0ad77d6d0254db3c816f128f2248"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/preflight.sql",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "cf601e6b7a0b913d596bdaa226af04ce90cfed4d864d259e6861a94ae5f28f38"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/production-read-only-final-check.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "2a064e554eb5a038d18c43ee357f439c67e59b24bbd9e1cf4fe8f596dc35041c"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/production-read-only-final-check.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "34f88954c696e413390f53108a522bef4bf53ed032ddc4d0142d0f7d92d94535"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/qa-capture-stack-final.txt",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "e97b90b0aab1b8ca176e5526706b59e8eb392790a3b3c014a367b04f35524d4d"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/qa-capture-stack.txt",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "1a287949bd214e075bedb3a5c6cc22637cd4aab5d0ca0a16252b248b4424f391"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/qa-claim-deadline.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "031bb1d8820ea07b5456ac176d619337b25f2fc8093486e82bc07ca18dc9bd2c"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/qa-handoff-restored-stack-2.txt",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "dd92a836854f7f6e3bcdac03a14243db75c9a425d24501c5d4b5d7467ade9810"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/qa-handoff-restored-stack.txt",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "547c944d1ec785582075e45a57f113588de5b26b346167953f30bc1db621bc4d"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/qa-handoff-stack-latest.txt",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "7ade8538ed2aff5dd7984b3d3e431da50bc0647db700567a4b8bcc7371aed01c"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/qa-handoff-stack.txt",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "1978453f5bab162a9df83ff006491364d72737ce9be4410163a4e37db19fa470"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/qa-heartbeat-supervisor.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "50249d1cadeaa9b735458d274955322bb7d232a9a9f05a222312a50e53a90329"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/qa-regression-stack.txt",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "3e028ea24f1c85e2621bab09e3cd6e2cd03a9c11939ebb6d254598da3d33b943"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/regression-summary.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "423d14747c16609fd23857902b329fb1fca53bf0457d1a2ceaf3a97884a5d41f"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/restored-technical-context-compatibility.json",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "1ba2d52df1ad3d1a4ee909493f3c0d03721186aa78aaea98f3b51df33cbb51cc"
+    },
+    {
+      "path": "docs/remediation/ceri-context-116/schema-restore.log",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "RETAINED_CERI_EVIDENCE_NOT_EXECUTED",
+      "sha256": "75fa844c897f9453664c9cb53ab785e5aa88a2220406427ab90f4d0fa0b14972"
+    },
+    {
+      "path": "docs/remediation/pipeline-scheduler-readiness-20261111/README.md",
+      "contract": "WORKER_SUPERVISOR_RECOVERY",
+      "role": "RETAINED_SCHEDULER_PREREQUISITE_REVIEW",
+      "sha256": "14fcf21da190272be25fdcb148a2c5de893f9c05d658aaa81fdf4c3ed3953530"
+    },
+    {
+      "path": "docs/remediation/pipeline58-market-readiness/implementation.md",
+      "contract": "IB_ADMISSION",
+      "role": "MARKET_DATA_RUNBOOK_OR_PREREQUISITE_REVIEW",
+      "sha256": "5b7abd8bbf1c144c689ccb9f964264cc20591ec99c506bf52a2a59590915edcb"
+    },
+    {
+      "path": "docs/remediation/pipeline58-market-readiness/raw-bootstrap-caller-review.json",
+      "contract": "IB_ADMISSION",
+      "role": "MARKET_DATA_RUNBOOK_OR_PREREQUISITE_REVIEW",
+      "sha256": "646fa8bc033d6fbe77212ff784c4835d57dd80ef615253de1e81a1b8816e3912"
+    },
+    {
+      "path": "docs/remediation/pipeline59-sector-locality-liveness/README.md",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "RETAINED_SECTOR_PREREQUISITE_REVIEW",
+      "sha256": "7c73e48eeb794d36bf2f6c56af64337cdcc12c3a100745b8d68240b609ae4329"
+    },
+    {
+      "path": "docs/remediation/pipeline59-sector-locality-liveness/qualification.json",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "RETAINED_SECTOR_PREREQUISITE_REVIEW",
+      "sha256": "bae997dd15ad9d715ed10acab3fd5829138fc7cc03410753d80c8eff11e58410"
+    },
+    {
+      "path": "docs/remediation/pipeline59-sector-locality-liveness/source-review.json",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "RETAINED_SECTOR_PREREQUISITE_REVIEW",
+      "sha256": "5d44b15d7d9a374288352c92cb98fc0ea8a1d4026c3eeccf8357e59bd77c4285"
+    },
+    {
+      "path": "docs/remediation/pipeline59-sector-memory-recovery/README.md",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "RETAINED_SECTOR_PREREQUISITE_REVIEW",
+      "sha256": "deb306906a477cc6ae55c595aff1dbde5b948a9dd380aadf6603b6c949eb4c26"
+    },
+    {
+      "path": "docs/remediation/pipeline59-sector-memory-recovery/qualify_registry.py",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "RETAINED_SECTOR_PREREQUISITE_REVIEW",
+      "sha256": "d322683530844a4d63f46d2b782510ff148362d77985fce184f859a9b10c7909"
+    },
+    {
+      "path": "docs/remediation/pipeline59-sector-memory-recovery/source-review.json",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "RETAINED_SECTOR_PREREQUISITE_REVIEW",
+      "sha256": "757684dbbdd53bfc1b4e698d899081826a8eff7dcef8eeb1a0cc205e530aa371"
+    },
+    {
+      "path": "docs/testing/golden-update-proposal.json",
+      "contract": "GOLDEN_INTEGRITY",
+      "role": "UNAPPROVED_GOLDEN_PROPOSAL",
+      "sha256": "a76f5b9d40c9294d5d07126e3613b7873ccd576f00f228957cf8329726bd7b32"
+    },
+    {
+      "path": "tests/ceri/test_batched_workflow_v2.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "9879e69792b5e9ae3c4cd0a13585e535aea90188fa87587642ed69bea134dfb5",
+      "reviewed_application_imports": [
+        "app.models.ceri_tables",
+        "app.models.tables",
+        "app.services.background_job_service",
+        "app.services.background_worker",
+        "app.services.ceri",
+        "app.services.ceri.batched_job_handlers",
+        "app.services.ceri.batched_workflow",
+        "app.services.ceri.enums",
+        "app.services.ceri.feature_rebuild_service",
+        "app.services.ceri.orchestration",
+        "app.services.ceri.providers.eodhd_client",
+        "app.services.pipeline_prerequisites",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_detached_heartbeat_does_not_commit_through_domain_callback",
+        "test_detached_ceri_checkpoint_never_dirties_business_job_row",
+        "test_402_ticker_plan_is_deterministic_bounded_and_under_sanity_target",
+        "test_single_worker_claims_later_provider_before_normalization_barrier",
+        "test_provider_ticker_scope_excludes_sec_not_applicable_symbols",
+        "test_company_ensure_preserves_existing_non_us_not_applicable_mapping",
+        "test_workflow_stage_identity_coalesces_completed_jobs",
+        "test_provider_batch_resumes_after_checkpoint_and_bounds_reprocessing",
+        "test_provider_batch_continues_after_partial_ticker_failure",
+        "test_provider_retry_keeps_prior_data_quality_failure_partial",
+        "test_ceri_checkpoint_updates_durable_progress_fields_monotonically",
+        "test_active_batched_sec_provider_routes_through_incremental_service",
+        "test_sec_readiness_coverage_requires_current_signature_per_ticker",
+        "test_feature_batch_prepares_once_and_preserves_resume_checkpoint",
+        "test_feature_batch_cancellation_never_checkpoints_unfinished_ticker",
+        "test_barrier_blocks_after_unsuccessful_terminal_upstream_batch",
+        "test_finalizer_enqueues_exactly_one_capture_for_repeated_execution",
+        "test_finalizer_defers_until_feature_batches_are_terminal",
+        "test_settings_reject_simultaneous_legacy_and_v2_scheduling",
+        "test_background_job_schema_has_minimal_workflow_identity",
+        "test_normalization_and_batch_checkpoints_share_latest_progress_origin"
+      ]
+    },
+    {
+      "path": "tests/ceri/test_ceri_acceptance_fixture.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "b7668bfb8a4d35fedc23891523894827fc2c44b2c115c15ff2152673a6c2c08f",
+      "reviewed_application_imports": [
+        "app.models.ceri_tables",
+        "app.models.tables",
+        "app.routers",
+        "app.services.ceri.export_policy",
+        "app.services.ceri.export_service",
+        "app.services.ceri.purge_service",
+        "app.services.ceri.query_service",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_field_export_policy_masks_restricted_fields_and_local_paths",
+        "test_redaction_blocks_auth_tokens_sql_details_and_nested_secrets",
+        "test_purge_preview_and_execute_redact_sources_and_invalidate_derivatives",
+        "test_purge_execute_requires_matching_confirmation_token",
+        "test_localhost_binding_and_admin_csrf_boundary_are_preserved"
+      ]
+    },
+    {
+      "path": "tests/ceri/test_ceri_schema.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "4ecd1f9fb68fcaa644a043d3e3b7d38e81818d8ef316cbff3d6cf5cb5647c1a1",
+      "reviewed_application_imports": [
+        "app.db",
+        "app.models.ceri_tables"
+      ],
+      "declared_test_functions": [
+        "test_ceri_metadata_includes_all_phase_2_tables",
+        "test_ceri_evidence_disposition_schema_is_append_only_ready",
+        "test_source_record_preserves_provider_lineage_and_restrictions",
+        "test_ingestion_runs_preserve_audit_counts_and_checkpoints",
+        "test_estimate_snapshot_fields_keep_missing_values_nullable",
+        "test_revision_score_change_alert_and_purge_indexes_are_defined",
+        "test_change_and_alert_semantic_dimensions_are_non_nullable",
+        "test_revision_features_preserve_phase_5_lineage_fields",
+        "test_earnings_actuals_preserve_consensus_selection_reason",
+        "test_upload_run_fk_retains_ceri_score_snapshot_on_run_deletion",
+        "test_processing_runs_preserve_checkpoint_and_execution_fencing_fields",
+        "test_ceri_models_accept_representative_values",
+        "test_ceri_migration_follows_current_head_and_lists_tables",
+        "test_ceri_ingestion_audit_migration_follows_ceri_schema_head",
+        "test_ceri_revision_feature_lineage_migration_follows_ingestion_audit_head",
+        "test_ceri_earnings_consensus_reason_migration_follows_revision_feature_head",
+        "test_price_bar_revisions_ceri_corrections_migration_follows_current_head",
+        "test_estimate_snapshot_identity_fix_follows_current_head"
+      ]
+    },
+    {
+      "path": "tests/ceri/test_filing_authority.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "6b25a339773752b13c9355caa5c866a4dcc037b3c83d6b1ff2da4eb546b4093e",
+      "reviewed_application_imports": [
+        "app.services.ceri.batched_workflow",
+        "app.services.ceri.filing_authority"
+      ],
+      "declared_test_functions": [
+        "test_unknown_ticker_does_not_inherit_an_exemption",
+        "test_reviewed_bank_reports_its_authority_and_coverage_limit",
+        "test_nbn_retains_reviewed_fdic_authority_instead_of_legacy_sec_identity",
+        "test_unreviewed_or_incomplete_exemption_is_rejected",
+        "test_conflicting_registry_entries_are_rejected",
+        "test_onboarding_retains_non_sec_classification_and_other_provider_mapping",
+        "test_nbn_onboarding_preserves_other_provider_scope_and_current_reporting_limit"
+      ]
+    },
+    {
+      "path": "tests/ceri/test_sec_continuation_downstream.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "feb5da348830eeb8dc3c5a0c364c3cbb77ba3ebc852701dad312de96d127d9dd",
+      "reviewed_application_imports": [
+        "app.services.ceri",
+        "app.services.ceri.batched_workflow",
+        "app.services.ceri.sec.coverage",
+        "app.services.ceri.sec.readiness_diagnostics",
+        "app.services.pipeline_outcome",
+        "app.services.pipeline_prerequisites",
+        "app.settings",
+        "app.templates"
+      ],
+      "declared_test_functions": [
+        "test_retained_unresolved_sec_identity_only_changes_sec_acquisition_scope",
+        "test_other_pipeline_coverage_cannot_bypass_batched_preflight",
+        "test_retained_identity_gap_does_not_hide_later_bootstrap_failure",
+        "test_readiness_coverage_reports_active_gap_without_counting_it_ready",
+        "test_final_outcome_keeps_sec_gap_without_changing_execution_status",
+        "test_resolved_later_identity_does_not_count_retained_history_as_current_gap",
+        "test_completed_pipeline_keeps_unresolved_sec_source_visible",
+        "test_resolved_gap_does_not_remain_in_live_progress"
+      ]
+    },
+    {
+      "path": "tests/ceri/test_sec_coverage.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "02318dd6658a4a7455751a9ca860036758afa90a480a99f67e8d076b880effc4",
+      "reviewed_application_imports": [
+        "app.services.ceri.sec.coverage",
+        "app.services.ceri.sec.readiness_diagnostics"
+      ],
+      "declared_test_functions": [
+        "test_retained_no_match_allows_continuation_without_claiming_ready",
+        "test_unattempted_missing_identity_still_requires_bounded_repair",
+        "test_ambiguous_identity_is_not_recorded_as_terminal_no_match",
+        "test_other_readiness_failures_cannot_be_waived_by_an_identity_gap",
+        "test_mapping_created_by_another_provider_does_not_repeat_identity_lookup",
+        "test_a_new_cik_requires_its_own_bootstrap_without_using_old_gap",
+        "test_resolved_or_reviewed_source_drops_current_gap_without_erasing_history",
+        "test_a_claimed_missing_category_with_a_known_cik_cannot_use_retained_gap",
+        "test_valid_child_or_parent_record_loads_without_mutable_aliasing",
+        "test_reuse_under_another_execution_owner_is_rejected",
+        "test_signature_and_exact_requested_universe_are_bound_to_the_attempt",
+        "test_tampered_disposition_cannot_grant_continuation",
+        "test_missing_record_and_missing_owner_never_grant_an_exemption",
+        "test_naive_attempt_time_is_not_valid_retained_provenance",
+        "test_retry_preserves_original_lookup_time_in_new_coverage_snapshot",
+        "test_a_lookup_cannot_be_recorded_before_it_was_attempted"
+      ]
+    },
+    {
+      "path": "tests/ceri/test_sec_coverage_export.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "85d93eaeb6e7f5bd47dbc8adabe5e014eb2af84cf53350d7200b4c6406a5025c",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.services.ceri.sec.coverage",
+        "app.services.ceri.sec.readiness_diagnostics",
+        "app.services.export_service"
+      ],
+      "declared_test_functions": [
+        "test_combined_csv_preserves_existing_values_and_adds_scoped_sec_dispositions",
+        "test_legacy_export_schema_is_identical_when_no_coverage_is_supplied",
+        "test_wrong_coverage_owner_never_leaks_into_csv",
+        "test_tampered_retained_coverage_does_not_add_columns_or_warning",
+        "test_mismatched_current_readiness_cannot_project_retained_coverage",
+        "test_latest_pipeline_wins_without_falling_back_to_old_source_state",
+        "test_current_ready_state_supersedes_historical_unresolved_gap_in_export",
+        "test_current_gap_projection_can_export_without_inventing_ready_for_other_tickers",
+        "test_explicitly_cleared_gap_projection_does_not_resurrect_historical_warning",
+        "test_ticker_outside_retained_scope_gets_no_coverage_attribution"
+      ]
+    },
+    {
+      "path": "tests/ceri/test_sec_identity_repair.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "85038a74d6fda621d00655beb6c57f9fb9697dd6f628e2c550a77164bb579aeb",
+      "reviewed_application_imports": [
+        "app.models.ceri_tables",
+        "app.services.ceri.sec.client",
+        "app.services.ceri.sec.identity_repair",
+        "app.services.ceri.sec.provider"
+      ],
+      "declared_test_functions": [
+        "test_missing_company_mapping_is_resolved_by_exact_sec_ticker",
+        "test_ambiguous_persisted_ciks_are_not_guessed_or_overwritten",
+        "test_missing_exact_sec_ticker_is_reported_without_placeholder_mapping",
+        "test_reviewed_fdic_issuer_is_persisted_without_sec_request_or_placeholder_cik",
+        "test_reviewed_classification_preserves_existing_other_provider_ids",
+        "test_explicit_coverage_exemption_is_not_overwritten_by_sec_lookup",
+        "test_sec_share_class_alias_persists_only_the_canonical_ticker"
+      ]
+    },
+    {
+      "path": "tests/ceri/test_sec_issuer_succession.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "2c1950eae8d164bcecc5e77c7208ac1f5de9692a5585ba1e5a6481ca7de9134b",
+      "reviewed_application_imports": [
+        "app.models.ceri_tables",
+        "app.services.ceri.identity_resolver",
+        "app.services.ceri.sec.identity_repair",
+        "app.services.ceri.sec.readiness_diagnostics",
+        "app.services.pipeline_service"
+      ],
+      "declared_test_functions": [
+        "test_sec_symbol_as_of_filing_even_with_current_ticker_hint",
+        "test_shared_cik_or_third_candidate_remains_ambiguous",
+        "test_readiness_reports_collision_outside_requested_scope",
+        "test_new_ticker_cannot_claim_an_unreviewed_cik",
+        "test_pipeline_retains_identity_failure_provenance"
+      ]
+    },
+    {
+      "path": "tests/ceri/test_sec_pipeline_preflight.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "698decd50be9f99f3845fb05c37738d2642bab97f69592c12548c9ff27abf3ff",
+      "reviewed_application_imports": [
+        "app.models.ceri_tables",
+        "app.services.ceri.config",
+        "app.services.ceri.sec.coverage",
+        "app.services.ceri.sec.pipeline_preflight",
+        "app.services.ceri.sec.processor_signature",
+        "app.services.ceri.sec.readiness_diagnostics",
+        "app.services.pipeline_prerequisites"
+      ],
+      "declared_test_functions": [
+        "test_fully_ready_universe_passes_preflight",
+        "test_disabled_sec_guidance_provider_configuration_blocks",
+        "test_unreadable_provider_configuration_is_nonretryable_block",
+        "test_partially_ready_universe_blocks_with_precise_counts",
+        "test_zero_ready_universe_blocks",
+        "test_unattempted_unresolved_ticker_requires_bounded_identity_repair",
+        "test_retained_no_match_continues_without_counting_missing_evidence_as_ready",
+        "test_no_match_from_another_pipeline_does_not_waive_repair",
+        "test_previously_unresolved_identity_still_requires_bootstrap_when_cik_is_found",
+        "test_explicit_not_applicable_ticker_is_accepted",
+        "test_signature_mismatch_is_reported_precisely",
+        "test_run118_regression_universe_moves_from_136_to_180_ready"
+      ]
+    },
+    {
+      "path": "tests/ceri/test_sec_processor_lifecycle.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "e978473c99286e46e10e00acdd22237d879573d5f92a0a4c416b9820070eced9",
+      "reviewed_application_imports": [
+        "app.models.ceri_tables",
+        "app.services.ceri.sec.processor_lifecycle",
+        "app.services.ceri.sec.processor_signature",
+        "app.services.ceri.sec.readiness_diagnostics",
+        "app.services.pipeline_prerequisites",
+        "app.services.runtime_mutation_authority"
+      ],
+      "declared_test_functions": [
+        "test_deployed_signature_is_not_implicitly_active",
+        "test_registering_newly_deployed_code_does_not_activate_it",
+        "test_normal_worker_startup_retains_processor_registration",
+        "test_processor_registration_rejects_untyped_authority",
+        "test_certification_worker_startup_is_repeatable_and_read_only",
+        "test_certification_worker_startup_fails_closed_for_missing_or_mismatched_identity",
+        "test_promotion_is_explicit_and_retires_previous_active",
+        "test_repromoting_current_active_processor_is_idempotent",
+        "test_recertifying_current_active_processor_does_not_demote_it",
+        "test_uncertified_processor_cannot_be_promoted",
+        "test_stale_worker_is_fenced_from_claiming_for_a_different_active_signature",
+        "test_readiness_diagnostics_distinguish_blocking_categories",
+        "test_readiness_diagnostics_reject_invalid_ticker_syntax",
+        "test_ambiguous_ticker_ciks_fail_closed_before_sync_readiness",
+        "test_readiness_requires_current_signature_for_every_required_cik"
+      ]
+    },
+    {
+      "path": "tests/ceri/test_wave1_p0.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "62fdb0d5d97d50c02f0aa8535fc9705aa1e3a5974f82251a8f6efd76fa6cc55d",
+      "reviewed_application_imports": [
+        "app.main",
+        "app.models.ceri_tables",
+        "app.models.tables",
+        "app.services.ceri.capture_service",
+        "app.services.ceri.catalyst_taxonomy",
+        "app.services.ceri.confidence_service",
+        "app.services.ceri.config",
+        "app.services.ceri.dtos",
+        "app.services.ceri.enums",
+        "app.services.ceri.feature_flags",
+        "app.services.ceri.guidance_normalizer",
+        "app.services.ceri.job_handlers",
+        "app.services.ceri.normalization_service",
+        "app.services.ceri.opportunity_score_service",
+        "app.services.ceri.providers.eodhd_client",
+        "app.services.ceri.providers.eodhd_provider",
+        "app.services.ceri.purge_service",
+        "app.services.ceri.sec.client",
+        "app.services.ceri.sec.guidance_extractor",
+        "app.services.pipeline_service",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_master_flag_gates_every_child_and_boolean_parser_is_explicit",
+        "test_master_disabled_closes_ui_jobs_and_backfill_even_when_children_are_true",
+        "test_pipeline_child_overrides_remain_gated_by_master",
+        "test_revision_elapsed_days_does_not_fabricate_dataset_freshness",
+        "test_catalyst_materiality_preserves_zero_and_missing",
+        "test_eodhd_trend_baselines_use_provider_observation_time_not_future_fiscal_end",
+        "test_zero_revision_is_scored_but_none_revision_is_unavailable",
+        "test_capture_penalties_are_isolated_per_company",
+        "test_capture_alignment_context_rejects_unanchored_raw_earnings_date",
+        "test_guidance_confidence_aliases_point_values_and_unknown_extraction",
+        "test_sec_identity_mapping_is_persisted_durably",
+        "test_sec_fair_access_403_stops_without_retry",
+        "test_sec_default_transport_buffers_json_and_requests_identity_encoding",
+        "test_eodhd_purge_rechecks_manifest_and_preserves_independent_lineage",
+        "test_pipeline_job_chain_enqueues_each_stage_in_order"
+      ]
+    },
+    {
+      "path": "tests/integration/test_ceri_pipeline_completion_barrier.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "d0cb5f59b599683c36f20b1f3fb1cc4a0aedecd497c9ce3db047abd47a7a88c5",
+      "reviewed_application_imports": [
+        "app.models.ceri_tables",
+        "app.models.tables",
+        "app.services.background_job_service",
+        "app.services.ceri.parent_pipeline_fence",
+        "app.services.market_calculation_context_service",
+        "app.services.pipeline_dependency_service",
+        "app.services.pipeline_prerequisites",
+        "app.services.pipeline_service",
+        "app.services.scope_refresh_adoption",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_ceri_completion_barrier_rejects_legacy_seal_without_receipt",
+        "test_ceri_completion_barrier_rolls_partial_child_into_parent_without_downstream",
+        "test_ceri_completion_barrier_rejects_missing_certified_capture",
+        "test_parent_failure_blocks_queued_siblings_and_fences_running_child"
+      ]
+    },
+    {
+      "path": "tests/integration/test_ceri_run_isolation_remediation.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "383fa2a9a555258c8c198928deccd20ed99e62aba76191faf14fb02a6fe0c3e9",
+      "reviewed_application_imports": [
+        "app.database_safety",
+        "app.models.ceri_tables",
+        "app.models.tables",
+        "app.services.calculation_identity",
+        "app.services.ceri.capture_service",
+        "app.services.ceri.dtos",
+        "app.services.ceri.enums",
+        "app.services.ceri.evidence_eligibility",
+        "app.services.ceri.normalization_service",
+        "app.services.ceri.pipeline_containment_service",
+        "app.services.ceri.run_local_contract",
+        "app.services.ceri.snapshot_service",
+        "app.services.ceri.source_record_service",
+        "app.services.contextual_calculation_identity",
+        "app.services.contextual_effective_configuration",
+        "app.services.market_clock_service"
+      ],
+      "declared_test_functions": [
+        "test_cancelled_source_owner_does_not_own_later_deduplicated_normalization",
+        "test_provider_empty_is_an_explicit_run_local_result",
+        "test_failed_pipeline_excludes_evidence_repairs_projection_and_processing",
+        "test_unresolved_legacy_owner_is_contained_with_multiple_upload_siblings"
+      ]
+    },
+    {
+      "path": "tests/integration/test_ceri_systemic_remediation.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "8ec2472fa0489203cff6f4742ff8c66666118504de237a75b980ea894f968a1e",
+      "reviewed_application_imports": [
+        "app.database_safety",
+        "app.models.ceri_tables",
+        "app.models.tables",
+        "app.services.background_job_service",
+        "app.services.ceri.source_manifest_service",
+        "app.services.ceri.surprise_feature_service",
+        "app.services.market_clock_service",
+        "app.services.source_mutation_authority"
+      ],
+      "declared_test_functions": [
+        "test_multi_ticker_checkpoints_keep_earnings_source_pure",
+        "test_retry_rejects_changed_source_before_new_output",
+        "test_crash_retry_reuses_unchanged_manifest_and_order_is_deterministic"
+      ]
+    },
+    {
+      "path": "tests/integration/test_ib_bar_admission_receipts_postgresql.py",
+      "contract": "IB_ADMISSION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "862ddbf81d6f10d2adba36f4f37a12ea3b0ba603ad23e78625a1f0412836b066",
+      "reviewed_application_imports": [
+        "app.database_safety",
+        "app.models.tables",
+        "app.services",
+        "app.services.bar_cache_service",
+        "app.services.canonical_evidence",
+        "app.services.core_mutation_authority",
+        "app.services.ib_bar_admission_service",
+        "app.services.ib_data_fetcher",
+        "app.services.ib_fetch_job_service",
+        "app.services.ib_fetch_plan_service",
+        "app.services.ib_historical_request_scope",
+        "app.services.market_calculation_context_service",
+        "app.services.price_bar_repository",
+        "app.services.scope_refresh_adoption",
+        "app.services.work_scope_identity",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_partial_fetch_receipt_union_and_exact_historical_versions",
+        "test_native_fetch_rolls_back_bars_when_receipt_sealing_fails",
+        "test_original_legacy_authority_shape_validates_after_v4_receipt"
+      ]
+    },
+    {
+      "path": "tests/integration/test_ib_gap_repair_delivery_postgresql.py",
+      "contract": "IB_ADMISSION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "ae9c3b101254921f855aa79b2cf2fcfd0b47d3ba449a91948e0c6146b7adfe4e",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.services",
+        "app.services.background_worker",
+        "app.services.canonical_evidence",
+        "app.services.configuration_delivery",
+        "app.services.ib_fetch_plan_service",
+        "app.services.ib_gap_repair_service"
+      ],
+      "declared_test_functions": [
+        "test_native_gap_child_retains_configuration_and_rejects_changed_delivery"
+      ]
+    },
+    {
+      "path": "tests/integration/test_market_data_availability_postgresql.py",
+      "contract": "IB_ADMISSION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "0e9687f36f49617d9fb1b303bd34d1cf16bfdfb41268da78ded8151d901c0395",
+      "reviewed_application_imports": [
+        "app.database_safety",
+        "app.models.tables",
+        "app.services",
+        "app.services.configuration_delivery",
+        "app.services.core_effective_configuration",
+        "app.services.market_calculation_context_service",
+        "app.services.market_data_availability_policy",
+        "app.services.market_data_session_readiness",
+        "app.services.pipeline_service",
+        "app.services.transition_preflight_plan_service",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_new_admission_keeps_unavailable_and_history_gapped_rows_without_certifying_technicals"
+      ]
+    },
+    {
+      "path": "tests/integration/test_market_data_initial_admission_durability_postgresql.py",
+      "contract": "IB_ADMISSION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "3d8926eef539cb439eb1bdb16329cc6a0d973182812c3c94e401ee99f5d1bcda",
+      "reviewed_application_imports": [
+        "app.database_safety",
+        "app.models.tables",
+        "app.services",
+        "app.services.ib_fetch_plan_service",
+        "app.services.market_calculation_context_service",
+        "app.services.market_clock_service",
+        "app.services.scope_refresh_adoption",
+        "app.services.work_scope_identity"
+      ],
+      "declared_test_functions": [
+        "test_auxiliary_failure_cannot_poison_initial_admission_retry"
+      ]
+    },
+    {
+      "path": "tests/integration/test_market_data_recovery_postgresql.py",
+      "contract": "IB_ADMISSION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "321f683e91ffc823212981849e3b54391054862ef906954d8a4aa194bd2481fe",
+      "reviewed_application_imports": [
+        "app.database_safety",
+        "app.models.tables",
+        "app.services.canonical_evidence",
+        "app.services.market_data_availability_policy",
+        "app.services.pipeline_market_data_recovery",
+        "app.services.pipeline_service",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_recovery_isolated_full_population_idempotent_atomic_and_source_immutable"
+      ]
+    },
+    {
+      "path": "tests/integration/test_pipeline61_handoff_postgresql.py",
+      "contract": "NATIVE_PIPELINE_CERTIFICATION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "3bd87e4c3b92f72b400ec9f767ce8c0c075b13c7344cb04edafdf11c6af2bf40",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.services.background_job_service",
+        "app.services.runtime_mutation_authority",
+        "app.services.setup_lifecycle.evaluation_service",
+        "app.services.setup_lifecycle.snapshot_builder",
+        "app.services.winner_probability.capture_service",
+        "app.services.winner_probability.config"
+      ],
+      "declared_test_functions": [
+        "test_native_fresh_handoff_and_complete_financial_tail",
+        "test_native_cancelled_fresh_preparation_rolls_back_and_can_retry",
+        "test_native_new_transaction_rejects_tampered_shared_evidence",
+        "test_qualification_accepts_matching_native_contract",
+        "test_qualification_rejects_omitted_native_proof",
+        "test_qualification_rejects_stale_release"
+      ]
+    },
+    {
+      "path": "tests/integration/test_pipeline_scheduler_readiness_postgresql.py",
+      "contract": "WORKER_SUPERVISOR_RECOVERY",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "85ae677ba83ac3e8d9c9a8d22f1100c996516d6f9e9100f3004856dc15d8172a",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.routers.run_routes",
+        "app.services.background_job_service",
+        "app.services.background_queue",
+        "app.services.ceri.batched_claims",
+        "app.services.ceri.batched_job_handlers",
+        "app.services.ceri.batched_workflow",
+        "app.services.ceri.enums",
+        "app.services.pipeline_prerequisites",
+        "app.services.runtime_mutation_authority",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_aged_workflow_and_new_sec_child_advance_without_barrier_claims",
+        "test_missing_partial_failed_and_cross_workflow_barriers",
+        "test_deferred_reclaim_preserves_progress_and_fences_only_current_attempt",
+        "test_sec_fairness_and_cancelled_parent_authority_remain_enforced"
+      ]
+    },
+    {
+      "path": "tests/integration/test_sec_readiness_repair_postgresql.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "f15743620d27314622a522b6d71ab238a138c171fec0f799d5fd50063a21eb92",
+      "reviewed_application_imports": [
+        "app.models.ceri_tables",
+        "app.models.tables",
+        "app.observability.correlation",
+        "app.services.background_job_service",
+        "app.services.background_worker",
+        "app.services.ceri.config",
+        "app.services.ceri.sec.pipeline_preflight",
+        "app.services.ceri.sec.processor_lifecycle",
+        "app.services.ceri.sec.processor_signature",
+        "app.services.ceri.sec.provider",
+        "app.services.ceri.sec.readiness_diagnostics",
+        "app.services.ceri.sec.readiness_repair",
+        "app.services.configuration_delivery",
+        "app.services.core_effective_configuration",
+        "app.services.domain_write_fence",
+        "app.services.effective_configuration",
+        "app.services.fundamental_score_service",
+        "app.services.market_calculation_context_service",
+        "app.services.pipeline_dependency_service",
+        "app.services.pipeline_executor",
+        "app.services.pipeline_service",
+        "app.services.scope_refresh_adoption",
+        "app.services.work_scope_identity",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_progress_accounting_preserves_nonzero_initial_ready_snapshot",
+        "test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline",
+        "test_no_match_continues_same_scope_once_and_retains_gap_after_restart",
+        "test_full_pipeline_sec_repair_handoff_does_not_self_block",
+        "test_ambiguous_identity_does_not_stop_other_safe_repairs",
+        "test_explicit_resume_replaces_failed_same_subject_dependency_once",
+        "test_reviewed_fdic_issuer_and_sec_issuer_complete_readiness_together",
+        "test_worker_repair_continuation_restart_and_c2_drift_keep_c1",
+        "test_missing_authoritative_binding_is_terminal_and_visible",
+        "test_wrong_execution_identity_rejected_before_sec_work",
+        "test_legacy_unbound_helper_resolves_pipeline_without_backfill",
+        "test_recovered_lease_owner_cannot_publish_continuation",
+        "test_preupgrade_terminal_helper_visible_and_normal_resume_keeps_c1",
+        "test_wrong_retained_helper_binding_is_rejected",
+        "test_concurrent_sec_completion_creates_one_continuation",
+        "test_wrong_continuation_anchor_is_terminal_and_visible_before_handler"
+      ]
+    },
+    {
+      "path": "tests/integration/test_sector_evidence_memory_postgresql.py",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "8e68fa85c7f1e64900bfa235891cbfae3456a505cf7319714e5348fd92327b58",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.services",
+        "app.services.canonical_evidence",
+        "app.services.core_effective_configuration",
+        "app.services.fundamental_score_service",
+        "app.services.sector_rotation_service"
+      ],
+      "declared_test_functions": [
+        "test_native_sector_evidence_windows_bound_decoded_residency_and_recheck_seals",
+        "test_oversized_evidence_is_not_retained_or_given_cached_validation",
+        "test_native_published_sector_evidence_does_not_alias_returned_dto"
+      ]
+    },
+    {
+      "path": "tests/integration/test_sector_memory_continuation_postgresql.py",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "8364d7b6929ad83c0b05ed592e88e54aa3da5f50779ba76a4f38135d5994f78f",
+      "reviewed_application_imports": [
+        "app.database_safety",
+        "app.models.tables",
+        "app.services",
+        "app.services.background_job_service",
+        "app.services.background_worker",
+        "app.services.combined_decision",
+        "app.services.configuration_delivery",
+        "app.services.contextual_effective_configuration",
+        "app.services.core_effective_configuration",
+        "app.services.fundamental_score_service",
+        "app.services.market_calculation_context_service",
+        "app.services.market_data_session_readiness",
+        "app.services.market_regime_command_center",
+        "app.services.pipeline_service",
+        "app.services.ranking_profile_service",
+        "app.services.runtime_mutation_authority",
+        "app.services.sector_rotation_service",
+        "app.services.technical_score_service",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_memory_fence_requeue_real_handler_preserves_upstream_and_frozen_authority"
+      ]
+    },
+    {
+      "path": "tests/integration/test_sector_memory_scale_postgresql.py",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "c5aee3df34407f77bc24c24b30f094bb7b15cf4790d616f9cfadb7a106886960",
+      "reviewed_application_imports": [
+        "app.database_safety"
+      ],
+      "declared_test_functions": [
+        "test_observed_466_company_source_shape_stays_below_memory_budget",
+        "test_native_scale_inputs_produce_nonlocal_ranking_order",
+        "test_full_native_466_company_five_profile_sector_publication_memory"
+      ]
+    },
+    {
+      "path": "tests/integration/test_sector_universe_residency_postgresql.py",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "6699d1377bf70a31c97210d8346d144775732482ab835c771e3acfafeede89a0",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.services",
+        "app.services.canonical_evidence",
+        "app.services.sector_rotation_config"
+      ],
+      "declared_test_functions": [
+        "test_compact_universe_matches_full_frozen_projections_and_releases_evidence"
+      ]
+    },
+    {
+      "path": "tests/integration/test_supervisor_recovery_isolation_postgresql.py",
+      "contract": "WORKER_SUPERVISOR_RECOVERY",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "22d19a89cfbaa12fbb66e92fb8186b0ffad548b894e6812f7d2f978efda53575",
+      "reviewed_application_imports": [
+        "app.database_safety",
+        "app.models.tables",
+        "app.services.background_job_service",
+        "app.services.certification_runtime",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_certification_supervisor_reconciles_each_owned_job_independently",
+        "test_normal_supervisor_recovers_non_cancelled_and_cancels_requested_job",
+        "test_expired_unrelated_running_jobs_have_explicit_non_blocking_readiness_semantics"
+      ]
+    },
+    {
+      "path": "tests/integration/test_terminal_publication_recovery_postgresql.py",
+      "contract": "NATIVE_PIPELINE_CERTIFICATION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "b6a5bc21323cee48da48302b2c4de81d5e2215f6ce127f3fdfd7e9ec7c2a57b8",
+      "reviewed_application_imports": [
+        "app.database_safety",
+        "app.models.tables",
+        "app.services.background_job_service",
+        "app.services.pipeline_service",
+        "app.services.runtime_mutation_authority",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_terminal_recovery_rejects_malformed_foreign_inactive_and_historical_owners"
+      ]
+    },
+    {
+      "path": "tests/integration/test_unstarted_market_data_resume_postgresql.py",
+      "contract": "IB_ADMISSION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "90312c2e6ad573f692ccc92f8b7fdfa75c6285ca12f1726188b3d777a117d0be",
+      "reviewed_application_imports": [
+        "app.database_safety",
+        "app.models.tables",
+        "app.services",
+        "app.services.ib_fetch_job_service",
+        "app.services.scope_refresh_adoption",
+        "app.services.work_scope_identity"
+      ],
+      "declared_test_functions": [
+        "test_unstarted_resume_rejects_real_durable_acquisition_facts"
+      ]
+    },
+    {
+      "path": "tests/sector_full_native_scale_probe.py",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "c741ce1c5f384d341167d3db60eb68c0b9ed1cb62bddf6fd7a46ebac10239ee3",
+      "reviewed_application_imports": [
+        "app.database_safety",
+        "app.models.tables",
+        "app.services",
+        "app.services.bar_cache_service",
+        "app.services.canonical_evidence",
+        "app.services.column_mapper",
+        "app.services.combined_decision",
+        "app.services.configuration_delivery",
+        "app.services.contextual_effective_configuration",
+        "app.services.core_effective_configuration",
+        "app.services.fundamental_score_service",
+        "app.services.market_calculation_context_service",
+        "app.services.market_data_session_readiness",
+        "app.services.market_regime_command_center",
+        "app.services.pipeline_executor",
+        "app.services.pipeline_service",
+        "app.services.process_memory",
+        "app.services.ranking_profile_service",
+        "app.services.sector_rotation_service",
+        "app.services.sector_serialization",
+        "app.services.technical_score_service",
+        "app.settings"
+      ],
+      "declared_test_functions": []
+    },
+    {
+      "path": "tests/sector_memory_scale_probe.py",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "ad106201d0ccfc4161d493374614064411427804a23cfd1dd08452fee869908e",
+      "reviewed_application_imports": [
+        "app.database_safety",
+        "app.models.tables",
+        "app.services",
+        "app.services.canonical_evidence",
+        "app.services.core_mutation_authority",
+        "app.services.process_memory",
+        "app.services.sector_rotation_dtos",
+        "app.services.sector_serialization"
+      ],
+      "declared_test_functions": []
+    },
+    {
+      "path": "tests/test_background_job_service.py",
+      "contract": "WORKER_SUPERVISOR_RECOVERY",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "2dfe1b6a9ad810d5d90095c4441e5189b58999e2f7a7998fed8a2e9b2dca8e89",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.services.background_job_service",
+        "app.services.market_calculation_context_service",
+        "app.services.runtime_mutation_authority",
+        "app.services.setup_lifecycle.errors",
+        "app.services.transition_preflight_plan_service",
+        "app.services.winner_probability.job_handlers"
+      ],
+      "declared_test_functions": [
+        "test_sector_fence_promotes_sector_to_durable_resume_boundary",
+        "test_recovery_primitive_rejects_missing_or_untyped_authority",
+        "test_enqueue_job_persists_payload_and_defaults",
+        "test_enqueue_job_coalesces_matching_active_request_key",
+        "test_enqueue_job_coalesces_active_workflow_across_different_request_keys",
+        "test_maturation_root_coalesces_pre_migration_active_job_without_workflow_key",
+        "test_claim_next_job_marks_job_running",
+        "test_job_attempt_metadata_distinguishes_queue_and_execution_time",
+        "test_claim_next_job_returns_none_when_queue_is_empty",
+        "test_dependency_deferrals_and_reclaims_do_not_create_useful_progress",
+        "test_mark_job_completed_clears_lock_and_stores_result",
+        "test_mark_job_completed_redacts_sensitive_result_fields",
+        "test_mark_job_partial_finishes_with_partial_status",
+        "test_partial_result_signal_preserves_running_ownership_until_terminalization",
+        "test_mark_job_cancelled_finishes_and_records_cancel_request",
+        "test_failed_job_requeues_with_backoff_until_retries_are_exhausted",
+        "test_deterministic_provenance_failure_is_non_retryable",
+        "test_transient_infrastructure_failure_remains_retryable",
+        "test_dangling_ceri_context_is_deterministic_and_preserves_safe_diagnostics",
+        "test_dangling_ceri_context_fails_once_without_entering_retry_queue",
+        "test_lifecycle_reconciliation_error_fails_once_with_bounded_diagnostics",
+        "test_detached_progress_cannot_persist_ceri_authority_reference",
+        "test_database_parameter_limit_failure_is_deterministic_and_nonretryable",
+        "test_unrelated_database_operational_error_remains_retryable",
+        "test_manifest_mismatch_fails_job_without_automatic_pipeline_replay",
+        "test_failed_job_error_message_is_sanitized_and_truncated",
+        "test_failed_job_error_message_redacts_sensitive_details",
+        "test_deferred_job_preserves_retry_budget_and_releases_lease",
+        "test_request_job_cancel_cancels_queued_job_immediately",
+        "test_request_job_cancel_for_running_job_is_cooperative",
+        "test_request_job_cancel_raises_for_missing_job",
+        "test_is_cancel_requested_reads_persistent_flag",
+        "test_recover_stale_jobs_requeues_jobs_with_retries_remaining",
+        "test_restarted_worker_recovers_abandoned_job_before_long_lease_expires",
+        "test_recover_stale_jobs_marks_exhausted_jobs_stale",
+        "test_recover_stale_jobs_finalizes_requested_cancellation",
+        "test_recover_abandoned_job_finalizes_requested_cancellation",
+        "test_live_heartbeat_prevents_stale_recovery",
+        "test_heartbeat_renews_lease_with_current_token",
+        "test_expired_lease_can_be_recovered_exactly_once",
+        "test_recovered_job_receives_new_execution_token_when_claimed",
+        "test_old_worker_cannot_commit_after_lease_is_replaced",
+        "test_duplicate_workers_cannot_both_mark_job_complete",
+        "test_default_retry_delay_uses_capped_schedule",
+        "test_live_worker_without_progress_is_fenced_and_recovering",
+        "test_requeue_stalled_job_finalizes_requested_cancellation",
+        "test_watchdog_finalizes_requested_cancellation_instead_of_fencing",
+        "test_lost_worker_reconciliation_never_fences_requested_cancellation",
+        "test_structural_progress_advance_prevents_false_stall_after_300_seconds",
+        "test_sec_repair_progress_advance_prevents_false_default_timeout_fence",
+        "test_fresh_worker_and_lease_heartbeats_do_not_mask_frozen_progress_sequence",
+        "test_winner_stage_can_run_over_300_seconds_while_useful_progress_advances",
+        "test_truly_frozen_winner_stage_is_fenced_despite_live_heartbeats",
+        "test_sector_progress_can_cross_bounded_timeout_without_false_fencing",
+        "test_sector_live_heartbeats_do_not_substitute_for_frozen_useful_progress",
+        "test_setup_stages_use_canonical_long_running_timeout",
+        "test_resume_boundary_sets_timeout_before_first_item_checkpoint",
+        "test_identical_progress_stalls_stop_automatic_recovery_at_bound",
+        "test_exhausted_sector_recovery_sets_truthful_terminal_step_status",
+        "test_worker_recycle_preserves_more_than_one_hundred_queued_jobs"
+      ]
+    },
+    {
+      "path": "tests/test_background_queue.py",
+      "contract": "WORKER_SUPERVISOR_RECOVERY",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "d465007106d7f985fdcbb40190ff1cd4522bac8681ed140eaffbb8a18b0cbdc4",
+      "reviewed_application_imports": [
+        "app.services.background_queue"
+      ],
+      "declared_test_functions": [
+        "test_worker_queue_names_are_normalized_in_stable_order",
+        "test_worker_queue_names_reject_unknown_or_empty_values",
+        "test_job_queue_class_uses_simple_three_class_model",
+        "test_fair_claim_groups_prefer_interactive_then_aged_noninteractive",
+        "test_consecutive_interactive_limit_forces_noninteractive_claim_opportunity"
+      ]
+    },
+    {
+      "path": "tests/test_contextual_calculation_identity_adoption.py",
+      "contract": "CORE_CONFIGURATION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "9228ab5507d2dd9fd2fb5b2fee2deeb60aab1bfcd4039d3c616463c3d92887aa",
+      "reviewed_application_imports": [
+        "app.models.ib_market_intelligence_tables",
+        "app.models.tables",
+        "app.services.ceri",
+        "app.services.ceri.config",
+        "app.services.combined_ranking_identity",
+        "app.services.contextual_calculation_identity",
+        "app.services.contextual_effective_configuration",
+        "app.services.ib_market_intelligence.config",
+        "app.services.market_clock_service",
+        "app.services.market_regime_policy",
+        "app.services.sector_rotation_service",
+        "app.services.setup_lifecycle.snapshot_builder",
+        "app.services.setup_lifecycle.source_loader",
+        "app.services.us_market_calendar"
+      ],
+      "declared_test_functions": [
+        "test_global_regime_requires_exact_contextual_identity_not_run_ownership",
+        "test_global_regime_rejects_one_dimension_context_mismatch",
+        "test_same_run_ticker_different_calculation_context_is_rejected",
+        "test_exact_run_context_artifact_is_accepted",
+        "test_legacy_unknown_never_proves_setup_or_regime_compatibility",
+        "test_setup_omits_incompatible_combined_risk_and_ranking_metadata",
+        "test_setup_incompatible_technical_cannot_drive_setup",
+        "test_setup_selects_older_compatible_regime_over_newer_incompatible",
+        "test_setup_sector_requires_run_context_and_current_sector_contract",
+        "test_sector_prior_selector_skips_newer_incompatible_snapshot",
+        "test_sector_prior_selector_returns_unavailable_without_compatible_predecessor",
+        "test_ceri_uses_compatible_global_ibmi_and_skips_newer_incompatible",
+        "test_ceri_omits_ibmi_with_unknown_cutoff",
+        "test_ceri_legacy_result_is_not_silently_reused_or_upgraded",
+        "test_no_negative_architecture_edges_were_introduced",
+        "test_revised_calendar_does_not_admit_legacy_ibmi_identity"
+      ]
+    },
+    {
+      "path": "tests/test_ib_gap_repair_service.py",
+      "contract": "IB_ADMISSION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "22809895859792dd9f6d1da9784e61707dfc85eb2100018cdc8d1817a734cd78",
+      "reviewed_application_imports": [
+        "app.services",
+        "app.services.configuration_delivery"
+      ],
+      "declared_test_functions": [
+        "test_trade_gap_plan_uses_manifest_day_even_when_latest_bar_is_current",
+        "test_adjusted_gap_plan_keeps_frozen_current_endpoint_and_expiry",
+        "test_later_accepted_receipt_closes_gap_without_modifying_original",
+        "test_other_contract_cannot_close_frozen_contract_gap",
+        "test_legacy_rejected_response_requires_new_admission_not_a_fabricated_receipt",
+        "test_changed_manifest_fails_before_enqueuing_or_admitting",
+        "test_submit_creates_one_frozen_child_with_original_configuration",
+        "test_worker_rechecks_manifest_before_provider_execution",
+        "test_configuration_enrollment_is_limited_to_exact_gap_repair_transport",
+        "test_repair_rejects_changed_context_witness_before_query_or_provider",
+        "test_gap_repair_requires_exact_active_delivery_before_query_or_provider"
+      ]
+    },
+    {
+      "path": "tests/test_ib_history_gap_admission.py",
+      "contract": "IB_ADMISSION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "11aea6c0d9617adb8fdbce8ac302cec7842370a4209c7c53e961c0150c01980e",
+      "reviewed_application_imports": [
+        "app.services",
+        "app.services.bar_cache_service",
+        "app.services.ib_fetch_plan_service",
+        "app.services.ib_historical_request_scope",
+        "app.services.ohlcv_coverage_service",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_retained_policies_still_reject_an_internal_gap",
+        "test_v1_keeps_original_admission_semantics",
+        "test_v4_accepts_valid_subset_without_claiming_complete_history",
+        "test_v4_does_not_soften_integrity_violations",
+        "test_executor_seals_complete_and_partial_v4_with_truthful_counters",
+        "test_partial_response_cannot_use_whole_plan_resume",
+        "test_v4_discards_only_current_forming_adjusted_bar",
+        "test_new_policy_selection_is_explicit_and_legacy_default_stays_frozen",
+        "test_v4_empty_response_is_failure_with_exact_zero_count_and_no_receipt",
+        "test_v4_dependency_cannot_use_gap_continuation_even_if_payload_requests_it",
+        "test_global_connection_failure_has_hard_execution_failure_marker"
+      ]
+    },
+    {
+      "path": "tests/test_market_data_availability_policy.py",
+      "contract": "IB_ADMISSION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "0ca9d06b818f8ce2b371945acba010f5e314d4719da2e4f2da91438902ba6314",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.services.canonical_evidence",
+        "app.services.ib_fetch_plan_service",
+        "app.services.ib_historical_request_scope",
+        "app.services.market_data_availability_policy",
+        "app.services.market_data_session_readiness",
+        "app.services.pipeline_outcome",
+        "app.services.technical_score_service",
+        "app.services.transition_preflight_plan_service"
+      ],
+      "declared_test_functions": [
+        "test_absent_legacy_marker_is_strict_despite_new_admission_default",
+        "test_new_policy_matches_exact_frozen_configuration",
+        "test_new_marker_cannot_execute_under_unrelated_legacy_anchor",
+        "test_certification_remains_strict_and_rejects_partial_policy",
+        "test_unknown_policy_fails_closed",
+        "test_known_no_data_keeps_requested_member_for_null_diagnostic_output",
+        "test_integrity_unknown_and_benchmark_failures_are_not_optional",
+        "test_cached_current_bar_cannot_bypass_new_policy_integrity_guard",
+        "test_unavailable_source_score_has_no_numeric_technical_and_no_runtime_error",
+        "test_outcome_keeps_unavailable_and_history_gaps_separate_from_scope_exclusions",
+        "test_empty_response_requires_exact_pinned_executed_scope_and_contract",
+        "test_failed_metadata_alone_is_not_verified_empty_availability",
+        "test_handoff_keeps_known_unavailable_requested_member_under_new_policy",
+        "test_bootstrap_and_required_dependency_failures_remain_hard",
+        "test_integrity_flag_cannot_be_softened_by_provider_no_data",
+        "test_unverified_empty_response_cannot_hide_behind_current_cache"
+      ]
+    },
+    {
+      "path": "tests/test_market_data_unstarted_resume.py",
+      "contract": "IB_ADMISSION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "8c5cf482f0b754ad4c45fbbba57bb8c019511eb4f95bea32c4bc92fffeb2215c",
+      "reviewed_application_imports": [
+        "app.services",
+        "app.services.ib_fetch_plan_service"
+      ],
+      "declared_test_functions": [
+        "test_unstarted_resume_uses_retained_api_proof_after_prior_retry_cleared_reason",
+        "test_absent_plan_does_not_waive_missing_proof_or_acquisition_metadata",
+        "test_unstarted_resume_requires_replan_after_market_session_changes",
+        "test_retained_initial_admission_proof_survives_ready_gateway_planning_failure",
+        "test_initial_admission_proof_cannot_be_borrowed_from_another_owner",
+        "test_initial_admission_proof_cannot_replace_an_already_admitted_plan",
+        "test_malformed_retained_plan_is_not_treated_as_unstarted_acquisition",
+        "test_retained_plan_cannot_belong_to_another_upload",
+        "test_unstarted_resume_still_checks_persisted_fundamental_presence",
+        "test_unstarted_resume_still_checks_unchanged_fundamental_evidence",
+        "test_first_plan_is_bound_to_original_scope_and_session",
+        "test_first_plan_cannot_change_upload_or_admitted_ticker_scope",
+        "test_first_plan_requires_requested_items_and_rejects_foreign_items",
+        "test_first_plan_cannot_substitute_current_or_unbounded_request_dates",
+        "test_first_plan_rechecks_current_session_before_admission"
+      ]
+    },
+    {
+      "path": "tests/test_memory_failure_recovery.py",
+      "contract": "WORKER_SUPERVISOR_RECOVERY",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "ff94ef70c1c7b98adf87481e143c91e610343296b54eec3758a037eb227bd3a0",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.services.background_job_service",
+        "app.services.runtime_mutation_authority"
+      ],
+      "declared_test_functions": [
+        "test_memory_replays_use_durable_stage_boundary_and_exhaust_existing_budget",
+        "test_committed_stage_advancement_resets_memory_failure_identity",
+        "test_nonpipeline_committed_checkpoint_changes_memory_recovery_identity",
+        "test_transient_process_loss_does_not_consume_memory_failure_budget",
+        "test_sector_worker_loss_preserves_checkpoint_and_archives_actual_cause",
+        "test_memory_stage_follows_running_sector_instead_of_stale_job_hint",
+        "test_ranking_memory_fence_does_not_copy_old_sector_phase",
+        "test_worker_loss_does_not_reopen_terminal_pipeline",
+        "test_terminal_publication_closes_job_without_requeue",
+        "test_published_completion_wins_over_late_job_cancellation",
+        "test_terminal_publication_closure_rejects_foreign_or_malformed_owner",
+        "test_supervisor_classifies_memory_fence_before_requeue"
+      ]
+    },
+    {
+      "path": "tests/test_pipeline61_handoff_progress.py",
+      "contract": "NATIVE_PIPELINE_CERTIFICATION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "d7cb7bf2db105a21940def99f3dc39934c0d3ee04e56bf08070f8cf3647c6503",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.services.decision_handoff_contract"
+      ],
+      "declared_test_functions": [
+        "test_shared_pair_is_validated_once_per_operation_and_never_across_calls",
+        "test_shared_pair_validation_occurs_after_ticker_callbacks",
+        "test_payload_hashes_each_shared_context_once_after_ticker_callbacks",
+        "test_actual_streaming_artifact_hash_preserves_bytes_and_cancellation",
+        "test_fresh_plan_preparation_forwards_progress_and_reuses_sources"
+      ]
+    },
+    {
+      "path": "tests/test_pipeline61_price_projection.py",
+      "contract": "IB_ADMISSION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "2df0712ba0254a6d5667f31cfc845f9e1472a0736738adb992dd47f5a7272e80",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.services",
+        "app.services.ib_bar_admission_service"
+      ],
+      "declared_test_functions": [
+        "test_two_sessions_materialize_only_needed_rows_and_match_full_history",
+        "test_invalid_latest_revision_pages_back_to_two_provable_dates",
+        "test_unowned_post_cutoff_bar_never_displaces_valid_history",
+        "test_tickers_finish_independently_when_one_needs_older_candidate_pages",
+        "test_all_sources_on_selected_dates_preserve_priority_and_session_gaps",
+        "test_index_preserves_exact_receipt_and_timestamp_hash_tie_breaking",
+        "test_receipted_late_bar_reconstructs_exact_version_before_selection",
+        "test_empty_history_and_cancel_during_verified_page"
+      ]
+    },
+    {
+      "path": "tests/test_pipeline61_progress_diagnostics.py",
+      "contract": "WORKER_SUPERVISOR_RECOVERY",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "b7f2bf3e368f6ae9acf94c7764541d2ed78afd24891d731093a50f6f48957672",
+      "reviewed_application_imports": [
+        "app.services.job_progress_diagnostics",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_stalled_live_handler_has_bounded_diagnostic_without_local_values",
+        "test_healthy_or_new_attempt_does_not_inherit_old_progress_age",
+        "test_advanced_progress_can_produce_new_evidence_after_another_stall"
+      ]
+    },
+    {
+      "path": "tests/test_pipeline_dependency_progress.py",
+      "contract": "NATIVE_PIPELINE_CERTIFICATION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "52b97e17bdacd4a93c26ae90a0ed5d695ac2ccf59041e78fd1dba09594a791e3",
+      "reviewed_application_imports": [
+        "app.services.ceri.sec.coverage",
+        "app.services.ceri.sec.readiness_diagnostics",
+        "app.services.pipeline_dependency_service"
+      ],
+      "declared_test_functions": [
+        "test_terminal_child_reconciliation_replaces_stale_parent_progress",
+        "test_successful_repair_projects_unresolved_source_gap_before_continuation",
+        "test_late_failed_child_cannot_reblock_new_dependency"
+      ]
+    },
+    {
+      "path": "tests/test_pipeline_execution_authority.py",
+      "contract": "WORKER_SUPERVISOR_RECOVERY",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "9ab9ae36927c54f3149c381806d43a8f12174f4805f8e1d76ce24c9fc24ffa2c",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.services.pipeline_execution_authority",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_pipeline_execution_authority_is_explicit_and_fail_closed",
+        "test_revocation_is_durable_and_does_not_rewrite_pipeline_status",
+        "test_activation_boundaries_are_paired_and_reject_historical_active_roots"
+      ]
+    },
+    {
+      "path": "tests/test_pipeline_gap_routes.py",
+      "contract": "NATIVE_PIPELINE_CERTIFICATION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "534da5dab6c9741eac80c19226586ee63ce7e08f688a6d9dbba076255523f0a2",
+      "reviewed_application_imports": [
+        "app.db",
+        "app.routers",
+        "app.services",
+        "app.templates"
+      ],
+      "declared_test_functions": [
+        "test_full_population_recovery_redirects_to_derived_upload",
+        "test_recovery_rejects_cross_run_pipeline_before_admission",
+        "test_recovery_conflict_rolls_back_and_does_not_redirect",
+        "test_gap_repair_requires_reviewed_manifest_and_rolls_back_stale_selection",
+        "test_repair_review_shows_missing_days_without_internal_receipts",
+        "test_partial_progress_distinguishes_unavailable_from_historical_gap"
+      ]
+    },
+    {
+      "path": "tests/test_pipeline_progress_route.py",
+      "contract": "NATIVE_PIPELINE_CERTIFICATION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "0ecf785aa18c1aef2cfc92f5fd127504e71e0f8edc5fc86e723d7b81937543fb",
+      "reviewed_application_imports": [
+        "app.db",
+        "app.models.tables",
+        "app.routers",
+        "app.services.pipeline_service"
+      ],
+      "declared_test_functions": [
+        "test_active_pipeline_progress_refresh_handles_nullable_diagnostics",
+        "test_pipeline_progress_shows_prerequisite_wait_without_inventing_processing"
+      ]
+    },
+    {
+      "path": "tests/test_pipeline_recovery_transition.py",
+      "contract": "NATIVE_PIPELINE_CERTIFICATION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "08463a2872a6faeda1652cbc06f6875c8a75e0d859043ae0d25e6dc2acbda1e4",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.services.pipeline_state_machine"
+      ],
+      "declared_test_functions": [
+        "test_recovery_cannot_reopen_a_terminal_parent"
+      ]
+    },
+    {
+      "path": "tests/test_pipeline_recovery_visibility.py",
+      "contract": "NATIVE_PIPELINE_CERTIFICATION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "18dd990cd9e7c3104e564d8abaf5871fb50bbdf981ca56068b96dc711cf794ee",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.routers",
+        "app.routers.run_routes",
+        "app.services.pipeline_service",
+        "app.templates"
+      ],
+      "declared_test_functions": [
+        "test_status_exposes_original_memory_reason_after_replacement_worker_is_running",
+        "test_memory_recovery_message_distinguishes_pending_and_exhausted_recovery",
+        "test_cancelled_job_never_claims_automatic_recovery_resumed",
+        "test_running_unvalidated_checkpoint_is_still_being_validated",
+        "test_legacy_memory_recovery_does_not_invent_missing_measurement",
+        "test_current_checkpoint_validation_state_supersedes_fence_planning_receipt",
+        "test_terminal_publication_recovery_preserves_result_without_claiming_replay",
+        "test_legacy_ranking_memory_evidence_ignores_stale_sector_phase",
+        "test_explicit_unknown_fenced_phase_does_not_reuse_old_sector_progress",
+        "test_observed_continuation_does_not_inherit_an_unrelated_root_recovery",
+        "test_recovery_cause_is_visible_in_initial_progress_page_while_running"
+      ]
+    },
+    {
+      "path": "tests/test_pipeline_service.py",
+      "contract": "NATIVE_PIPELINE_CERTIFICATION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "3c836aef33fae9c6659524843a4ba8909b01c1fb4cca8326bb7bab6f30c89584",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.services",
+        "app.services.background_job_service",
+        "app.services.canonical_evidence",
+        "app.services.ceri.constants",
+        "app.services.ceri.feature_flags",
+        "app.services.market_clock_service",
+        "app.services.pipeline_service",
+        "app.services.pre_enqueue_operational_gate",
+        "app.services.setup_lifecycle.constants",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_ceri_child_failure_detail_preserves_actionable_context",
+        "test_start_pipeline_creates_pipeline_steps_and_background_job",
+        "test_new_pipeline_requests_running_prewarm_preemption",
+        "test_start_pipeline_coalesces_matching_active_pipeline_request",
+        "test_start_pipeline_reuses_preparing_pipeline_after_parent_job_finishes",
+        "test_new_activation_pipeline_does_not_reuse_historical_root_on_same_upload",
+        "test_pipeline_step_names_insert_setup_lifecycle_only_when_enabled",
+        "test_pipeline_step_names_insert_ceri_before_setup_lifecycle_and_winner",
+        "test_pipeline_step_names_can_pause_only_legacy_ceri_scheduling",
+        "test_start_pipeline_can_create_setup_lifecycle_steps_when_enabled",
+        "test_start_pipeline_can_create_ceri_and_setup_lifecycle_steps_when_enabled",
+        "test_start_pipeline_raises_for_missing_upload_run",
+        "test_certification_gate_failure_precedes_pipeline_and_job_creation",
+        "test_certification_duplicate_action_returns_consumed_pipeline_without_new_artifacts",
+        "test_get_pipeline_status_returns_status_dto",
+        "test_get_pipeline_status_raises_for_missing_pipeline",
+        "test_cancel_pipeline_requests_background_job_cancel_and_marks_pending_steps",
+        "test_cancel_pipeline_does_not_rewrite_terminal_pipeline_status",
+        "test_cancel_pipeline_without_live_job_converges_to_cancelled",
+        "test_resume_pipeline_queues_checkpoint_job_without_rewriting_completed_steps"
+      ]
+    },
+    {
+      "path": "tests/test_run_detail_view_models.py",
+      "contract": "NATIVE_PIPELINE_CERTIFICATION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "02f9efe7cf196ce5eb47a9ddf3d421cede7c8ad75b2e6950c4445e0eb40973b2",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.routers.run_routes",
+        "app.services.ib_fetch_plan_service",
+        "app.services.ohlcv_coverage_service",
+        "app.services.score_card_view_service",
+        "app.services.technical_display_fields",
+        "app.templates"
+      ],
+      "declared_test_functions": [
+        "test_run_summary_counts_cockpit_state",
+        "test_run_summary_counts_earnings_risk_levels",
+        "test_ranking_profile_summary_counts_profile_state",
+        "test_market_regime_context_marks_choppy_early_rocket_blocked",
+        "test_sector_rotation_context_formats_latest_snapshot",
+        "test_workflow_steps_show_warning_for_partial_coverage_and_low_confidence",
+        "test_fetch_form_helpers_normalize_tickers_and_data_types",
+        "test_filter_parsers_ignore_blank_values",
+        "test_fetch_request_options_and_duration_label",
+        "test_warning_badges_map_flags_to_labels_and_tones",
+        "test_fetch_plan_helpers_count_actions_and_build_json_url",
+        "test_run_detail_template_handles_missing_summary_context",
+        "test_run_detail_marks_failed_run_message_as_an_alert",
+        "test_pipeline_progress_template_renders_steps",
+        "test_pipeline_progress_template_exposes_blocked_sec_diagnostics",
+        "test_run_detail_collapses_secondary_tables_by_default",
+        "test_run_detail_pipeline_hero_links_to_resolved_pipeline_identity",
+        "test_run_detail_template_renders_ranking_profile_summary",
+        "test_run_detail_template_renders_market_context_near_rankings",
+        "test_run_detail_template_renders_sector_rotation_snapshot",
+        "test_coverage_actions_and_template_support_targeted_fetches",
+        "test_mapping_template_shows_summary_and_export_link",
+        "test_run_detail_template_renders_v2_fundamental_details",
+        "test_run_detail_template_renders_earnings_risk_context",
+        "test_run_detail_template_renders_v4_technical_details",
+        "test_run_detail_template_renders_v4_active_before_v5_shadow",
+        "test_run_detail_template_renders_v5_active_before_v4_legacy",
+        "test_run_detail_template_renders_historical_v4_without_v5_placeholder",
+        "test_ib_fetch_plan_template_preserves_options_for_execution",
+        "test_preview_fetch_plan_uses_current_request_options",
+        "test_app_js_binds_cockpit_row_navigation"
+      ]
+    },
+    {
+      "path": "tests/test_scheduler_release_qualification.py",
+      "contract": "NATIVE_PIPELINE_CERTIFICATION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "dfc02fd1059e075bb71f580a3471c3530fece4617fb1b46fd58aa12ab1ce4a38",
+      "reviewed_application_imports": [],
+      "declared_test_functions": [
+        "test_release_accepts_matching_qualified_scheduler",
+        "test_release_rejects_omitted_fix_or_different_baseline",
+        "test_release_rejects_failed_skipped_or_changing_checks"
+      ]
+    },
+    {
+      "path": "tests/test_sec_continuation_executor.py",
+      "contract": "CERI_TEMPORAL_LINEAGE",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "0e3d25c70674eba21b49aff93d51eb33e0f7088f624dd8761f2a763eaf1e4fed",
+      "reviewed_application_imports": [
+        "app.services",
+        "app.services.ceri.sec.coverage",
+        "app.services.ceri.sec.readiness_diagnostics"
+      ],
+      "declared_test_functions": [
+        "test_fresh_preflight_clears_invalid_coverage_from_merged_result",
+        "test_full_scope_completion_retains_source_gap_and_structured_outcome"
+      ]
+    },
+    {
+      "path": "tests/test_sector_locality_liveness.py",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "f9883bf7e30c048a2a31b0434a7b9c434c17f4249f5e474b9c755d79383a98dc",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.routers.run_routes",
+        "app.services",
+        "app.services.core_mutation_authority",
+        "app.services.pipeline_service"
+      ],
+      "declared_test_functions": [
+        "test_delayed_registration_uses_identity_and_bounded_confirmation",
+        "test_liveness_confirmation_is_bound_to_exact_generation",
+        "test_fresh_leased_execution_survives_a_delayed_telemetry_collector",
+        "test_os_inspection_distinguishes_death_from_unavailable",
+        "test_os_inspection_rejects_reused_pid",
+        "test_os_inspection_matches_the_current_real_process",
+        "test_schema_capability_reflection_runs_once_per_engine_and_head",
+        "test_partial_store_without_marker_does_not_issue_an_invalid_head_query",
+        "test_sector_visit_plan_retains_duplicate_roles_and_missing_addresses",
+        "test_phase_history_is_bounded_and_distinguishes_operation_counts",
+        "test_status_shows_current_operation_count_instead_of_previous_pass",
+        "test_current_liveness_recovery_does_not_reuse_historical_memory_reason",
+        "test_hash_operation_exposes_actual_bytes_instead_of_an_unchanging_fraction"
+      ]
+    },
+    {
+      "path": "tests/test_sector_recovery_continuation.py",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "4481aa349384b21e69427633204f66bfc4d476be40da42f17a49bf0b44933108",
+      "reviewed_application_imports": [
+        "app.services.pipeline_executor",
+        "app.services.pipeline_prerequisites"
+      ],
+      "declared_test_functions": [
+        "test_invalid_sector_checkpoint_blocks_without_upstream_or_sector_recalculation",
+        "test_certified_published_sector_is_reused_without_republication",
+        "test_root_delivery_of_terminal_pipeline_cannot_reopen_it"
+      ]
+    },
+    {
+      "path": "tests/test_sector_serialization.py",
+      "contract": "REGIME_SECTOR_SELECTION",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "f99b5746ce3c2dd01ed704f374e559980fe0e8d48b051e3acfa9a98fd8514d90",
+      "reviewed_application_imports": [
+        "app.services.canonical_evidence",
+        "app.services.sector_rotation_repository",
+        "app.services.sector_serialization"
+      ],
+      "declared_test_functions": [
+        "test_sector_scoped_copy_preserves_historical_bytes_and_independent_shared_values",
+        "test_sector_copy_preserves_field_specific_unordered_semantics_and_rejects_cycles",
+        "test_streamed_hash_progress_counts_actual_bytes_and_preserves_cancellation"
+      ]
+    },
+    {
+      "path": "tests/test_worker_supervisor_reliability.py",
+      "contract": "WORKER_SUPERVISOR_RECOVERY",
+      "role": "DOMAIN_TEST_OR_MANUAL_HELPER",
+      "sha256": "c0bc9b8bbf76613ed4a2fee6da52b1330e0a1d41baa76c91a346ed94cbfcf7b1",
+      "reviewed_application_imports": [
+        "app.models.tables",
+        "app.services",
+        "app.services.operational_metrics",
+        "app.services.process_memory",
+        "app.settings"
+      ],
+      "declared_test_functions": [
+        "test_memory_critical_fence_preserves_exact_sample_before_cleanup",
+        "test_memory_observation_identifies_rss_fallback_and_inspection_failure",
+        "test_exited_worker_launcher_is_replaced_automatically",
+        "test_exited_worker_launcher_records_exit_before_registration",
+        "test_worker_launcher_preserves_windows_virtual_environment",
+        "test_launcher_pid_mismatch_uses_registered_worker_identity",
+        "test_frozen_worker_is_fenced_terminated_and_recoverable",
+        "test_stale_control_loop_terminates_generation_before_fencing_locked_jobs",
+        "test_stale_claim_loop_does_not_kill_observably_active_job",
+        "test_job_execution_liveness_is_observed_from_the_running_claim",
+        "test_stale_registration_is_retired_and_supervisor_continues",
+        "test_stopped_registration_does_not_kill_replacement_while_it_starts",
+        "test_liveness_inspection_exception_is_contained",
+        "test_pid_reuse_does_not_validate_old_process_instance",
+        "test_shutdown_request_requires_runtime_and_supervisor_identity",
+        "test_unhandled_supervisor_failure_is_durably_logged",
+        "test_shutdown_request_observability_uses_non_reserved_log_fields"
+      ]
+    }
+  ]
+}
