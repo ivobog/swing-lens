@@ -20,13 +20,27 @@ from sqlalchemy import event, func, insert, select, text
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
+    CombinedResult,
+    CoreCalculationEvidence,
+    CoreCalculationEvidenceSource,
     ExecutionConfigurationBinding,
+    FundamentalScore,
     PipelineRun,
+    PriceBar,
     RawCompanyRow,
     SetupLifecycleEvent,
     SetupSignalSnapshot,
+    SetupSignalSnapshotCurrentSelection,
     SignalChangeEvent,
+    TechnicalScore,
     UploadRun,
+)
+from app.services.bar_cache_service import price_bar_data_hash
+from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+from app.services.combined_ranking_identity import (
+    build_fundamental_score_identity,
+    build_technical_score_identity,
+    embed_calculation_identity,
 )
 from app.services.configuration_delivery import (
     binding_reference,
@@ -35,8 +49,19 @@ from app.services.configuration_delivery import (
     persist_configuration_anchor,
     resolve_pipeline_configurations,
 )
+from app.services.contextual_calculation_identity import (
+    build_contextual_result_identity,
+    consumer_context_identity,
+    embed_identity,
+)
+from app.services.core_calculation_evidence import (
+    calculation_evidence_payload,
+    normalize_configuration_business_payload,
+)
+from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
 from app.services.market_calculation_context_service import create_pipeline_market_context
 from app.services.market_clock_service import MarketCalculationCutoff
+from app.services.producer_readiness import READINESS_PAYLOAD_KEY, normalize_producer_readiness
 from app.services.setup_lifecycle.evaluation_service import SetupLifecycleEvaluationService
 from app.services.setup_lifecycle.query_service import (
     SetupLifecycleFilters,
@@ -170,6 +195,7 @@ def test_slse_phase_12_performance_certification(
         with Session(engine) as db:
             for table_name in (
                 "setup_signal_snapshots",
+                "setup_signal_snapshot_current_selections",
                 "setup_lifecycle_events",
                 "signal_change_events",
                 "setup_lifecycle_episodes",
@@ -180,6 +206,7 @@ def test_slse_phase_12_performance_certification(
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
             for table_name in (
                 "setup_signal_snapshots",
+                "setup_signal_snapshot_current_selections",
                 "setup_lifecycle_events",
                 "signal_change_events",
                 "setup_lifecycle_episodes",
@@ -219,6 +246,7 @@ def test_slse_phase_12_performance_certification(
                 ),
             )
         deep_cursor = legacy_deep["next_cursor"]
+        assert legacy_deep["total"] >= 100_000
         assert deep_cursor and deep_cursor.startswith("k1.")
 
         query_cases = {
@@ -338,16 +366,7 @@ def _percentile(values: list[float], percentile: int) -> float:
 def _seed_source_run(
     db: Session, *, size: int, as_of: date,
 ) -> tuple[int, int, MarketCalculationCutoff]:
-    """Build real sealed upstream outputs for the measured native Setup writer."""
-    import pandas as pd
-    from native_mutation_support import seed_price_frame
-    from test_fundamental_ranker_v2 import _quality_values
-    from test_technical_work import _synthetic_frame
-
-    from app.services.combined_decision import refresh_combined_results
-    from app.services.fundamental_score_service import recalculate_run_fundamentals
-    from app.services.technical_score_service import score_run_technicals
-
+    """Retained synthetic upstream adapter values for the native Setup benchmark."""
     processed_at = datetime.combine(as_of, datetime.min.time(), tzinfo=UTC).replace(hour=21)
     run = UploadRun(
         filename=f"slse-performance-{size}.csv",
@@ -355,7 +374,7 @@ def _seed_source_run(
         row_count=size,
         uploaded_at=processed_at,
         processed_at=processed_at,
-        notes="SLSE performance certification; deterministic native upstream producers",
+        notes="SLSE performance certification",
     )
     db.add(run)
     db.flush()
@@ -368,18 +387,23 @@ def _seed_source_run(
     )
     db.add(pipeline)
     db.flush()
-    market_cutoff = create_pipeline_market_context(db, pipeline, cutoff_at=processed_at)
+    market_cutoff = create_pipeline_market_context(
+        db,
+        pipeline,
+        cutoff_at=processed_at,
+    )
     configurations = resolve_pipeline_configurations(
         db, "FULL_PIPELINE", {"run_id": run.id, "pipeline_run_id": pipeline.id}
     )
+    frozen_sources = {}
+    for namespace in ("core.fundamental", "core.technical", "core.combined"):
+        document = Canonical.canonicalize(configurations[namespace].snapshot.as_dict())
+        frozen_sources[namespace] = (document, Canonical.bytes(document))
     anchor = persist_configuration_anchor(db, configurations)
-    db.add(
-        ExecutionConfigurationBinding(
-            binding_key=f"pipeline:{pipeline.id}",
-            pipeline_run_id=pipeline.id,
-            anchor_id=anchor["anchor_id"],
-        )
-    )
+    db.add(ExecutionConfigurationBinding(
+        binding_key=f"pipeline:{pipeline.id}", pipeline_run_id=pipeline.id,
+        anchor_id=anchor["anchor_id"],
+    ))
     db.flush()
     tickers = [f"P{size:04d}{index:04d}" for index in range(size)]
     db.execute(
@@ -391,38 +415,253 @@ def _seed_source_run(
                 "ticker": ticker,
                 "company_name": f"Performance {ticker}",
                 "sector": "Technology",
-                "sector_canonical": "Information Technology",
-                "raw_json": {"Symbol": ticker, **_quality_values()},
+                "sector_canonical": "Technology",
+                "raw_json": {"pivot_price": 100.0, "trigger_price": 100.0},
             }
             for index, ticker in enumerate(tickers)
         ],
     )
-    frame = _synthetic_frame()
-    frame["date"] = pd.bdate_range(end=market_cutoff.latest_completed_session, periods=len(frame))
-    for ticker in (*tickers, "SPY", "QQQ", "XLK"):
-        seed_price_frame(db, ticker, frame, market_cutoff.cutoff_at)
-    args = {"market_cutoff": market_cutoff, "pipeline_run_id": pipeline.id}
-    with configuration_delivery_scope(
-        load_configuration_delivery(db, binding_reference(db, pipeline_run_id=pipeline.id))
-    ):
-        fundamentals = recalculate_run_fundamentals(
-            db, run.id, **args, effective_configuration=configurations["core.fundamental"]
+    db.execute(
+        insert(FundamentalScore),
+        [
+            {
+                "run_id": run.id,
+                "ticker": ticker,
+                "fundamental_score": Decimal("8.0"),
+                "liquidity_risk_score": Decimal("8.0"),
+                "scoring_model_version": "fundamentals_v2.0",
+                "debug_json": {"config_hash": "f" * 64},
+            }
+            for ticker in tickers
+        ],
+    )
+    db.execute(
+        insert(TechnicalScore),
+        [
+            {
+                "run_id": run.id,
+                "ticker": ticker,
+                "calculation_context_id": market_cutoff.context_id,
+                "calculation_cutoff_at": market_cutoff.cutoff_at,
+                "input_as_of_session": market_cutoff.latest_completed_session,
+                "calendar_version": market_cutoff.calendar_version,
+                "dual_score": Decimal("7.5"),
+                "trend_score": Decimal("7.5"),
+                "momentum_score": Decimal("7.0"),
+                "setup_score": Decimal("7.8"),
+                "risk_score": Decimal("2.0"),
+                "relative_strength_score": Decimal("8.0"),
+                "leadership_score": Decimal("8.0"),
+                "classification": "Breakout Base",
+                "technical_confidence": "HIGH",
+                "technical_engine_version": "slse-performance-technical-v1",
+                "data_quality_score": Decimal("9.0"),
+                "warning_flags_json": [],
+                "feature_flags_json": [],
+                "debug_json": {"derived": {"atr": 2.0, "atr_pct": 2.0}},
+                "v4_debug_json": {},
+                "created_at": processed_at,
+            }
+            for ticker in tickers
+        ],
+    )
+    db.execute(
+        insert(CombinedResult),
+        [
+            {
+                "run_id": run.id,
+                "ticker": ticker,
+                "company_name": f"Performance {ticker}",
+                "sector": "Technology",
+                "final_score": Decimal("90"),
+                "fundamental_score": Decimal("8.0"),
+                "technical_classification": "Breakout Base",
+                "dual_score": Decimal("7.5"),
+                "combined_decision": "WATCH",
+                "earnings_risk_level": "LOW",
+                "is_complete": True,
+                "has_fundamental": True,
+                "has_technical": True,
+                "calculation_version": "slse-performance-combined-v1",
+                "config_hash": "c" * 64,
+                "debug_json": {},
+            }
+            for ticker in tickers
+        ],
+    )
+    raw_by_ticker = {
+        row.ticker: row
+        for row in db.scalars(select(RawCompanyRow).where(RawCompanyRow.run_id == run.id))
+    }
+    fundamental_by_ticker = {
+        row.ticker: row
+        for row in db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == run.id))
+    }
+    technical_by_ticker = {
+        row.ticker: row
+        for row in db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == run.id))
+    }
+    combined_by_ticker = {
+        row.ticker: row
+        for row in db.scalars(select(CombinedResult).where(CombinedResult.run_id == run.id))
+    }
+    prepared = []
+    for ticker in tickers:
+        raw = raw_by_ticker[ticker]
+        fundamental = fundamental_by_ticker[ticker]
+        technical = technical_by_ticker[ticker]
+        combined = combined_by_ticker[ticker]
+        fundamental_identity = build_fundamental_score_identity(
+            fundamental,
+            raw_row=raw,
+            market_cutoff=market_cutoff,
+            pipeline_run_id=pipeline.id,
         )
-        technicals = score_run_technicals(
-            db, run.id, tickers=tickers, **args,
-            effective_configuration=configurations["core.technical"],
+        technical_identity = build_technical_score_identity(
+            technical,
+            market_cutoff=market_cutoff,
+            pipeline_run_id=pipeline.id,
+            effective_config={"fixture": "slse-performance-v1"},
         )
-        fundamental_ids = {row.ticker: row.evidence_id for row in fundamentals}
-        technical_ids = {row.ticker: row.evidence_id for row in technicals}
-        refresh_combined_results(
-            db, run.id, **args, effective_configuration=configurations["core.combined"],
-            source_evidence={
-                ticker: {"fundamental": fundamental_ids[ticker], "technical": technical_ids[ticker]}
-                for ticker in tickers
-            },
+        fundamental_identity = configurations["core.fundamental"].bind(fundamental_identity)
+        technical_identity = configurations["core.technical"].bind(technical_identity)
+        fundamental.debug_json = embed_calculation_identity(
+            fundamental.debug_json,
+            fundamental_identity,
+            policy="SLSE_PERFORMANCE_FIXTURE",
         )
+        technical.debug_json = embed_calculation_identity(
+            technical.debug_json,
+            technical_identity,
+            policy="SLSE_PERFORMANCE_FIXTURE",
+        )
+        fundamental_evidence = _performance_source_evidence(
+            fundamental, fundamental_identity, "FUNDAMENTAL",
+            configurations["core.fundamental"], frozen_sources["core.fundamental"],
+        )
+        technical_evidence = _performance_source_evidence(
+            technical, technical_identity, "TECHNICAL",
+            configurations["core.technical"], frozen_sources["core.technical"],
+        )
+        db.add_all((fundamental_evidence, technical_evidence))
+        prepared.append((
+            ticker, fundamental, fundamental_identity, fundamental_evidence,
+            technical, technical_identity, technical_evidence, combined,
+        ))
+    db.flush()
+    for _, fundamental, _, fundamental_evidence, technical, _, technical_evidence, _ in prepared:
+        fundamental.evidence_id = fundamental_evidence.id
+        technical.evidence_id = technical_evidence.id
+    combined_evidence_rows = []
+    for (
+        ticker, fundamental, fundamental_identity, _,
+        technical, technical_identity, _, combined,
+    ) in prepared:
+        combined_identity = build_contextual_result_identity(
+            base=consumer_context_identity(
+                market_cutoff=market_cutoff,
+                run_id=run.id,
+                pipeline_id=pipeline.id,
+                ticker=ticker,
+            ),
+            namespace="slse-performance-combined",
+            config_hash=combined.config_hash,
+            calculation_version=combined.calculation_version,
+            engine_version=combined.calculation_version,
+            source_artifacts=(
+                ("FundamentalScore", fundamental, fundamental_identity),
+                ("TechnicalScore", technical, technical_identity),
+            ),
+            source_payload={"fixture": "slse-performance-v1"},
+        )
+        combined_identity = configurations["core.combined"].bind(combined_identity)
+        combined.debug_json = embed_identity(
+            combined.debug_json,
+            combined_identity,
+            policy="SLSE_PERFORMANCE_FIXTURE",
+        )
+        evidence = _performance_source_evidence(
+            combined, combined_identity, "COMBINED", configurations["core.combined"],
+            frozen_sources["core.combined"],
+            sources={"fundamental": fundamental.evidence_id, "technical": technical.evidence_id},
+        )
+        db.add(evidence)
+        combined_evidence_rows.append((combined, evidence))
+    db.flush()
+    for combined, evidence in combined_evidence_rows:
+        combined.evidence_id = evidence.id
+        db.add_all(CoreCalculationEvidenceSource(
+            evidence_id=evidence.id, source_role=role, source_evidence_id=source_id,
+        ) for role, source_id in evidence.source_evidence_ids_json.items())
+    db.execute(
+        insert(PriceBar),
+        [
+            {
+                "ticker": ticker,
+                "bar_date": as_of,
+                "timeframe": "1 day",
+                "open": Decimal("98"),
+                "high": Decimal("101"),
+                "low": Decimal("97"),
+                "close": Decimal("99"),
+                "volume": Decimal("1000000"),
+                "source": "SLSE_PERFORMANCE",
+                "what_to_show": "TRADES",
+                "data_hash": f"slse-perf:{ticker}:{as_of.isoformat()}",
+                "created_at": processed_at,
+                "first_seen_at": processed_at,
+                "last_seen_at": processed_at,
+            }
+            for ticker in tickers
+        ],
+    )
+    for bar in db.scalars(select(PriceBar).where(PriceBar.ticker.in_(tickers))):
+        bar.data_hash = price_bar_data_hash(bar)
     db.commit()
     return run.id, pipeline.id, market_cutoff
+
+
+def _performance_source_evidence(row, identity, kind, configuration, frozen, *, sources=None):
+    """Explicit synthetic producer boundary; no Core-writer certification claim."""
+    source_ids = dict(sources or {})
+    row.debug_json = {
+        **row.debug_json,
+        "performance_fixture_semantics": "SLSE_PERFORMANCE_SYNTHETIC_UPSTREAM_ADAPTER",
+    }
+    payload = calculation_evidence_payload(row)
+    normalize_configuration_business_payload(
+        payload, namespace=configuration.snapshot.family.namespace, source_ids=source_ids
+    )
+    document, encoded = frozen
+    payload[CONFIGURATION_PAYLOAD_KEY] = document
+    identity_payload = identity.canonical_payload()
+    fingerprint = str(identity.fingerprint())
+    temporal = identity_payload["temporal"]
+    payload[READINESS_PAYLOAD_KEY] = normalize_producer_readiness(
+        kind, payload, identity_fingerprint=fingerprint,
+        calculation_versions=identity_payload["algorithm"],
+        evaluated_at=temporal["calculation_cutoff"]["value"],
+        business_anchor=temporal["as_of_session"]["value"],
+    ).canonical_payload()
+    # Stable fragment reuse belongs only to this synthetic seed. The native
+    # consumer independently rehashes every complete stored evidence payload.
+    precomputed = {id(document): document}
+    payload = Canonical.canonicalize(payload, _precomputed=precomputed)
+    payload_hash = Canonical.fingerprint_streaming(
+        payload, precomputed=precomputed, fragments={id(document): encoded}
+    )
+    return CoreCalculationEvidence(
+        artifact_kind=kind, run_id=row.run_id, ticker=row.ticker,
+        calculation_identity_json=identity_payload,
+        calculation_identity_fingerprint=fingerprint,
+        payload_json=payload, payload_fingerprint=payload_hash,
+        source_evidence_ids_json=source_ids,
+        evidence_key=Canonical.fingerprint({
+            "artifact_kind": kind, "calculation_identity_fingerprint": fingerprint,
+            "payload_fingerprint": payload_hash, "source_evidence_ids": source_ids,
+        }),
+        calculated_at=identity.temporal.calculation_cutoff.value,
+    )
 
 
 def _seed_query_history(db: Session, *, snapshot_count: int, event_count: int) -> None:
@@ -492,6 +731,25 @@ def _seed_query_history(db: Session, *, snapshot_count: int, event_count: int) -
         .where(SetupSignalSnapshot.source_run_id_text == "slse-performance-100k")
         .order_by(SetupSignalSnapshot.id)
     ).all()
+    # This query-only synthetic history uses the explicit standalone/legacy
+    # publication contract. Model its actual current pointers; is_canonical on
+    # an immutable snapshot alone no longer grants current presentation.
+    selection_rows = [
+        {
+            "ticker": row.ticker,
+            "timeframe": "1d",
+            "data_as_of_date": row.data_as_of_date,
+            "selected_snapshot_id": row.id,
+            "selected_run_id": None,
+            "selected_evaluation_run_id": None,
+            "selection_reason": "PERFORMANCE_ONLY_SYNTHETIC_STANDALONE_HISTORY",
+            "selection_decision_json": {"financial_certification": "NOT_CLAIMED"},
+        }
+        for row in snapshot_refs
+    ]
+    for chunk in _chunks(selection_rows, 5_000):
+        db.execute(insert(SetupSignalSnapshotCurrentSelection), chunk)
+        db.commit()
     lifecycle_count = event_count // 2
     lifecycle_rows = [
         {

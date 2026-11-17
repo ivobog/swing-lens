@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from functools import wraps
 from inspect import signature
 from sys import getsizeof
+from threading import RLock
 
 from sqlalchemy.orm import Session, object_session
 
@@ -334,22 +335,125 @@ def validate_core_mutation_authority(
                 raise ValueError("MUTATION_PRIOR_SECTOR_COMPATIBILITY_REJECTED")
 
 
+_configuration_materials = OrderedDict()
+_configuration_materials_lock = RLock()
+
+
+def _configuration_material(configuration):
+    """Memoize pure serialization from complete, type-preserving field values.
+
+    No database binding, supplied hash, identity assertion or writer validation
+    is cached. Mutable caller objects are never retained as cache keys/values.
+    """
+    from datetime import datetime
+
+    from app.services.effective_configuration import (
+        ConfigurationClassification,
+        ConfigurationEntry,
+        ConfigurationFamily,
+        ConfigurationResolution,
+        ConfigurationSource,
+        ConfigurationSourceKind,
+        ConfigurationValueType,
+        EffectiveConfigurationSnapshot,
+    )
+
+    def atom(value):
+        if value is None or type(value) is str:
+            return value
+        if type(value) in (bool, int):
+            return (type(value), value)
+        if type(value) is datetime:
+            return (datetime, Canonical.dumps(value))
+        raise TypeError("nonstandard configuration field")
+
+    try:
+        family = configuration.family
+        resolution = family.resolution
+        if (
+            type(configuration) is not EffectiveConfigurationSnapshot
+            or type(family) is not ConfigurationFamily
+            or type(resolution) is not ConfigurationResolution
+            or any(type(kind) is not ConfigurationSourceKind for kind in resolution.precedence)
+            or any(type(kind) is not ConfigurationClassification for _, kind in family.keys)
+            or any(
+                type(entry) is not ConfigurationEntry
+                or type(entry.classification) is not ConfigurationClassification
+                or type(entry.value_type) is not ConfigurationValueType
+                or type(entry.source) is not ConfigurationSource
+                or type(entry.source.kind) is not ConfigurationSourceKind
+                for entry in configuration.entries
+            )
+        ):
+            raise TypeError("nonstandard configuration shape")
+        key = (
+            type(configuration),
+            type(family),
+            atom(family.namespace),
+            atom(family.schema_version),
+            type(resolution),
+            atom(resolution.resolver),
+            atom(resolution.contract_version),
+            tuple((type(kind), atom(kind.value)) for kind in resolution.precedence),
+            tuple((atom(name), type(kind), atom(kind.value)) for name, kind in family.keys),
+            atom(family.compatibility_policy),
+            tuple(
+                (
+                    type(entry), atom(entry.key), type(entry.classification),
+                    atom(entry.classification.value), type(entry.value_type),
+                    atom(entry.value_type.value), atom(entry.canonical_value_json),
+                    type(entry.source), type(entry.source.kind), atom(entry.source.kind.value),
+                    atom(entry.source.identifier), atom(entry.source.version),
+                    atom(entry.defaulted), atom(entry.overridden),
+                )
+                for entry in configuration.entries
+            ),
+            atom(configuration.producer_version), atom(configuration.evaluated_at),
+        )
+    except (AttributeError, TypeError):
+        # Preserve the original constructor/serializer behavior for unusual
+        # typed inputs, without admitting them through a cached standard shape.
+        key = None
+    if key is not None:
+        with _configuration_materials_lock:
+            cached = _configuration_materials.get(key)
+            if cached is not None:
+                _configuration_materials.move_to_end(key)
+                return cached
+    fresh = type(configuration)(
+        configuration.family, configuration.entries,
+        configuration.producer_version, configuration.evaluated_at,
+    )
+    material = (
+        fresh.semantic_hash, fresh.resolution_hash,
+        Canonical.dumps(fresh.identity.as_dict()), Canonical.dumps(fresh.as_dict()),
+    )
+    if key is not None:
+        with _configuration_materials_lock:
+            _configuration_materials[key] = material
+            _configuration_materials.move_to_end(key)
+            while len(_configuration_materials) > 64:
+                _configuration_materials.popitem(last=False)
+    return material
+
+
+def _validated_configuration_material(configuration):
+    material = _configuration_material(configuration)
+    if (
+        material[0] != configuration.semantic_hash
+        or material[1] != configuration.resolution_hash
+        or material[2] != Canonical.dumps(configuration.identity.as_dict())
+    ):
+        raise ValueError("MUTATION_CONFIGURATION_FINGERPRINT_MISMATCH")
+    return material[3]
+
+
 def _validate_configuration(db, context, configuration):
     from app.services.configuration_delivery import binding_reference, load_configuration_delivery
     from app.services.contextual_effective_configuration import ContextualEffectiveConfiguration
     from app.services.core_effective_configuration import CoreEffectiveConfiguration
 
-    fresh = type(configuration)(
-        configuration.family,
-        configuration.entries,
-        configuration.producer_version,
-        configuration.evaluated_at,
-    )
-    if (
-        fresh.semantic_hash != configuration.semantic_hash
-        or fresh.resolution_hash != configuration.resolution_hash
-    ):
-        raise ValueError("MUTATION_CONFIGURATION_FINGERPRINT_MISMATCH")
+    material = _validated_configuration_material(configuration)
     namespace = configuration.family.namespace
     from app.services.decision_effective_configuration import DecisionEffectiveConfiguration
 
@@ -375,7 +479,7 @@ def _validate_configuration(db, context, configuration):
             if not any(
                 c.semantic_hash == configuration.semantic_hash
                 and c.resolution_hash == configuration.resolution_hash
-                and Canonical.dumps(c.as_dict()) == Canonical.dumps(configuration.as_dict())
+                and _validated_configuration_material(c) == material
                 for c in frozen
             ):
                 raise ValueError("MUTATION_RETAINED_CONFIGURATION_MISMATCH")

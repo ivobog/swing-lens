@@ -1102,6 +1102,22 @@
           {
             "path": "app/services/decision_mutation_authority.py",
             "symbol": "decision_authority"
+          },
+          {
+            "path": "app/services/core_mutation_authority.py",
+            "symbol": "_validate_configuration"
+          },
+          {
+            "path": "app/services/core_mutation_authority.py",
+            "symbol": "_configuration_material"
+          },
+          {
+            "path": "app/services/contextual_effective_configuration.py",
+            "symbol": "_restore"
+          },
+          {
+            "path": "app/services/decision_effective_configuration.py",
+            "symbol": "DecisionEffectiveConfiguration.setup_config"
           }
         ],
         "impact_patterns": [
@@ -1578,6 +1594,42 @@
             "positive": "Canonical bytes and fingerprints equal the independent full normalization for typed, nested and mutated inputs.",
             "negative": "Changed mutable evidence cannot reuse a previous canonical or identity result.",
             "reviewed_test_sha256": "c9d2f419a81af8b01117704c4108d7985998204cd28445d05f49a473533a23ed"
+          },
+          {
+            "id": "tests/test_configuration_material.py::test_warm_configuration_material_rechecks_declared_and_typed_content",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "A valid typed configuration remains accepted after warming pure calculation reuse.",
+            "negative": "Changed supplied hashes/identity, values, provenance and boolean-versus-integer fields fail closed.",
+            "reviewed_test_sha256": "403902a8208dc3683bd9ff4f3a27d6cf06a3c6690d0629a48cb0fb53f7da170e"
+          },
+          {
+            "id": "tests/test_configuration_material.py::test_warm_configuration_material_keeps_exact_retained_metadata",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Matching configuration resolves its owner binding on every call after warming.",
+            "negative": "Producer/evaluation/compatibility metadata drift is refused even when both configuration hashes match.",
+            "reviewed_test_sha256": "403902a8208dc3683bd9ff4f3a27d6cf06a3c6690d0629a48cb0fb53f7da170e"
+          },
+          {
+            "id": "tests/test_configuration_material.py::test_nonstandard_snapshot_extension_keeps_uncached_serialization",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged financial configuration hashes remain intact for extension shapes.",
+            "negative": "Changing extension metadata cannot be hidden by standard-shape calculation reuse.",
+            "reviewed_test_sha256": "403902a8208dc3683bd9ff4f3a27d6cf06a3c6690d0629a48cb0fb53f7da170e"
+          },
+          {
+            "id": "tests/test_configuration_material.py::test_restore_shares_only_type_metadata_within_each_fresh_call",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Repeated definitions retain their types, order and independently constructed native objects.",
+            "negative": "A changed nested enum annotation is resolved anew on the next call; no stale schema or mutable output is reused.",
+            "reviewed_test_sha256": "403902a8208dc3683bd9ff4f3a27d6cf06a3c6690d0629a48cb0fb53f7da170e"
           }
         ],
         "oracle": "A05B independent values and canonical immutable evidence; fixture helpers are not independent financial truth.",
@@ -1588,7 +1640,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "c3b5ed159d6ec7548747715d28796f0eb4861917b6d316dcb0bd508a5d0fd71a",
+        "review_sha256": "32d5839bced4ede4e6617321d88fd442025c332d3e06ee4c60a51df85a03accf",
         "review_addenda": [
           {
             "task": "PIPELINE55-20261109",
@@ -1614,6 +1666,13 @@
               }
             ],
             "claim": "STATIC_INTENT only. Exact prerequisite paths are assigned to existing accountable domains and existing mandatory validation. Unknown high-risk paths still fail closed; manual replay is not an automated producer. No financial oracle, historical source identity, authenticated approval or certificate is changed."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-CONFIGURATION-MATERIAL-20261117",
+            "kind": "STATIC_PURE_CALCULATION_AND_ASSERTION_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/configuration-material-review.md",
+            "scope": "Bounded pure configuration calculations keyed by complete type-preserving immutable field values. Every supplied hash/identity, complete retained canonical material, live binding and native mutation guard remains checked. Nonstandard shapes keep uncached behavior. Type-hint reuse is bounded to each reconstruction call; live schemas are resolved again across calls and native outputs remain fresh.",
+            "claim": "STATIC_INTENT only; eleven unit-double cache/reconstruction controls do not replace native fault/rollback regressions, current scale budgets, A04 financial validation or authenticated owner acknowledgement."
           }
         ]
       },
@@ -4235,6 +4294,10 @@
           {
             "path": "tests/e2e/single_run_certification/golden_assertions.py",
             "symbol": "assert_completed_oracle"
+          },
+          {
+            "path": "scripts/qa/release_evidence.py",
+            "symbol": "_enable_native_browser_candidate"
           }
         ],
         "impact_patterns": [
@@ -4370,7 +4433,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "7bdb4be9bf356ced6f6cf83fc35a6312ee7522014ef1b12f54fa1720fef6de37"
+            "reviewed_test_sha256": "06a02e8eb7c698d7d259a121d1eb3afef89cf8959924a6f1a3fe992b0ac46375"
           },
           {
             "id": "tests/test_ibmi_golden_recertification.py::test_proposal_does_not_select_or_authorize_a_golden",
@@ -4379,7 +4442,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "7bdb4be9bf356ced6f6cf83fc35a6312ee7522014ef1b12f54fa1720fef6de37"
+            "reviewed_test_sha256": "06a02e8eb7c698d7d259a121d1eb3afef89cf8959924a6f1a3fe992b0ac46375"
           },
           {
             "id": "tests/test_ibmi_golden_recertification.py::test_changed_candidate_literals_fail_even_after_prior_success",
@@ -4388,7 +4451,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "7bdb4be9bf356ced6f6cf83fc35a6312ee7522014ef1b12f54fa1720fef6de37"
+            "reviewed_test_sha256": "06a02e8eb7c698d7d259a121d1eb3afef89cf8959924a6f1a3fe992b0ac46375"
           },
           {
             "id": "tests/test_ibmi_golden_recertification.py::test_candidate_cannot_claim_promotion_or_reuse_another_binding",
@@ -4397,7 +4460,16 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "7bdb4be9bf356ced6f6cf83fc35a6312ee7522014ef1b12f54fa1720fef6de37"
+            "reviewed_test_sha256": "06a02e8eb7c698d7d259a121d1eb3afef89cf8959924a6f1a3fe992b0ac46375"
+          },
+          {
+            "id": "tests/test_ibmi_golden_recertification.py::test_native_browser_candidate_selection_refuses_a_stale_adapter",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "A fresh isolated native browser adapter validates and selects the complete proposed candidate.",
+            "negative": "An adapter initialized against historical data cannot silently substitute for the declared native candidate.",
+            "reviewed_test_sha256": "06a02e8eb7c698d7d259a121d1eb3afef89cf8959924a6f1a3fe992b0ac46375"
           }
         ],
         "oracle": "Unchanged A05 v3/A05B-r3 seals and independent derivations; A13-R10 requires live sole-owner acknowledgement, never automatic activation.",
@@ -4408,7 +4480,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "af8d9f64953be0e9e5e744471d7e694e570578077c62039094749ab7e9d6466e",
+        "review_sha256": "9a93d47262564a23e9359a1f439deb221659811daa48d70a91d21a6e91cd0f1e",
         "policy_amendment": {
           "id": "A13-R10",
           "date": "2026-11-01",

@@ -54,8 +54,12 @@ class DecisionEffectiveConfiguration(CoreEffectiveConfiguration):
         )
 
         values = self.values["native"]
+        definitions = _restore(list[SignalDefinition], values["signal_registry"])
         registry = SignalDefinitionRegistry(
-            {row["key"]: _restore(SignalDefinition, row) for row in values["signal_registry"]}
+            {
+                source["key"]: definition
+                for source, definition in zip(values["signal_registry"], definitions, strict=True)
+            }
         )
         values["signal_registry"] = None
         result = _restore(SetupLifecycleConfig, values)

@@ -405,7 +405,6 @@ jobs:
       - name: Collect release browser-smoke
         if: steps.reuse_browser_smoke.outputs.reused != 'true'
         env:
-          SWINGLENS_CERTIFICATION_CANDIDATE_VALIDATION: ${{ hashFiles('docs/testing/golden-update-proposal.json') != '' && '1' || '' }}
           PYTEST_PLUGINS: "scripts.qa.release_evidence"
           SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
           SWINGLENS_RELEASE_LANE: "browser-smoke"
@@ -421,7 +420,6 @@ jobs:
         id: release_browser_smoke
         if: steps.reuse_browser_smoke.outputs.reused != 'true'
         env:
-          SWINGLENS_CERTIFICATION_CANDIDATE_VALIDATION: ${{ hashFiles('docs/testing/golden-update-proposal.json') != '' && '1' || '' }}
           PYTEST_PLUGINS: "scripts.qa.release_evidence"
           SWINGLENS_RELEASE_PLAN: "${{ github.workspace }}/test-results/release-plan/plan.json"
           SWINGLENS_RELEASE_LANE: "browser-smoke"

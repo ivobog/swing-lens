@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -110,3 +111,40 @@ def test_candidate_cannot_claim_promotion_or_reuse_another_binding():
         hashlib.sha256(Path("config/ib_market_intelligence.yaml").read_bytes()).hexdigest()
         == "9d9dba1499294d15fbb8a0a3af6a29af58e7d96e93df7ce85b8797c608ea5430"
     )
+
+
+@pytest.mark.parametrize("historical_adapter_imported", (False, True))
+def test_native_browser_candidate_selection_refuses_a_stale_adapter(
+    historical_adapter_imported,
+):
+    program = """
+import os, sys
+from pathlib import Path
+os.environ.pop('SWINGLENS_CERTIFICATION_CANDIDATE_VALIDATION', None)
+sys.path.insert(0, str(Path.cwd() / 'tests/e2e'))
+if sys.argv[1] == 'True':
+    from single_run_certification import candidate_validation
+    assert candidate_validation.VERSION == 'a05-v3'
+from scripts.qa.release_evidence import _enable_native_browser_candidate, EvidenceError
+if sys.argv[1] == 'True':
+    try:
+        _enable_native_browser_candidate()
+    except EvidenceError as error:
+        assert 'initialized before selection' in str(error)
+    else:
+        raise AssertionError('historical adapter silently reused for candidate')
+else:
+    _enable_native_browser_candidate()
+    from single_run_certification import candidate_validation
+    assert candidate_validation.VERSION == 'a05-v5'
+    candidate_validation.require_complete(candidate_validation.expected_manifest(True))
+    assert candidate_validation.candidate_binding()['activation_authorized'] is False
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", program, str(historical_adapter_imported)],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
