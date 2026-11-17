@@ -1,0 +1,220 @@
+{
+  "repoAudit": {
+    "pipeline61-handoff": [
+      "2af1e7d790398f95064982015ff138d0c1f8bf01\n",
+      "",
+      ""
+    ],
+    "pipeline64-identity": [
+      "7e113f72f4c980a252b23658b3035969855cbb88\n",
+      "",
+      ""
+    ],
+    "pipeline65-owner": [
+      "6d6952feec93adb9dd62635e41d299e3749b4819\n",
+      "",
+      ""
+    ]
+  },
+  "receipts": {
+    "pipeline61-handoff": "1269 []\r\n",
+    "pipeline64-identity": "1271 []\r\n",
+    "pipeline65-owner": "1271 []\r\n"
+  },
+  "filesets": {
+    "pipeline61-handoff": {
+      "extra": [],
+      "count": 471
+    },
+    "pipeline64-identity": {
+      "extra": [],
+      "count": 472
+    },
+    "pipeline65-owner": {
+      "extra": [],
+      "count": 472
+    }
+  },
+  "launchChanges": {
+    "64": [
+      "$releaseRoot=Join-Path $PSScriptRoot '.runtime-releases\\pipeline61-handoff'",
+      "    $receipt=Join-Path $PSScriptRoot 'docs\\remediation\\pipeline61-handoff\\final-qualification\\qualification.json'"
+    ],
+    "65": [
+      "$releaseRoot=Join-Path $PSScriptRoot '.runtime-releases\\pipeline64-identity'"
+    ],
+    "66": [
+      "$releaseRoot=Join-Path $PSScriptRoot '.runtime-releases\\pipeline65-owner'"
+    ]
+  }
+}
+Primary tracked diff (numstat)
+3	0	.gitattributes
+477	13	.github/workflows/ci.yml
+32	0	app/routers/run_routes.py
+44	18	app/services/ceri/batched_workflow.py
+34	0	app/services/ceri/change_semantics.py
+8	0	app/services/ceri/pipeline_containment_service.py
+12	0	app/services/ceri/providers/eodhd_provider.py
+29	2	app/services/ceri/sec/identity_repair.py
+20	3	app/services/ceri/sec/pipeline_preflight.py
+82	9	app/services/ceri/sec/readiness_repair.py
+24	2	app/services/combined_decision.py
+34	4	app/services/configuration_delivery.py
+27	1	app/services/core_effective_configuration.py
+33	1	app/services/core_mutation_authority.py
+16	4	app/services/decision_effective_configuration.py
+82	11	app/services/export_service.py
+3	0	app/services/fundamental_score_service.py
+27	7	app/services/ib_contract_resolver.py
+166	6	app/services/ib_fetch_executor.py
+36	11	app/services/ib_fetch_plan_service.py
+8	0	app/services/ib_historical_errors.py
+3	1	app/services/ib_market_intelligence/calculations.py
+7	2	app/services/ib_market_intelligence/repository.py
+22	4	app/services/lifecycle_safety.py
+10	0	app/services/market_data_session_readiness.py
+122	30	app/services/pipeline_dependency_service.py
+354	49	app/services/pipeline_executor.py
+10	0	app/services/pipeline_outcome.py
+51	2	app/services/pipeline_service.py
+7	0	app/services/producer_readiness.py
+22	2	app/services/ranking_profile_engine.py
+9	2	app/services/ranking_profile_service.py
+25	0	app/services/setup_lifecycle/repository.py
+62	2	app/services/technical_consumer_eligibility.py
+49	1	app/services/transition_preflight_plan_service.py
+17	0	app/services/warning_taxonomy.py
+52	4	app/static/app.js
+37	8	app/templates/pipeline_progress.html
+8	0	app/templates/run_detail.html
+18	2	config/architecture_registry.json
+2	2	config/ib_market_intelligence.yaml
+9	0	docs/forensics/run40-lifecycle-failure/analyze_logs.py
+21	2	docs/forensics/run40-lifecycle-failure/reproduce_watchdog_lock.py
+8	0	docs/forensics/run41-lifecycle-failure/collect_evidence.py
+8	0	docs/forensics/run41-lifecycle-failure/reproduce_recapture.py
+8	0	docs/forensics/run43-market-data-readiness/analyze_logs.py
+8	0	docs/forensics/run43-market-data-readiness/collect_evidence.py
+8	0	docs/forensics/run43-market-data-readiness/reproduce_failure.py
+8	0	docs/forensics/run43-market-data-readiness/verify_evidence.py
+19	0	docs/remediation/run40-lifecycle/retain_native_fixture.py
+9	0	docs/remediation/run41-lifecycle/collect_recovery_proof.py
+9	0	docs/remediation/run41-lifecycle/compare_setup_evidence.py
+8	0	docs/remediation/run41-lifecycle/diagnose_clone_handoff.py
+21	0	docs/remediation/run41-lifecycle/monitor_recovery.py
+17	0	docs/remediation/run41-lifecycle/resume_verified_run41.py
+17	0	docs/routes_exports.md
+8	0	docs/verification/run161-sec-continuation/check_incident.py
+8	0	docs/verification/run161-sec-continuation/run_baseline_checks.py
+8	0	docs/verification/run161-sec-continuation/run_tests.py
+1	0	pyproject.toml
+8	0	scripts/ceri_run104_controlled_replay.py
+17	0	scripts/forensics/repair_run43_market_data.py
+8	0	scripts/forensics/run153_ceri_lineage_clone_replay.py
+8	0	scripts/forensics/run153_systemic_remediation_replay.py
+8	0	scripts/forensics/run153_tbla_readonly_equivalence.py
+17	0	scripts/forensics/run159_ceri_quarantine.py
+8	0	scripts/forensics/run159_certification_claim_inventory.py
+28	1	scripts/forensics/verify_run41_recovery.py
+19	3	scripts/ops/lifecycle_probe.py
+469	87	scripts/production_runtime_certification.py
+8	0	scripts/qa/certify_ceri_run101.py
+15	4	scripts/qa/certify_ceri_run101_golden.py
+16	5	scripts/qa/certify_ceri_run102_golden.py
+11	0	scripts/qa/t14a_reviewed_inventory.py
+22	1	scripts/qa/t14a_semantic_families.py
+40	0	scripts/qa/t14a_semantic_review.py
+4	0	scripts/resolve_sec_ciks.py
+9	0	swinglens.ps1
+29	8	tests/ceri/test_ceri_acceptance_fixture.py
+3	2	tests/ceri/test_ceri_evidence_quarantine.py
+24	13	tests/ceri/test_ceri_routes_api.py
+29	0	tests/ceri/test_eodhd_provider.py
+0	11	tests/ceri/test_ingestion_orchestration.py
+22	11	tests/ceri/test_point_in_time_query.py
+6	3	tests/ceri/test_run101_golden_vertical.py
+3	3	tests/ceri/test_run102_golden_certification.py
+53	0	tests/ceri/test_sec_identity_repair.py
+62	1	tests/ceri/test_sec_pipeline_preflight.py
+5	0	tests/conftest.py
+76	5	tests/core_readiness_helpers.py
+4	3	tests/e2e/conftest.py
+228	149	tests/e2e/single_run_certification/certification_server.py
+750	0	tests/e2e/single_run_certification/evidence.py
+19	3	tests/e2e/single_run_certification/fixtures.py
+24	0	tests/e2e/single_run_certification/frozen_ceri.py
+190	4	tests/e2e/single_run_certification/reporting.py
+341	5	tests/e2e/single_run_certification/test_real_writer_cardinality.py
+160	168	tests/e2e/single_run_certification/test_single_run_certification.py
+6	3	tests/e2e/test_slse_populated_browser.py
+4	4	tests/e2e/test_ticker_intelligence_browser.py
+2	4	tests/e2e/test_ticker_search_dock.py
+7	4	tests/e2e/test_ticker_workspace_browser.py
+29	0	tests/integration/test_ceri_batched_workflow_v2.py
+34	7	tests/integration/test_ceri_change_rebuild_scoping_postgresql.py
+46	6	tests/integration/test_ceri_systemic_remediation.py
+128	0	tests/integration/test_contextual_configuration_adoption_postgresql.py
+37	4	tests/integration/test_core_configuration_adoption_postgresql.py
+226	0	tests/integration/test_market_data_readiness_postgresql.py
+69	36	tests/integration/test_operational_admission_postgresql.py
+6	1	tests/integration/test_phase2_immutable_evidence_certification.py
+5	2	tests/integration/test_phase4_configuration_certification_postgresql.py
+3	4	tests/integration/test_run40_lifecycle_remediation_postgresql.py
+80	0	tests/integration/test_run41_capture_handoff_postgresql.py
+1	1	tests/integration/test_run8_setup_performance_postgresql.py
+240	0	tests/integration/test_sec_readiness_repair_postgresql.py
+124	4	tests/integration/test_slse_golden_corpus.py
+2	5	tests/integration/test_slse_performance_certification.py
+66	12	tests/integration/test_t14d_ceri_end_to_end_performance_postgresql.py
+279	23	tests/integration/test_winner_jobs_reliability_postgresql.py
+34	2	tests/market_sector_dashboard_fixture.py
+67	0	tests/ops/test_lifecycle_safety.py
+39	12	tests/recovery/test_whole_application_recovery.py
+22	5	tests/sector_refresh_helpers.py
+23	8	tests/setup_lifecycle/test_alert_service.py
+6	2	tests/setup_lifecycle/test_snapshot_builder.py
+26	0	tests/test_background_worker.py
+75	4	tests/test_combined_decision.py
+7	1	tests/test_combined_ranking_identity_adoption.py
+47	1	tests/test_golden_pipeline.py
+151	6	tests/test_ib_fetch_executor.py
+11	0	tests/test_ib_historical_errors.py
+15	0	tests/test_market_data_session_readiness.py
+1	11	tests/test_market_regime_routes.py
+41	18	tests/test_market_sector_intelligence_browser.py
+45	1	tests/test_phase4_configuration_certification.py
+192	11	tests/test_pipeline_executor.py
+62	0	tests/test_pipeline_gui_semantics.py
+68	0	tests/test_production_runtime_certification.py
+4	1	tests/test_ranking_profile_engine.py
+1	11	tests/test_ranking_profile_routes.py
+59	0	tests/test_ranking_profile_service.py
+4	1	tests/test_ranking_profiles_golden.py
+6	3	tests/test_run_actions_phase3.py
+4	1	tests/test_schema_phase2.py
+8	7	tests/test_sector_refresh_browser.py
+1	11	tests/test_sector_rotation_routes.py
+15	0	tests/test_t12b_ready_scenarios.py
+5	0	tests/test_t12c_ready_scenarios.py
+168	116	tests/test_t14a_mutation_inventory.py
+42	1	tests/test_t14d_operation_families.py
+17	1	tests/test_technical_consumer_eligibility.py
+3	28	tests/winner_probability/readiness_capture_helpers.py
+78	0	tests/winner_probability/test_t12e_readiness_certification.py
+
+Primary untracked source paths
+app/services/ceri/filing_authority.py
+app/services/ceri/sec/coverage.py
+app/services/ib_market_intelligence/activation_assessment.py
+app/services/instrument_symbol_changes.py
+app/services/pipeline_partial_results.py
+app/services/technical_research_admission.py
+config/ceri_filing_authorities.yaml
+config/certification_registry.json
+config/instrument_symbol_changes.json
+scripts/forensics/historical_tool_safety.py
+scripts/qa/check_certification_registry.py
+scripts/qa/golden_provenance.py
+scripts/qa/release_evidence.py
+swinglens-live.ps1

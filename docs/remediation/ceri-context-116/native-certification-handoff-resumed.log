@@ -1,0 +1,24 @@
+verified disposable database before Alembic: database=swinglens_qa_ceri_context_1794788997961 server=127.0.0.1/32:5432 url=postgresql+psycopg://<restricted:userinfo>@127.0.0.1:5432/swinglens_qa_ceri_context_1794788997961
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+completed native job 2553 CERI_CAPTURE_RUN
+completed native job 2554 CERI_CAPTURE_RUN
+completed native job 2555 CERI_CAPTURE_RUN
+Traceback (most recent call last):
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\scripts\qa\ceri_context_116_certification.py", line 509, in main
+    db, 62, {row.company_id for row in scores}, bad, cutoff, 66
+             ^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\orm\attributes.py", line 569, in __get__
+    return self.impl.get(state, dict_)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\orm\attributes.py", line 1096, in get
+    value = self._fire_loader_callables(state, key, passive)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\orm\attributes.py", line 1126, in _fire_loader_callables
+    return state._load_expired(state, passive)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\orm\state.py", line 828, in _load_expired
+    self.manager.expired_attribute_loader(self, toload, passive)
+  File "C:\Users\Ivica\Documents\SwingLens\.venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 1607, in load_scalar_attributes
+    raise orm_exc.DetachedInstanceError(
+sqlalchemy.orm.exc.DetachedInstanceError: Instance <CeriScoreSnapshot at 0x2b2d4d46450> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)

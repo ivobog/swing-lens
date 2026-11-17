@@ -1,0 +1,2817 @@
+8e56c8dd (Ivica Bogoevski 2026-08-08 17:37:19 +0200 1650)         .where(CeriScoreSnapshot.run_id == run_id)
+8e56c8dd (Ivica Bogoevski 2026-08-08 17:37:19 +0200 1651)         .where(CeriScoreSnapshot.company_id.in_(sorted(company_ids)))
+8e56c8dd (Ivica Bogoevski 2026-08-08 17:37:19 +0200 1652)         .where(CeriScoreSnapshot.config_hash == config.config_hash)
+4e3d1fa2 (Ivica Bogoevski 2026-09-08 01:43:51 +0200 1653)         .where(CeriScoreSnapshot.calculation_version == config.engine.calculation_version),
+
+6884b0d6 (Ivica Bogoevski 2026-09-16 20:36:09 +0200 1677)         result = contextual_compatibility(expected, identity, policy=CERI_CONTEXT_COMPATIBILITY)
+fc380503 (Ivica Bogoevski 2026-09-14 20:39:20 +0200 1678)         if not result.accepted:
+fc380503 (Ivica Bogoevski 2026-09-14 20:39:20 +0200 1679)             raise ValueError(
+fc380503 (Ivica Bogoevski 2026-09-14 20:39:20 +0200 1680)                 "CALCULATION_IDENTITY_REJECTED: consumer=CERI "
+fc380503 (Ivica Bogoevski 2026-09-14 20:39:20 +0200 1681)                 f"producer=CeriScoreSnapshot policy={result.policy} "
+fc380503 (Ivica Bogoevski 2026-09-14 20:39:20 +0200 1682)                 f"result={result.status.value} details={'; '.join(result.diagnostics)}"
+
+6884b0d6 (Ivica Bogoevski 2026-09-16 20:36:09 +0200 296)         pipeline_id = pipeline_id_for_cutoff(db, run_id=run_id, market_cutoff=market_cutoff)
+
+fc380503 (Ivica Bogoevski 2026-09-14 20:39:20 +0200 147)     pipeline_id = getattr(row, "pipeline_run_id", None)
+fc380503 (Ivica Bogoevski 2026-09-14 20:39:20 +0200 148)     return int(pipeline_id) if pipeline_id is not None else None
+
+6f3adef0 (Ivica Bogoevski 2026-09-29 22:39:06 +0200 273)         pipeline_run_id=None,
+6f3adef0 (Ivica Bogoevski 2026-09-29 22:39:06 +0200 274)         upload_run_id=pipeline.upload_run_id,
+
+36674d17 (Ivica Bogoevski 2026-09-30 18:22:15 +0200 148)     # Older incident contexts were accidentally persisted without their
+36674d17 (Ivica Bogoevski 2026-09-30 18:22:15 +0200 149)     # pipeline FK.  Fall back to the upload/run scope, but fail closed if that
+36674d17 (Ivica Bogoevski 2026-09-30 18:22:15 +0200 150)     # scope has any terminally unsuccessful pipeline owner.
+36674d17 (Ivica Bogoevski 2026-09-30 18:22:15 +0200 151)     failed_owner = aliased(PipelineRun)
+36674d17 (Ivica Bogoevski 2026-09-30 18:22:15 +0200 152)     no_unsuccessful_upload_owner = ~exists(
+aeb0ef4b (Ivica Bogoevski 2026-10-21 20:09:24 +0200 153)         select(1)
+aeb0ef4b (Ivica Bogoevski 2026-10-21 20:09:24 +0200 154)         .where(
+36674d17 (Ivica Bogoevski 2026-09-30 18:22:15 +0200 155)             failed_owner.upload_run_id == snapshot.run_id,
+aeb0ef4b (Ivica Bogoevski 2026-10-21 20:09:24 +0200 156)             _owner_is_ineligible(failed_owner),
+
+4a9769f1 (Ivica Bogoevski 2026-08-02 18:11:52 +0200 367) 	CONSTRAINT uq_ceri_score_snapshots_run_company_version UNIQUE (run_id, company_id, config_hash, calculation_version),
+
+3a9d4706 (Ivica Bogoevski 2026-09-13 21:23:12 +0200 1223)             eligible_snapshot_select(name="effective_handoff_dispositions")
+a7cbb3b0 (Ivica Bogoevski 2026-09-13 21:01:45 +0200 1224)             .where(
+a7cbb3b0 (Ivica Bogoevski 2026-09-13 21:01:45 +0200 1225)                 CeriScoreSnapshot.run_id == plan.upload_run_id,
+a7cbb3b0 (Ivica Bogoevski 2026-09-13 21:01:45 +0200 1226)             )
+b9e9645c (Ivica Bogoevski 2026-09-13 18:30:30 +0200 1227)             .order_by(CeriScoreSnapshot.ticker, CeriScoreSnapshot.id)
+
+6d6952fe (Codex 2026-11-15 15:04:28 +0100 116)     workflow_key = workflow_key or f"ceri:pipeline:{run_id}:{config_hash}"
+
+commit 0cb82e1427176d8474e3e1a980ee1d22280c131f
+Author:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+AuthorDate: Sat Aug 1 22:43:58 2026 +0200
+Commit:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+CommitDate: Sat Aug 1 22:43:58 2026 +0200
+
+    Add CERI phase 2 schema
+
+diff --git a/app/models/ceri_tables.py b/app/models/ceri_tables.py
+new file mode 100644
+index 0000000..a4891e6
+--- /dev/null
++++ b/app/models/ceri_tables.py
+@@ -0,0 +1,729 @@
++from __future__ import annotations
++
++from datetime import date, datetime
++from decimal import Decimal
++from typing import Any
++
++from sqlalchemy import (
++    BigInteger,
++    Boolean,
++    CheckConstraint,
++    Date,
++    DateTime,
++    Float,
++    ForeignKey,
++    Index,
++    Integer,
++    Numeric,
++    String,
++    Text,
++    UniqueConstraint,
++    func,
++    text,
++)
++from sqlalchemy.dialects.postgresql import JSONB
++from sqlalchemy.orm import Mapped, mapped_column
++
++from app.db import Base
++
++
++class CeriCompany(Base):
++    __tablename__ = "ceri_companies"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    ticker: Mapped[str] = mapped_column(String(32), nullable=False)
++    exchange: Mapped[str | None] = mapped_column(String(32))
++    company_name: Mapped[str | None] = mapped_column(Text)
++    cik: Mapped[str | None] = mapped_column(String(32))
++    current_provider_ids_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    created_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++
++    __table_args__ = (
++        UniqueConstraint("ticker", "exchange", name="uq_ceri_companies_ticker_exchange"),
++        Index("ix_ceri_companies_cik", "cik"),
++    )
++
++
++class CeriCompanyAlias(Base):
++    __tablename__ = "ceri_company_aliases"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    company_id: Mapped[int] = mapped_column(
++        ForeignKey("ceri_companies.id", ondelete="CASCADE"),
++        nullable=False,
++    )
++    provider: Mapped[str] = mapped_column(String(64), nullable=False)
++    alias_type: Mapped[str] = mapped_column(String(64), nullable=False)
++    alias_value: Mapped[str] = mapped_column(String(128), nullable=False)
++    exchange: Mapped[str | None] = mapped_column(String(32))
++    valid_from: Mapped[date | None] = mapped_column(Date)
++    valid_to: Mapped[date | None] = mapped_column(Date)
++    source: Mapped[str | None] = mapped_column(Text)
++    confidence: Mapped[str] = mapped_column(String(32), nullable=False, default="Normal")
++    created_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++
++    __table_args__ = (
++        UniqueConstraint(
++            "provider",
++            "alias_type",
++            "alias_value",
++            "valid_from",
++            "valid_to",
++            name="uq_ceri_company_alias_validity",
++        ),
++        Index("ix_ceri_company_aliases_company", "company_id"),
++        Index("ix_ceri_company_aliases_lookup", "provider", "alias_type", "alias_value"),
++    )
++
++
++class CeriIngestionRun(Base):
++    __tablename__ = "ceri_ingestion_runs"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    provider: Mapped[str] = mapped_column(String(64), nullable=False)
++    provider_terms_version: Mapped[str | None] = mapped_column(Text)
++    dataset: Mapped[str] = mapped_column(String(64), nullable=False)
++    scope_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
++    request_key: Mapped[str] = mapped_column(Text, nullable=False)
++    config_version: Mapped[str | None] = mapped_column(Text)
++    config_hash: Mapped[str | None] = mapped_column(Text)
++    quota_state_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    requested_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    fetched_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    inserted_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    deduplicated_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    corrected_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    quarantined_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    errors_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    warnings_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++    created_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++
++    __table_args__ = (
++        UniqueConstraint("request_key", name="uq_ceri_ingestion_runs_request_key"),
++        Index("ix_ceri_ingestion_runs_provider_dataset_status", "provider", "dataset", "status"),
++    )
++
++
++class CeriProcessingRun(Base):
++    __tablename__ = "ceri_processing_runs"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    job_type: Mapped[str] = mapped_column(String(64), nullable=False)
++    status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
++    deterministic_request_key: Mapped[str] = mapped_column(Text, nullable=False)
++    scope_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    config_version: Mapped[str | None] = mapped_column(Text)
++    config_hash: Mapped[str | None] = mapped_column(Text)
++    cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++    actor: Mapped[str | None] = mapped_column(Text)
++    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    read_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    normalized_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    feature_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    score_snapshot_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    change_event_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    alert_event_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    counts_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    checkpoint_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    errors_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++    execution_token: Mapped[str | None] = mapped_column(Text)
++    duration_ms: Mapped[int | None] = mapped_column(Integer)
++    created_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++
++    __table_args__ = (
++        UniqueConstraint(
++            "deterministic_request_key",
++            name="uq_ceri_processing_runs_request_key",
++        ),
++        Index("ix_ceri_processing_runs_status_checkpoint", "status", "job_type"),
++        Index("ix_ceri_processing_runs_heartbeat", "heartbeat_at"),
++    )
++
++
++class CeriSourceRecord(Base):
++    __tablename__ = "ceri_source_records"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    ingestion_run_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_ingestion_runs.id", ondelete="SET NULL")
++    )
++    provider: Mapped[str] = mapped_column(String(64), nullable=False)
++    provider_terms_version: Mapped[str | None] = mapped_column(Text)
++    dataset: Mapped[str] = mapped_column(String(64), nullable=False)
++    provider_record_id: Mapped[str] = mapped_column(Text, nullable=False)
++    company_hint_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++    observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++    ingested_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++    source_url: Mapped[str | None] = mapped_column(Text)
++    source_reference: Mapped[str | None] = mapped_column(Text)
++    raw_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    restricted_normalized_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
++    idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
++    export_policy: Mapped[str] = mapped_column(String(32), nullable=False, default="exportable")
++    provider_retention_deadline: Mapped[date | None] = mapped_column(Date)
++    supersedes_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_source_records.id", ondelete="SET NULL")
++    )
++    correction_type: Mapped[str | None] = mapped_column(String(64))
++    quarantine_reason: Mapped[str | None] = mapped_column(Text)
++
++    __table_args__ = (
++        UniqueConstraint(
++            "provider",
++            "dataset",
++            "provider_record_id",
++            name="uq_ceri_source_records_provider_record",
++        ),
++        UniqueConstraint("idempotency_key", name="uq_ceri_source_records_idempotency"),
++        Index("ix_ceri_source_records_content_hash", "content_hash"),
++        Index("ix_ceri_source_records_dataset_published", "dataset", "published_at"),
++        Index("ix_ceri_source_records_quarantine", "quarantine_reason"),
++    )
++
++
++class CeriEstimateSnapshot(Base):
++    __tablename__ = "ceri_estimate_snapshots"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    source_record_id: Mapped[int] = mapped_column(
++        ForeignKey("ceri_source_records.id", ondelete="RESTRICT"),
++        nullable=False,
++    )
++    company_id: Mapped[int] = mapped_column(
++        ForeignKey("ceri_companies.id", ondelete="RESTRICT"),
++        nullable=False,
++    )
++    metric: Mapped[str] = mapped_column(String(64), nullable=False)
++    fiscal_period_end: Mapped[date] = mapped_column(Date, nullable=False)
++    period_type: Mapped[str] = mapped_column(String(64), nullable=False)
++    fiscal_year: Mapped[int | None] = mapped_column(Integer)
++    fiscal_quarter: Mapped[int | None] = mapped_column(Integer)
++    consensus: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
++    high: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
++    low: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
++    analyst_count: Mapped[int | None] = mapped_column(Integer)
++    upward_count: Mapped[int | None] = mapped_column(Integer)
++    downward_count: Mapped[int | None] = mapped_column(Integer)
++    source_currency: Mapped[str | None] = mapped_column(String(16))
++    source_scale: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
++    canonical_currency: Mapped[str | None] = mapped_column(String(16))
++    canonical_scale: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
++    conversion_rate: Mapped[Decimal | None] = mapped_column(Numeric(20, 10))
++    conversion_source_record_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_source_records.id", ondelete="SET NULL")
++    )
++    conversion_effective_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++    effective_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++    effective_session: Mapped[date | None] = mapped_column(Date)
++    canonical_observation_key: Mapped[str] = mapped_column(Text, nullable=False)
++    original_fields_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    quality_flags_json: Mapped[list[str] | None] = mapped_column(JSONB)
++
++    __table_args__ = (
++        UniqueConstraint(
++            "company_id",
++            "metric",
++            "period_type",
++            "fiscal_period_end",
++            "canonical_observation_key",
++            name="uq_ceri_estimate_snapshots_observation",
++        ),
++        Index(
++            "ix_ceri_estimate_snapshots_company_metric_effective",
++            "company_id",
++            "metric",
++            "effective_at",
++        ),
++        Index("ix_ceri_estimate_snapshots_effective_session", "effective_session"),
++        CheckConstraint(
++            "analyst_count IS NULL OR analyst_count >= 0",
++            name="ck_ceri_estimates_analysts_nonnegative",
++        ),
++    )
++
++
++class CeriEarningsActual(Base):
++    __tablename__ = "ceri_earnings_actuals"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    source_record_id: Mapped[int] = mapped_column(
++        ForeignKey("ceri_source_records.id", ondelete="RESTRICT"),
++        nullable=False,
++    )
++    company_id: Mapped[int] = mapped_column(
++        ForeignKey("ceri_companies.id", ondelete="RESTRICT"),
++        nullable=False,
++    )
++    metric: Mapped[str] = mapped_column(String(64), nullable=False)
++    period_type: Mapped[str] = mapped_column(String(64), nullable=False)
++    fiscal_period_end: Mapped[date] = mapped_column(Date, nullable=False)
++    report_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++    report_session: Mapped[date | None] = mapped_column(Date)
++    actual_value: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
++    consensus_snapshot_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_estimate_snapshots.id", ondelete="SET NULL")
++    )
++    surprise_absolute: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
++    surprise_pct: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
++    quality_warnings_json: Mapped[list[str] | None] = mapped_column(JSONB)
++
++    __table_args__ = (
++        UniqueConstraint(
++            "source_record_id",
++            "metric",
++            "period_type",
++            "fiscal_period_end",
++            name="uq_ceri_earnings_actuals_source_metric_period",
++        ),
++        Index("ix_ceri_earnings_actuals_company_report", "company_id", "report_session"),
++    )
++
++
++class CeriGuidanceEvent(Base):
++    __tablename__ = "ceri_guidance_events"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    source_record_id: Mapped[int] = mapped_column(
++        ForeignKey("ceri_source_records.id", ondelete="RESTRICT"),
++        nullable=False,
++    )
++    company_id: Mapped[int] = mapped_column(
++        ForeignKey("ceri_companies.id", ondelete="RESTRICT"),
++        nullable=False,
++    )
++    action: Mapped[str] = mapped_column(String(64), nullable=False)
++    metric: Mapped[str | None] = mapped_column(String(64))
++    period_type: Mapped[str | None] = mapped_column(String(64))
++    period_label: Mapped[str | None] = mapped_column(Text)
++    low_value: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
++    high_value: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
++    comparison_basis: Mapped[str | None] = mapped_column(Text)
++    confidence: Mapped[str] = mapped_column(String(32), nullable=False, default="Normal")
++    effective_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++    effective_session: Mapped[date | None] = mapped_column(Date)
++    supersedes_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_guidance_events.id", ondelete="SET NULL")
++    )
++    quality_warnings_json: Mapped[list[str] | None] = mapped_column(JSONB)
++
++    __table_args__ = (
++        Index("ix_ceri_guidance_events_company_effective", "company_id", "effective_session"),
++        Index("ix_ceri_guidance_events_action", "action"),
++    )
++
++
++class CeriCatalystEvent(Base):
++    __tablename__ = "ceri_catalyst_events"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    company_id: Mapped[int] = mapped_column(
++        ForeignKey("ceri_companies.id", ondelete="RESTRICT"),
++        nullable=False,
++    )
++    category: Mapped[str] = mapped_column(String(64), nullable=False)
++    subtype: Mapped[str | None] = mapped_column(String(128))
++    subject_key: Mapped[str] = mapped_column(Text, nullable=False)
++    canonical_text: Mapped[str | None] = mapped_column(Text)
++    first_seen_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++    last_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++
++    __table_args__ = (
++        UniqueConstraint(
++            "company_id",
++            "category",
++            "subject_key",
++            name="uq_ceri_catalyst_events_cluster",
++        ),
++        Index("ix_ceri_catalyst_events_company_category", "company_id", "category"),
++    )
++
++
++class CeriCatalystEventRevision(Base):
++    __tablename__ = "ceri_catalyst_event_revisions"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    catalyst_event_id: Mapped[int] = mapped_column(
++        ForeignKey("ceri_catalyst_events.id", ondelete="CASCADE"),
++        nullable=False,
++    )
++    source_record_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_source_records.id", ondelete="SET NULL")
++    )
++    prior_revision_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_catalyst_event_revisions.id", ondelete="SET NULL")
++    )
++    outcome_revision_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_catalyst_event_revisions.id", ondelete="SET NULL")
++    )
++    revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
++    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
++    announced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++    expected_date: Mapped[date | None] = mapped_column(Date)
++    effective_session: Mapped[date | None] = mapped_column(Date)
++    status: Mapped[str] = mapped_column(String(64), nullable=False)
++    direction: Mapped[str] = mapped_column(String(64), nullable=False)
++    materiality: Mapped[float | None] = mapped_column(Float)
++    date_confidence: Mapped[str | None] = mapped_column(String(64))
++    source_confidence: Mapped[str | None] = mapped_column(String(64))
++    operational_values_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    conflict_flags_json: Mapped[list[str] | None] = mapped_column(JSONB)
++    review_state: Mapped[str | None] = mapped_column(String(64))
++    created_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++
++    __table_args__ = (
++        UniqueConstraint(
++            "catalyst_event_id",
++            "revision_number",
++            name="uq_ceri_catalyst_event_revision_number",
++        ),
++        Index(
++            "uq_ceri_catalyst_event_current_revision",
++            "catalyst_event_id",
++            unique=True,
++            postgresql_where=text("is_current = true"),
++        ),
++        Index("ix_ceri_catalyst_event_revisions_status", "status"),
++    )
++
++
++class CeriCatalystSource(Base):
++    __tablename__ = "ceri_catalyst_sources"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    catalyst_event_id: Mapped[int] = mapped_column(
++        ForeignKey("ceri_catalyst_events.id", ondelete="CASCADE"),
++        nullable=False,
++    )
++    catalyst_revision_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_catalyst_event_revisions.id", ondelete="SET NULL")
++    )
++    source_record_id: Mapped[int] = mapped_column(
++        ForeignKey("ceri_source_records.id", ondelete="RESTRICT"),
++        nullable=False,
++    )
++    source_fields_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    created_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++
++    __table_args__ = (
++        UniqueConstraint(
++            "catalyst_event_id",
++            "source_record_id",
++            name="uq_ceri_catalyst_sources_event_source",
++        ),
++        Index("ix_ceri_catalyst_sources_source", "source_record_id"),
++    )
++
++
++class CeriRevisionFeature(Base):
++    __tablename__ = "ceri_revision_features"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    company_id: Mapped[int] = mapped_column(
++        ForeignKey("ceri_companies.id", ondelete="RESTRICT"),
++        nullable=False,
++    )
++    metric: Mapped[str] = mapped_column(String(64), nullable=False)
++    period_key: Mapped[str] = mapped_column(Text, nullable=False)
++    as_of_session: Mapped[date] = mapped_column(Date, nullable=False)
++    window_days: Mapped[int] = mapped_column(Integer, nullable=False)
++    baseline_snapshot_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_estimate_snapshots.id", ondelete="SET NULL")
++    )
++    current_snapshot_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_estimate_snapshots.id", ondelete="SET NULL")
++    )
++    actual_elapsed_days: Mapped[int | None] = mapped_column(Integer)
++    absolute_change: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
++    pct_change: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
++    upward_count: Mapped[int | None] = mapped_column(Integer)
++    downward_count: Mapped[int | None] = mapped_column(Integer)
++    net_breadth: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
++    dispersion: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
++    acceleration: Mapped[Decimal | None] = mapped_column(Numeric(20, 6))
++    revision_confidence_score: Mapped[float | None] = mapped_column(Float)
++    revision_confidence_label: Mapped[str | None] = mapped_column(String(32))
++    warnings_json: Mapped[list[str] | None] = mapped_column(JSONB)
++    config_version: Mapped[str] = mapped_column(Text, nullable=False)
++    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
++    calculation_version: Mapped[str] = mapped_column(Text, nullable=False)
++
++    __table_args__ = (
++        UniqueConstraint(
++            "company_id",
++            "metric",
++            "period_key",
++            "as_of_session",
++            "window_days",
++            "config_hash",
++            "calculation_version",
++            name="uq_ceri_revision_features_identity",
++        ),
++        Index("ix_ceri_revision_features_company_session", "company_id", "as_of_session"),
++    )
++
++
++class CeriScoreSnapshot(Base):
++    __tablename__ = "ceri_score_snapshots"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    run_id: Mapped[int | None] = mapped_column(ForeignKey("upload_runs.id", ondelete="SET NULL"))
++    source_run_id_text: Mapped[str | None] = mapped_column(Text)
++    company_id: Mapped[int] = mapped_column(
++        ForeignKey("ceri_companies.id", ondelete="RESTRICT"),
++        nullable=False,
++    )
++    ticker: Mapped[str] = mapped_column(String(32), nullable=False)
++    as_of_session: Mapped[date] = mapped_column(Date, nullable=False)
++    cutoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
++    opportunity_score: Mapped[float | None] = mapped_column(Float)
++    event_risk_score: Mapped[float | None] = mapped_column(Float)
++    data_confidence: Mapped[str] = mapped_column(String(32), nullable=False)
++    coverage_pct: Mapped[float] = mapped_column(Float, nullable=False)
++    posture: Mapped[str] = mapped_column(String(64), nullable=False)
++    earnings_proximity_risk: Mapped[float | None] = mapped_column(Float)
++    alignment_flags_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    top_positive_contributors_json: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
++    top_negative_contributors_json: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
++    component_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    reasons_json: Mapped[list[str] | None] = mapped_column(JSONB)
++    warnings_json: Mapped[list[str] | None] = mapped_column(JSONB)
++    config_version: Mapped[str] = mapped_column(Text, nullable=False)
++    config_hash: Mapped[str] = mapped_column(Text, nullable=False)
++    calculation_version: Mapped[str] = mapped_column(Text, nullable=False)
++    evidence_hash: Mapped[str] = mapped_column(Text, nullable=False)
++    created_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++
++    __table_args__ = (
++        UniqueConstraint(
++            "run_id",
++            "company_id",
++            "config_hash",
++            "calculation_version",
++            name="uq_ceri_score_snapshots_run_company_version",
++        ),
++        Index("ix_ceri_score_snapshots_run_ticker", "run_id", "ticker"),
++        Index("ix_ceri_score_snapshots_scores", "opportunity_score", "event_risk_score"),
++        Index("ix_ceri_score_snapshots_confidence", "data_confidence"),
++    )
++
++
++class CeriChangeEvent(Base):
++    __tablename__ = "ceri_change_events"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    company_id: Mapped[int] = mapped_column(
++        ForeignKey("ceri_companies.id", ondelete="RESTRICT"),
++        nullable=False,
++    )
++    from_snapshot_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_score_snapshots.id", ondelete="SET NULL")
++    )
++    to_snapshot_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_score_snapshots.id", ondelete="SET NULL")
++    )
++    catalyst_revision_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_catalyst_event_revisions.id", ondelete="SET NULL")
++    )
++    change_type: Mapped[str] = mapped_column(String(64), nullable=False)
++    severity: Mapped[str] = mapped_column(String(32), nullable=False)
++    delta_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    dedup_key: Mapped[str] = mapped_column(Text, nullable=False)
++    created_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++
++    __table_args__ = (
++        UniqueConstraint("dedup_key", name="uq_ceri_change_events_dedup_key"),
++        Index("ix_ceri_change_events_company_created", "company_id", "created_at"),
++        Index("ix_ceri_change_events_type", "change_type"),
++    )
++
++
++class CeriManualReview(Base):
++    __tablename__ = "ceri_manual_reviews"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    target_type: Mapped[str] = mapped_column(String(64), nullable=False)
++    target_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
++    prior_value_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    new_value_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    reviewer: Mapped[str] = mapped_column(Text, nullable=False)
++    reason: Mapped[str] = mapped_column(Text, nullable=False)
++    prior_review_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_manual_reviews.id", ondelete="SET NULL")
++    )
++    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
++    created_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++
++    __table_args__ = (
++        Index(
++            "uq_ceri_manual_reviews_active_target",
++            "target_type",
++            "target_id",
++            unique=True,
++            postgresql_where=text("is_current = true"),
++        ),
++        Index("ix_ceri_manual_reviews_target", "target_type", "target_id"),
++    )
++
++
++class CeriAlertRule(Base):
++    __tablename__ = "ceri_alert_rules"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    rule_id: Mapped[str] = mapped_column(String(128), nullable=False)
++    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
++    severity: Mapped[str] = mapped_column(String(32), nullable=False)
++    thresholds_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    scope_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    cooldown_sessions: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
++    config_version: Mapped[str] = mapped_column(Text, nullable=False)
++    source_event_types_json: Mapped[list[str] | None] = mapped_column(JSONB)
++    created_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++
++    __table_args__ = (UniqueConstraint("rule_id", name="uq_ceri_alert_rules_rule_id"),)
++
++
++class CeriAlertEvent(Base):
++    __tablename__ = "ceri_alert_events"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    alert_rule_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_alert_rules.id", ondelete="SET NULL")
++    )
++    source_change_event_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_change_events.id", ondelete="SET NULL")
++    )
++    source_catalyst_revision_id: Mapped[int | None] = mapped_column(
++        ForeignKey("ceri_catalyst_event_revisions.id", ondelete="SET NULL")
++    )
++    event_key: Mapped[str] = mapped_column(Text, nullable=False)
++    ticker: Mapped[str] = mapped_column(String(32), nullable=False)
++    severity: Mapped[str] = mapped_column(String(32), nullable=False)
++    status: Mapped[str] = mapped_column(String(32), nullable=False, default="UNREAD")
++    evidence_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    created_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++
++    __table_args__ = (
++        UniqueConstraint("event_key", name="uq_ceri_alert_events_event_key"),
++        Index("ix_ceri_alert_events_status_created", "status", "created_at"),
++        Index("ix_ceri_alert_events_ticker", "ticker"),
++    )
++
++
++class CeriPurgeAudit(Base):
++    __tablename__ = "ceri_purge_audits"
++
++    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
++    provider: Mapped[str] = mapped_column(String(64), nullable=False)
++    license_scope: Mapped[str] = mapped_column(Text, nullable=False)
++    preview_manifest_hash: Mapped[str] = mapped_column(Text, nullable=False)
++    actor: Mapped[str] = mapped_column(Text, nullable=False)
++    reason: Mapped[str] = mapped_column(Text, nullable=False)
++    confirmation_token_hash: Mapped[str | None] = mapped_column(Text)
++    affected_counts_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    invalidated_derivatives_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
++    status: Mapped[str] = mapped_column(String(32), nullable=False, default="PREVIEWED")
++    previewed_at: Mapped[datetime] = mapped_column(
++        DateTime(timezone=True),
++        nullable=False,
++        server_default=func.now(),
++    )
++    executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
++
++    __table_args__ = (
++        UniqueConstraint(
++            "provider",
++            "license_scope",
++            "preview_manifest_hash",
++            name="uq_ceri_purge_audits_preview_scope",
++        ),
++        Index("ix_ceri_purge_audits_status", "status"),
++    )
++
++
++CERI_TABLES = (
++    CeriCompany.__table__,
++    CeriCompanyAlias.__table__,
++    CeriIngestionRun.__table__,
++    CeriProcessingRun.__table__,
++    CeriSourceRecord.__table__,
++    CeriEstimateSnapshot.__table__,
++    CeriEarningsActual.__table__,
++    CeriGuidanceEvent.__table__,
++    CeriCatalystEvent.__table__,
++    CeriCatalystEventRevision.__table__,
++    CeriCatalystSource.__table__,
++    CeriRevisionFeature.__table__,
++    CeriScoreSnapshot.__table__,
++    CeriChangeEvent.__table__,
++    CeriManualReview.__table__,
++    CeriAlertRule.__table__,
++    CeriAlertEvent.__table__,
++    CeriPurgeAudit.__table__,
++)
+
+commit 4a9769f1a035f1a68fa8042466b90be7502e2a13
+Author:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+AuthorDate: Sun Aug 2 18:11:52 2026 +0200
+Commit:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+CommitDate: Sun Aug 2 18:11:52 2026 +0200
+
+    Add migration remediation gates
+
+diff --git a/alembic/versions/20260801_0018_add_ceri_tables.py b/alembic/versions/20260801_0018_add_ceri_tables.py
+index 40cd6dd..cc62545 100644
+--- a/alembic/versions/20260801_0018_add_ceri_tables.py
++++ b/alembic/versions/20260801_0018_add_ceri_tables.py
+@@ -5,25 +5,484 @@ Revises: 0017_create_setup_lifecycle_tables
+ Create Date: 2026-08-01 00:00:00.000000
+ """
+ 
++# ruff: noqa: E501
++
+ from collections.abc import Sequence
+ 
+ from alembic import op
+ 
+-from app.models.ceri_tables import CERI_TABLES
+-
+ revision: str = "0018_add_ceri_tables"
+ down_revision: str | None = "0017_create_setup_lifecycle_tables"
+ branch_labels: str | Sequence[str] | None = None
+ depends_on: str | Sequence[str] | None = None
+ 
+ 
++CERI_TABLE_NAMES = (
++    "ceri_companies",
++    "ceri_company_aliases",
++    "ceri_ingestion_runs",
++    "ceri_processing_runs",
++    "ceri_source_records",
++    "ceri_estimate_snapshots",
++    "ceri_earnings_actuals",
++    "ceri_guidance_events",
++    "ceri_catalyst_events",
++    "ceri_catalyst_event_revisions",
++    "ceri_catalyst_sources",
++    "ceri_revision_features",
++    "ceri_score_snapshots",
++    "ceri_change_events",
++    "ceri_manual_reviews",
++    "ceri_alert_rules",
++    "ceri_alert_events",
++    "ceri_purge_audits",
++)
++
++
++CREATE_TABLE_SQL = (
++    r"""CREATE TABLE ceri_companies (
++	id BIGSERIAL NOT NULL,
++	ticker VARCHAR(32) NOT NULL,
++	exchange VARCHAR(32),
++	company_name TEXT,
++	cik VARCHAR(32),
++	current_provider_ids_json JSONB,
++	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
++	updated_at TIMESTAMP WITH TIME ZONE,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_companies_ticker_exchange UNIQUE (ticker, exchange)
++);""",
++    r"""CREATE INDEX ix_ceri_companies_cik ON ceri_companies (cik);""",
++    r"""CREATE TABLE ceri_company_aliases (
++	id BIGSERIAL NOT NULL,
++	company_id BIGINT NOT NULL,
++	provider VARCHAR(64) NOT NULL,
++	alias_type VARCHAR(64) NOT NULL,
++	alias_value VARCHAR(128) NOT NULL,
++	exchange VARCHAR(32),
++	valid_from DATE,
++	valid_to DATE,
++	source TEXT,
++	confidence VARCHAR(32) NOT NULL,
++	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_company_alias_validity UNIQUE (provider, alias_type, alias_value, valid_from, valid_to),
++	FOREIGN KEY(company_id) REFERENCES ceri_companies (id) ON DELETE CASCADE
++);""",
++    r"""CREATE INDEX ix_ceri_company_aliases_company ON ceri_company_aliases (company_id);""",
++    r"""CREATE INDEX ix_ceri_company_aliases_lookup ON ceri_company_aliases (provider, alias_type, alias_value);""",
++    r"""CREATE TABLE ceri_ingestion_runs (
++	id BIGSERIAL NOT NULL,
++	provider VARCHAR(64) NOT NULL,
++	provider_terms_version TEXT,
++	dataset VARCHAR(64) NOT NULL,
++	scope_json JSONB,
++	status VARCHAR(32) NOT NULL,
++	request_key TEXT NOT NULL,
++	config_version TEXT,
++	config_hash TEXT,
++	quota_state_json JSONB,
++	retry_count INTEGER NOT NULL,
++	checkpoint_json JSONB,
++	requested_count INTEGER NOT NULL,
++	fetched_count INTEGER NOT NULL,
++	inserted_count INTEGER NOT NULL,
++	deduplicated_count INTEGER NOT NULL,
++	corrected_count INTEGER NOT NULL,
++	quarantined_count INTEGER NOT NULL,
++	failed_count INTEGER NOT NULL,
++	warning_count INTEGER NOT NULL,
++	errors_json JSONB,
++	warnings_json JSONB,
++	duration_ms INTEGER,
++	started_at TIMESTAMP WITH TIME ZONE,
++	completed_at TIMESTAMP WITH TIME ZONE,
++	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_ingestion_runs_request_key UNIQUE (request_key)
++);""",
++    r"""CREATE INDEX ix_ceri_ingestion_runs_provider_dataset_status ON ceri_ingestion_runs (provider, dataset, status);""",
++    r"""CREATE TABLE ceri_processing_runs (
++	id BIGSERIAL NOT NULL,
++	job_type VARCHAR(64) NOT NULL,
++	status VARCHAR(32) NOT NULL,
++	deterministic_request_key TEXT NOT NULL,
++	scope_json JSONB,
++	config_version TEXT,
++	config_hash TEXT,
++	cutoff_at TIMESTAMP WITH TIME ZONE,
++	actor TEXT,
++	retry_count INTEGER NOT NULL,
++	read_count INTEGER NOT NULL,
++	normalized_count INTEGER NOT NULL,
++	feature_count INTEGER NOT NULL,
++	score_snapshot_count INTEGER NOT NULL,
++	change_event_count INTEGER NOT NULL,
++	alert_event_count INTEGER NOT NULL,
++	warning_count INTEGER NOT NULL,
++	failed_count INTEGER NOT NULL,
++	counts_json JSONB,
++	checkpoint_json JSONB,
++	errors_json JSONB,
++	heartbeat_at TIMESTAMP WITH TIME ZONE,
++	execution_token TEXT,
++	duration_ms INTEGER,
++	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
++	started_at TIMESTAMP WITH TIME ZONE,
++	completed_at TIMESTAMP WITH TIME ZONE,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_processing_runs_request_key UNIQUE (deterministic_request_key)
++);""",
++    r"""CREATE INDEX ix_ceri_processing_runs_heartbeat ON ceri_processing_runs (heartbeat_at);""",
++    r"""CREATE INDEX ix_ceri_processing_runs_status_checkpoint ON ceri_processing_runs (status, job_type);""",
++    r"""CREATE TABLE ceri_source_records (
++	id BIGSERIAL NOT NULL,
++	ingestion_run_id BIGINT,
++	provider VARCHAR(64) NOT NULL,
++	provider_terms_version TEXT,
++	dataset VARCHAR(64) NOT NULL,
++	provider_record_id TEXT NOT NULL,
++	company_hint_json JSONB,
++	published_at TIMESTAMP WITH TIME ZONE,
++	observed_at TIMESTAMP WITH TIME ZONE,
++	ingested_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
++	source_url TEXT,
++	source_reference TEXT,
++	raw_json JSONB,
++	restricted_normalized_json JSONB,
++	content_hash VARCHAR(128) NOT NULL,
++	idempotency_key TEXT NOT NULL,
++	export_policy VARCHAR(32) NOT NULL,
++	provider_retention_deadline DATE,
++	supersedes_id BIGINT,
++	correction_type VARCHAR(64),
++	quarantine_reason TEXT,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_source_records_provider_record UNIQUE (provider, dataset, provider_record_id),
++	CONSTRAINT uq_ceri_source_records_idempotency UNIQUE (idempotency_key),
++	FOREIGN KEY(ingestion_run_id) REFERENCES ceri_ingestion_runs (id) ON DELETE SET NULL,
++	FOREIGN KEY(supersedes_id) REFERENCES ceri_source_records (id) ON DELETE SET NULL
++);""",
++    r"""CREATE INDEX ix_ceri_source_records_content_hash ON ceri_source_records (content_hash);""",
++    r"""CREATE INDEX ix_ceri_source_records_dataset_published ON ceri_source_records (dataset, published_at);""",
++    r"""CREATE INDEX ix_ceri_source_records_quarantine ON ceri_source_records (quarantine_reason);""",
++    r"""CREATE TABLE ceri_estimate_snapshots (
++	id BIGSERIAL NOT NULL,
++	source_record_id BIGINT NOT NULL,
++	company_id BIGINT NOT NULL,
++	metric VARCHAR(64) NOT NULL,
++	fiscal_period_end DATE NOT NULL,
++	period_type VARCHAR(64) NOT NULL,
++	fiscal_year INTEGER,
++	fiscal_quarter INTEGER,
++	consensus NUMERIC(20, 6),
++	high NUMERIC(20, 6),
++	low NUMERIC(20, 6),
++	analyst_count INTEGER,
++	upward_count INTEGER,
++	downward_count INTEGER,
++	source_currency VARCHAR(16),
++	source_scale NUMERIC(20, 6),
++	canonical_currency VARCHAR(16),
++	canonical_scale NUMERIC(20, 6),
++	conversion_rate NUMERIC(20, 10),
++	conversion_source_record_id BIGINT,
++	conversion_effective_at TIMESTAMP WITH TIME ZONE,
++	effective_at TIMESTAMP WITH TIME ZONE,
++	effective_session DATE,
++	canonical_observation_key TEXT NOT NULL,
++	original_fields_json JSONB,
++	quality_flags_json JSONB,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_estimate_snapshots_observation UNIQUE (company_id, metric, period_type, fiscal_period_end, canonical_observation_key),
++	CONSTRAINT ck_ceri_estimates_analysts_nonnegative CHECK (analyst_count IS NULL OR analyst_count >= 0),
++	FOREIGN KEY(source_record_id) REFERENCES ceri_source_records (id) ON DELETE RESTRICT,
++	FOREIGN KEY(company_id) REFERENCES ceri_companies (id) ON DELETE RESTRICT,
++	FOREIGN KEY(conversion_source_record_id) REFERENCES ceri_source_records (id) ON DELETE SET NULL
++);""",
++    r"""CREATE INDEX ix_ceri_estimate_snapshots_company_metric_effective ON ceri_estimate_snapshots (company_id, metric, effective_at);""",
++    r"""CREATE INDEX ix_ceri_estimate_snapshots_effective_session ON ceri_estimate_snapshots (effective_session);""",
++    r"""CREATE TABLE ceri_earnings_actuals (
++	id BIGSERIAL NOT NULL,
++	source_record_id BIGINT NOT NULL,
++	company_id BIGINT NOT NULL,
++	metric VARCHAR(64) NOT NULL,
++	period_type VARCHAR(64) NOT NULL,
++	fiscal_period_end DATE NOT NULL,
++	report_at TIMESTAMP WITH TIME ZONE,
++	report_session DATE,
++	actual_value NUMERIC(20, 6),
++	consensus_snapshot_id BIGINT,
++	consensus_selection_reason TEXT,
++	surprise_absolute NUMERIC(20, 6),
++	surprise_pct NUMERIC(20, 6),
++	quality_warnings_json JSONB,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_earnings_actuals_source_metric_period UNIQUE (source_record_id, metric, period_type, fiscal_period_end),
++	FOREIGN KEY(source_record_id) REFERENCES ceri_source_records (id) ON DELETE RESTRICT,
++	FOREIGN KEY(company_id) REFERENCES ceri_companies (id) ON DELETE RESTRICT,
++	FOREIGN KEY(consensus_snapshot_id) REFERENCES ceri_estimate_snapshots (id) ON DELETE SET NULL
++);""",
++    r"""CREATE INDEX ix_ceri_earnings_actuals_company_report ON ceri_earnings_actuals (company_id, report_session);""",
++    r"""CREATE TABLE ceri_guidance_events (
++	id BIGSERIAL NOT NULL,
++	source_record_id BIGINT NOT NULL,
++	company_id BIGINT NOT NULL,
++	action VARCHAR(64) NOT NULL,
++	metric VARCHAR(64),
++	period_type VARCHAR(64),
++	period_label TEXT,
++	low_value NUMERIC(20, 6),
++	high_value NUMERIC(20, 6),
++	comparison_basis TEXT,
++	confidence VARCHAR(32) NOT NULL,
++	effective_at TIMESTAMP WITH TIME ZONE,
++	effective_session DATE,
++	supersedes_id BIGINT,
++	quality_warnings_json JSONB,
++	PRIMARY KEY (id),
++	FOREIGN KEY(source_record_id) REFERENCES ceri_source_records (id) ON DELETE RESTRICT,
++	FOREIGN KEY(company_id) REFERENCES ceri_companies (id) ON DELETE RESTRICT,
++	FOREIGN KEY(supersedes_id) REFERENCES ceri_guidance_events (id) ON DELETE SET NULL
++);""",
++    r"""CREATE INDEX ix_ceri_guidance_events_action ON ceri_guidance_events (action);""",
++    r"""CREATE INDEX ix_ceri_guidance_events_company_effective ON ceri_guidance_events (company_id, effective_session);""",
++    r"""CREATE TABLE ceri_catalyst_events (
++	id BIGSERIAL NOT NULL,
++	company_id BIGINT NOT NULL,
++	category VARCHAR(64) NOT NULL,
++	subtype VARCHAR(128),
++	subject_key TEXT NOT NULL,
++	canonical_text TEXT,
++	first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
++	last_updated_at TIMESTAMP WITH TIME ZONE,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_catalyst_events_cluster UNIQUE (company_id, category, subject_key),
++	FOREIGN KEY(company_id) REFERENCES ceri_companies (id) ON DELETE RESTRICT
++);""",
++    r"""CREATE INDEX ix_ceri_catalyst_events_company_category ON ceri_catalyst_events (company_id, category);""",
++    r"""CREATE TABLE ceri_catalyst_event_revisions (
++	id BIGSERIAL NOT NULL,
++	catalyst_event_id BIGINT NOT NULL,
++	source_record_id BIGINT,
++	prior_revision_id BIGINT,
++	outcome_revision_id BIGINT,
++	revision_number INTEGER NOT NULL,
++	is_current BOOLEAN NOT NULL,
++	announced_at TIMESTAMP WITH TIME ZONE,
++	expected_date DATE,
++	effective_session DATE,
++	status VARCHAR(64) NOT NULL,
++	direction VARCHAR(64) NOT NULL,
++	materiality FLOAT,
++	date_confidence VARCHAR(64),
++	source_confidence VARCHAR(64),
++	operational_values_json JSONB,
++	conflict_flags_json JSONB,
++	review_state VARCHAR(64),
++	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_catalyst_event_revision_number UNIQUE (catalyst_event_id, revision_number),
++	FOREIGN KEY(catalyst_event_id) REFERENCES ceri_catalyst_events (id) ON DELETE CASCADE,
++	FOREIGN KEY(source_record_id) REFERENCES ceri_source_records (id) ON DELETE SET NULL,
++	FOREIGN KEY(prior_revision_id) REFERENCES ceri_catalyst_event_revisions (id) ON DELETE SET NULL,
++	FOREIGN KEY(outcome_revision_id) REFERENCES ceri_catalyst_event_revisions (id) ON DELETE SET NULL
++);""",
++    r"""CREATE INDEX ix_ceri_catalyst_event_revisions_status ON ceri_catalyst_event_revisions (status);""",
++    r"""CREATE UNIQUE INDEX uq_ceri_catalyst_event_current_revision ON ceri_catalyst_event_revisions (catalyst_event_id) WHERE is_current = true;""",
++    r"""CREATE TABLE ceri_catalyst_sources (
++	id BIGSERIAL NOT NULL,
++	catalyst_event_id BIGINT NOT NULL,
++	catalyst_revision_id BIGINT,
++	source_record_id BIGINT NOT NULL,
++	source_fields_json JSONB,
++	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_catalyst_sources_event_source UNIQUE (catalyst_event_id, source_record_id),
++	FOREIGN KEY(catalyst_event_id) REFERENCES ceri_catalyst_events (id) ON DELETE CASCADE,
++	FOREIGN KEY(catalyst_revision_id) REFERENCES ceri_catalyst_event_revisions (id) ON DELETE SET NULL,
++	FOREIGN KEY(source_record_id) REFERENCES ceri_source_records (id) ON DELETE RESTRICT
++);""",
++    r"""CREATE INDEX ix_ceri_catalyst_sources_source ON ceri_catalyst_sources (source_record_id);""",
++    r"""CREATE TABLE ceri_revision_features (
++	id BIGSERIAL NOT NULL,
++	company_id BIGINT NOT NULL,
++	metric VARCHAR(64) NOT NULL,
++	period_key TEXT NOT NULL,
++	as_of_session DATE NOT NULL,
++	window_days INTEGER NOT NULL,
++	baseline_snapshot_id BIGINT,
++	current_snapshot_id BIGINT,
++	actual_elapsed_days INTEGER,
++	absolute_change NUMERIC(20, 6),
++	pct_change NUMERIC(20, 6),
++	upward_count INTEGER,
++	downward_count INTEGER,
++	net_breadth NUMERIC(10, 6),
++	dispersion NUMERIC(10, 6),
++	acceleration NUMERIC(20, 6),
++	revision_confidence_score FLOAT,
++	revision_confidence_label VARCHAR(32),
++	warnings_json JSONB,
++	source_observation_ids_json JSONB,
++	provider_selection_reason TEXT,
++	unavailable_reason TEXT,
++	evidence_hash TEXT,
++	config_version TEXT NOT NULL,
++	config_hash TEXT NOT NULL,
++	calculation_version TEXT NOT NULL,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_revision_features_identity UNIQUE (company_id, metric, period_key, as_of_session, window_days, config_hash, calculation_version),
++	FOREIGN KEY(company_id) REFERENCES ceri_companies (id) ON DELETE RESTRICT,
++	FOREIGN KEY(baseline_snapshot_id) REFERENCES ceri_estimate_snapshots (id) ON DELETE SET NULL,
++	FOREIGN KEY(current_snapshot_id) REFERENCES ceri_estimate_snapshots (id) ON DELETE SET NULL
++);""",
++    r"""CREATE INDEX ix_ceri_revision_features_company_session ON ceri_revision_features (company_id, as_of_session);""",
++    r"""CREATE TABLE ceri_score_snapshots (
++	id BIGSERIAL NOT NULL,
++	run_id BIGINT,
++	source_run_id_text TEXT,
++	company_id BIGINT NOT NULL,
++	ticker VARCHAR(32) NOT NULL,
++	as_of_session DATE NOT NULL,
++	cutoff_at TIMESTAMP WITH TIME ZONE NOT NULL,
++	opportunity_score FLOAT,
++	event_risk_score FLOAT,
++	data_confidence VARCHAR(32) NOT NULL,
++	coverage_pct FLOAT NOT NULL,
++	posture VARCHAR(64) NOT NULL,
++	earnings_proximity_risk FLOAT,
++	alignment_flags_json JSONB,
++	top_positive_contributors_json JSONB,
++	top_negative_contributors_json JSONB,
++	component_json JSONB,
++	reasons_json JSONB,
++	warnings_json JSONB,
++	config_version TEXT NOT NULL,
++	config_hash TEXT NOT NULL,
++	calculation_version TEXT NOT NULL,
++	evidence_hash TEXT NOT NULL,
++	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_score_snapshots_run_company_version UNIQUE (run_id, company_id, config_hash, calculation_version),
++	FOREIGN KEY(run_id) REFERENCES upload_runs (id) ON DELETE SET NULL,
++	FOREIGN KEY(company_id) REFERENCES ceri_companies (id) ON DELETE RESTRICT
++);""",
++    r"""CREATE INDEX ix_ceri_score_snapshots_confidence ON ceri_score_snapshots (data_confidence);""",
++    r"""CREATE INDEX ix_ceri_score_snapshots_run_ticker ON ceri_score_snapshots (run_id, ticker);""",
++    r"""CREATE INDEX ix_ceri_score_snapshots_scores ON ceri_score_snapshots (opportunity_score, event_risk_score);""",
++    r"""CREATE TABLE ceri_change_events (
++	id BIGSERIAL NOT NULL,
++	company_id BIGINT NOT NULL,
++	from_snapshot_id BIGINT,
++	to_snapshot_id BIGINT,
++	catalyst_revision_id BIGINT,
++	change_type VARCHAR(64) NOT NULL,
++	severity VARCHAR(32) NOT NULL,
++	delta_json JSONB,
++	dedup_key TEXT NOT NULL,
++	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_change_events_dedup_key UNIQUE (dedup_key),
++	FOREIGN KEY(company_id) REFERENCES ceri_companies (id) ON DELETE RESTRICT,
++	FOREIGN KEY(from_snapshot_id) REFERENCES ceri_score_snapshots (id) ON DELETE SET NULL,
++	FOREIGN KEY(to_snapshot_id) REFERENCES ceri_score_snapshots (id) ON DELETE SET NULL,
++	FOREIGN KEY(catalyst_revision_id) REFERENCES ceri_catalyst_event_revisions (id) ON DELETE SET NULL
++);""",
++    r"""CREATE INDEX ix_ceri_change_events_company_created ON ceri_change_events (company_id, created_at);""",
++    r"""CREATE INDEX ix_ceri_change_events_type ON ceri_change_events (change_type);""",
++    r"""CREATE TABLE ceri_manual_reviews (
++	id BIGSERIAL NOT NULL,
++	target_type VARCHAR(64) NOT NULL,
++	target_id BIGINT NOT NULL,
++	prior_value_json JSONB,
++	new_value_json JSONB,
++	reviewer TEXT NOT NULL,
++	reason TEXT NOT NULL,
++	prior_review_id BIGINT,
++	is_current BOOLEAN NOT NULL,
++	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
++	PRIMARY KEY (id),
++	FOREIGN KEY(prior_review_id) REFERENCES ceri_manual_reviews (id) ON DELETE SET NULL
++);""",
++    r"""CREATE INDEX ix_ceri_manual_reviews_target ON ceri_manual_reviews (target_type, target_id);""",
++    r"""CREATE UNIQUE INDEX uq_ceri_manual_reviews_active_target ON ceri_manual_reviews (target_type, target_id) WHERE is_current = true;""",
++    r"""CREATE TABLE ceri_alert_rules (
++	id BIGSERIAL NOT NULL,
++	rule_id VARCHAR(128) NOT NULL,
++	enabled BOOLEAN NOT NULL,
++	severity VARCHAR(32) NOT NULL,
++	thresholds_json JSONB,
++	scope_json JSONB,
++	cooldown_sessions INTEGER NOT NULL,
++	config_version TEXT NOT NULL,
++	source_event_types_json JSONB,
++	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_alert_rules_rule_id UNIQUE (rule_id)
++);""",
++    r"""CREATE TABLE ceri_alert_events (
++	id BIGSERIAL NOT NULL,
++	alert_rule_id BIGINT,
++	source_change_event_id BIGINT,
++	source_catalyst_revision_id BIGINT,
++	event_key TEXT NOT NULL,
++	ticker VARCHAR(32) NOT NULL,
++	severity VARCHAR(32) NOT NULL,
++	status VARCHAR(32) NOT NULL,
++	evidence_json JSONB,
++	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
++	acknowledged_at TIMESTAMP WITH TIME ZONE,
++	dismissed_at TIMESTAMP WITH TIME ZONE,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_alert_events_event_key UNIQUE (event_key),
++	FOREIGN KEY(alert_rule_id) REFERENCES ceri_alert_rules (id) ON DELETE SET NULL,
++	FOREIGN KEY(source_change_event_id) REFERENCES ceri_change_events (id) ON DELETE SET NULL,
++	FOREIGN KEY(source_catalyst_revision_id) REFERENCES ceri_catalyst_event_revisions (id) ON DELETE SET NULL
++);""",
++    r"""CREATE INDEX ix_ceri_alert_events_status_created ON ceri_alert_events (status, created_at);""",
++    r"""CREATE INDEX ix_ceri_alert_events_ticker ON ceri_alert_events (ticker);""",
++    r"""CREATE TABLE ceri_purge_audits (
++	id BIGSERIAL NOT NULL,
++	provider VARCHAR(64) NOT NULL,
++	license_scope TEXT NOT NULL,
++	preview_manifest_hash TEXT NOT NULL,
++	actor TEXT NOT NULL,
++	reason TEXT NOT NULL,
++	confirmation_token_hash TEXT,
++	affected_counts_json JSONB,
++	invalidated_derivatives_json JSONB,
++	status VARCHAR(32) NOT NULL,
++	previewed_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
++	executed_at TIMESTAMP WITH TIME ZONE,
++	PRIMARY KEY (id),
++	CONSTRAINT uq_ceri_purge_audits_preview_scope UNIQUE (provider, license_scope, preview_manifest_hash)
++);""",
++    r"""CREATE INDEX ix_ceri_purge_audits_status ON ceri_purge_audits (status);""",
++)
++
++
+ def upgrade() -> None:
+-    bind = op.get_bind()
+-    for table in CERI_TABLES:
+-        table.create(bind=bind, checkfirst=False)
++    for statement in CREATE_TABLE_SQL:
++        op.execute(statement)
+ 
+ 
+ def downgrade() -> None:
+-    bind = op.get_bind()
+-    for table in reversed(CERI_TABLES):
+-        table.drop(bind=bind, checkfirst=False)
++    op.drop_table("ceri_purge_audits")
++    op.drop_table("ceri_alert_events")
++    op.drop_table("ceri_alert_rules")
++    op.drop_table("ceri_manual_reviews")
++    op.drop_table("ceri_change_events")
++    op.drop_table("ceri_score_snapshots")
++    op.drop_table("ceri_revision_features")
++    op.drop_table("ceri_catalyst_sources")
++    op.drop_table("ceri_catalyst_event_revisions")
++    op.drop_table("ceri_catalyst_events")
++    op.drop_table("ceri_guidance_events")
++    op.drop_table("ceri_earnings_actuals")
++    op.drop_table("ceri_estimate_snapshots")
++    op.drop_table("ceri_source_records")
++    op.drop_table("ceri_processing_runs")
++    op.drop_table("ceri_ingestion_runs")
++    op.drop_table("ceri_company_aliases")
++    op.drop_table("ceri_companies")
+
+commit 8e56c8ddb62f2eda9058eeb70607b20739f3144f
+Author:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+AuthorDate: Sat Aug 8 17:37:19 2026 +0200
+Commit:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+CommitDate: Sat Aug 8 17:37:19 2026 +0200
+
+    Fix CERI capture and winner outcome processing
+
+diff --git a/app/services/ceri/capture_service.py b/app/services/ceri/capture_service.py
+index 58534c4..43ca55b 100644
+--- a/app/services/ceri/capture_service.py
++++ b/app/services/ceri/capture_service.py
+@@ -82,6 +82,19 @@ class CeriRunCaptureService:
+         if not rows:
+             return CeriRunCaptureResult(skipped=1)
+         cutoff_at = _utcnow()
++        companies_by_ticker = _companies_for_tickers(
++            db, {str(row.ticker).upper() for row in rows}
++        )
++        company_ids = {company.id for company in companies_by_ticker.values()}
++        features_by_company = _revision_features_for_companies(
++            db, company_ids, cutoff_at.date()
++        )
++        existing_snapshot_company_ids = _existing_snapshot_company_ids(
++            db,
++            run_id,
++            company_ids,
++            self.snapshot_service.config,
++        )
+         counts = {
+             "score_snapshots": 0,
+             "change_events": 0,
+@@ -95,14 +108,14 @@ class CeriRunCaptureService:
+         }
+         for row in rows:
+             try:
+-                company = _company_for_ticker(db, row.ticker)
++                company = companies_by_ticker.get(str(row.ticker).upper())
+                 if company is None:
+                     counts["unrated"] += 1
+                     continue
+-                if _existing_snapshot(db, run_id, company.id, self.snapshot_service.config):
++                if company.id in existing_snapshot_company_ids:
+                     counts["skipped"] += 1
+                     continue
+-                features = _revision_features(db, company.id, cutoff_at.date())
++                features = features_by_company.get(company.id, [])
+                 if not features:
+                     counts["unrated"] += 1
+                     continue
+@@ -252,6 +265,18 @@ def _company_for_ticker(db: Session, ticker: str) -> CeriCompany | None:
+     )
+ 
+ 
++def _companies_for_tickers(
++    db: Session, tickers: set[str]
++) -> dict[str, CeriCompany]:
++    if not tickers:
++        return {}
++    companies = _scalars(
++        db,
++        select(CeriCompany).where(CeriCompany.ticker.in_(sorted(tickers))),
++    )
++    return {company.ticker.upper(): company for company in companies}
++
++
+ def _revision_features(
+     db: Session,
+     company_id: int,
+@@ -265,6 +290,25 @@ def _revision_features(
+     )
+ 
+ 
++def _revision_features_for_companies(
++    db: Session,
++    company_ids: set[int],
++    as_of_session,
++) -> dict[int, list[CeriRevisionFeature]]:
++    if not company_ids:
++        return {}
++    features = _scalars(
++        db,
++        select(CeriRevisionFeature)
++        .where(CeriRevisionFeature.company_id.in_(sorted(company_ids)))
++        .where(CeriRevisionFeature.as_of_session == as_of_session),
++    )
++    grouped: dict[int, list[CeriRevisionFeature]] = {}
++    for feature in features:
++        grouped.setdefault(feature.company_id, []).append(feature)
++    return grouped
++
++
+ def _guidance_for_company(
+     db: Session,
+     company_id: int,
+@@ -447,7 +491,11 @@ def _alignment_context(db: Session, row: RawCompanyRow, run_id: int) -> dict[str
+             "actionability": row.raw_json.get("lifecycle_actionability"),
+             "source_run_id": run_id,
+         },
+-        "earnings_clearance": row.upcoming_earnings_date,
++        "earnings_clearance": (
++            row.upcoming_earnings_date.isoformat()
++            if row.upcoming_earnings_date is not None
++            else None
++        ),
+     }
+     return context
+ 
+@@ -476,6 +524,29 @@ def _existing_snapshot(
+     )
+ 
+ 
++def _existing_snapshot_company_ids(
++    db: Session,
++    run_id: int,
++    company_ids: set[int],
++    config,
++) -> set[int]:
++    if not company_ids:
++        return set()
++    return set(
++        _scalars(
++            db,
++            select(CeriScoreSnapshot.company_id)
++            .where(CeriScoreSnapshot.run_id == run_id)
++            .where(CeriScoreSnapshot.company_id.in_(sorted(company_ids)))
++            .where(CeriScoreSnapshot.config_hash == config.config_hash)
++            .where(
++                CeriScoreSnapshot.calculation_version
++                == config.engine.calculation_version
++            ),
++        )
++    )
++
++
+ def _prior_snapshot(
+     db: Session,
+     company_id: int,
+
+commit fc380503508e16a4d58c3ef2a446040e64194d75
+Author:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+AuthorDate: Mon Sep 14 20:39:20 2026 +0200
+Commit:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+CommitDate: Mon Sep 14 20:39:20 2026 +0200
+
+    feat: enforce calculation identity across contextual consumers
+
+diff --git a/app/services/ceri/capture_service.py b/app/services/ceri/capture_service.py
+index 157e1c9..65c73fa 100644
+--- a/app/services/ceri/capture_service.py
++++ b/app/services/ceri/capture_service.py
+@@ -22,6 +22,7 @@ from app.models.ceri_tables import (
+ )
+ from app.models.ib_market_intelligence_tables import IBIntelligenceFeature
+ from app.models.tables import RawCompanyRow
++from app.services.calculation_identity import CalculationIdentity
+ from app.services.canonical_evidence import CanonicalEvidenceSerializer
+ from app.services.ceri.alert_service import CeriAlertService
+ from app.services.ceri.artifact_lineage import CeriArtifactOwnership
+@@ -42,6 +43,19 @@ from app.services.ceri.pit_eligibility import (
+ from app.services.ceri.price_response_service import CeriPriceResponseService
+ from app.services.ceri.snapshot_service import CeriSnapshotService
+ from app.services.ceri.surprise_feature_service import CeriSurpriseFeatureService
++from app.services.combined_ranking_identity import calculation_identity_from_debug
++from app.services.contextual_calculation_identity import (
++    CERI_CONTEXT_COMPATIBILITY,
++    CERI_IBMI_COMPATIBILITY,
++    build_contextual_result_identity,
++    build_ibmi_feature_identity,
++    consumer_context_identity,
++    contextual_compatibility,
++    expected_ibmi_identity,
++    ibmi_contextual_compatibility,
++    identity_metadata,
++    pipeline_id_for_cutoff,
++)
+ from app.services.ib_market_intelligence.calculations import options_event_premium_score
+ from app.services.ib_market_intelligence.config import load_ib_market_intelligence_config
+ from app.services.market_calculation_context_service import standalone_market_context
+@@ -79,12 +93,14 @@ class CeriRunCaptureResult:
+ class _VolatilityRiskFeature:
+     id: int
+     components: dict[str, Any]
++    source_identity: CalculationIdentity
+ 
+ 
+ @dataclass(frozen=True)
+ class _ShortPressureContextFeature:
+     id: int
+     classification: str
++    source_identity: CalculationIdentity
+ 
+ 
+ class CeriRunCaptureService:
+@@ -155,11 +171,17 @@ class CeriRunCaptureService:
+             ]
+             for company_id, features in features_by_company.items()
+         }
++        pipeline_id = pipeline_id_for_cutoff(
++            db, run_id=run_id, market_cutoff=market_cutoff
++        )
++        ibmi_config = load_ib_market_intelligence_config()
+         existing_snapshot_company_ids = _existing_snapshot_company_ids(
+             db,
+             run_id,
+             company_ids,
+             self.snapshot_service.config,
++            market_cutoff,
++            pipeline_id,
+         )
+         counts = {
+             "score_snapshots": 0,
+@@ -267,11 +289,23 @@ class CeriRunCaptureService:
+                     conflict_penalty=min(3.0, float(company_conflicted)),
+                     as_of_session=as_of_session,
+                 )
+-                volatility_feature = _point_in_time_volatility_feature(db, row.ticker, cutoff_at)
++                volatility_feature = _point_in_time_volatility_feature(
++                    db,
++                    row.ticker,
++                    cutoff_at,
++                    as_of_session=as_of_session,
++                    market_cutoff=market_cutoff,
++                    ibmi_config=ibmi_config,
++                )
+                 short_pressure_feature = _point_in_time_short_pressure_feature(
+-                    db, row.ticker, cutoff_at
++                    db,
++                    row.ticker,
++                    cutoff_at,
++                    as_of_session=as_of_session,
++                    market_cutoff=market_cutoff,
++                    ibmi_config=ibmi_config,
+                 )
+-                volatility_config = load_ib_market_intelligence_config().section("volatility")
++                volatility_config = ibmi_config.section("volatility")
+                 volatility_risk = (
+                     options_event_premium_score(
+                         volatility_feature,
+@@ -361,6 +395,45 @@ class CeriRunCaptureService:
+                         )
+                     ),
+                 }
++                ceri_base_identity = consumer_context_identity(
++                    market_cutoff=market_cutoff,
++                    run_id=run_id,
++                    pipeline_id=pipeline_id,
++                    ticker=row.ticker,
++                    company_id=company.id,
++                )
++                ibmi_sources = []
++                if volatility_feature is not None:
++                    ibmi_sources.append(
++                        (
++                            "IBMI-volatility",
++                            volatility_feature,
++                            volatility_feature.source_identity,
++                        )
++                    )
++                if short_pressure_feature is not None:
++                    ibmi_sources.append(
++                        (
++                            "IBMI-short-pressure",
++                            short_pressure_feature,
++                            short_pressure_feature.source_identity,
++                        )
++                    )
++                ceri_identity = build_contextual_result_identity(
++                    base=ceri_base_identity,
++                    namespace="ceri-context",
++                    config_hash=self.snapshot_service.config.config_hash,
++                    calculation_version=self.snapshot_service.config.engine.calculation_version,
++                    engine_version=self.snapshot_service.config.engine.calculation_version,
++                    source_artifacts=ibmi_sources,
++                    source_payload=evidence_lineage,
++                    company_id=company.id,
++                )
++                evidence_lineage.update(
++                    identity_metadata(
++                        ceri_identity, policy=CERI_CONTEXT_COMPATIBILITY.name
++                    )
++                )
+                 source_ids = sorted(
+                     set(
+                         _source_ids(features)
+@@ -869,19 +942,47 @@ def _existing_snapshot_company_ids(
+     run_id: int,
+     company_ids: set[int],
+     config,
++    market_cutoff: MarketCalculationCutoff | None = None,
++    pipeline_id: int | None = None,
+ ) -> set[int]:
+     if not company_ids:
+         return set()
+-    return set(
+-        _scalars(
+-            db,
+-            select(CeriScoreSnapshot.company_id)
+-            .where(CeriScoreSnapshot.run_id == run_id)
+-            .where(CeriScoreSnapshot.company_id.in_(sorted(company_ids)))
+-            .where(CeriScoreSnapshot.config_hash == config.config_hash)
+-            .where(CeriScoreSnapshot.calculation_version == config.engine.calculation_version),
+-        )
++    rows = _scalars(
++        db,
++        select(CeriScoreSnapshot)
++        .where(CeriScoreSnapshot.run_id == run_id)
++        .where(CeriScoreSnapshot.company_id.in_(sorted(company_ids)))
++        .where(CeriScoreSnapshot.config_hash == config.config_hash)
++        .where(CeriScoreSnapshot.calculation_version == config.engine.calculation_version),
+     )
++    if market_cutoff is None:
++        return {getattr(row, "company_id", row) for row in rows}
++    compatible: set[int] = set()
++    for row in rows:
++        identity = calculation_identity_from_debug(row.evidence_lineage_json)
++        if identity is None:
++            raise ValueError(
++                "CALCULATION_IDENTITY_REJECTED: consumer=CERI "
++                "producer=legacy CeriScoreSnapshot reason=LEGACY_UNKNOWN"
++            )
++        expected = consumer_context_identity(
++            market_cutoff=market_cutoff,
++            run_id=run_id,
++            pipeline_id=pipeline_id,
++            ticker=row.ticker,
++            company_id=row.company_id,
++        )
++        result = contextual_compatibility(
++            expected, identity, policy=CERI_CONTEXT_COMPATIBILITY
++        )
++        if not result.accepted:
++            raise ValueError(
++                "CALCULATION_IDENTITY_REJECTED: consumer=CERI "
++                f"producer=CeriScoreSnapshot policy={result.policy} "
++                f"result={result.status.value} details={'; '.join(result.diagnostics)}"
++            )
++        compatible.add(row.company_id)
++    return compatible
+ 
+ 
+ def _prior_snapshot(
+@@ -920,6 +1021,10 @@ def _point_in_time_volatility_feature(
+     db: Session,
+     ticker: str,
+     cutoff_at: datetime,
++    *,
++    as_of_session=None,
++    market_cutoff: MarketCalculationCutoff | None = None,
++    ibmi_config=None,
+ ) -> _VolatilityRiskFeature | None:
+     settings = get_settings()
+     if not (
+@@ -927,7 +1032,7 @@ def _point_in_time_volatility_feature(
+         and getattr(settings, "ib_volatility_intelligence_enabled", False)
+     ):
+         return None
+-    row = _maybe_scalar(
++    rows = _scalars(
+         db,
+         select(IBIntelligenceFeature)
+         .where(IBIntelligenceFeature.ticker == ticker.upper())
+@@ -944,15 +1049,51 @@ def _point_in_time_volatility_feature(
+             IBIntelligenceFeature.calculated_at.desc(),
+         ),
+     )
+-    if row is None or row.coverage_status != "AVAILABLE":
+-        return None
+-    return _VolatilityRiskFeature(id=row.id, components=dict(row.components_json or {}))
++    ibmi_config = ibmi_config or load_ib_market_intelligence_config()
++    session = as_of_session or MarketClockService().cutoff_for(
++        cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
++    ).latest_completed_session
++    market_cutoff = market_cutoff or MarketClockService().cutoff_for(
++        cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
++    )
++    base = consumer_context_identity(
++        market_cutoff=market_cutoff,
++        run_id=None,
++        pipeline_id=None,
++        ticker=ticker,
++        globally_reusable=True,
++    )
++    expected = expected_ibmi_identity(
++        context=base,
++        ticker=ticker,
++        config_hash=ibmi_config.config_hash,
++        calculation_version=ibmi_config.calculation_version,
++        source_version=ibmi_config.source_version,
++        module="volatility",
++    )
++    for row in rows:
++        if row.coverage_status != "AVAILABLE" or row.as_of_session != session:
++            continue
++        identity = build_ibmi_feature_identity(row)
++        if ibmi_contextual_compatibility(
++            expected=expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
++        ).accepted:
++            return _VolatilityRiskFeature(
++                id=row.id,
++                components=dict(row.components_json or {}),
++                source_identity=identity,
++            )
++    return None
+ 
+ 
+ def _point_in_time_short_pressure_feature(
+     db: Session,
+     ticker: str,
+     cutoff_at: datetime,
++    *,
++    as_of_session=None,
++    market_cutoff: MarketCalculationCutoff | None = None,
++    ibmi_config=None,
+ ) -> _ShortPressureContextFeature | None:
+     settings = get_settings()
+     if not (
+@@ -960,7 +1101,7 @@ def _point_in_time_short_pressure_feature(
+         and getattr(settings, "ib_short_pressure_enabled", False)
+     ):
+         return None
+-    row = _maybe_scalar(
++    rows = _scalars(
+         db,
+         select(IBIntelligenceFeature)
+         .where(IBIntelligenceFeature.ticker == ticker.upper())
+@@ -977,12 +1118,41 @@ def _point_in_time_short_pressure_feature(
+             IBIntelligenceFeature.calculated_at.desc(),
+         ),
+     )
+-    if row is None or row.coverage_status != "AVAILABLE":
+-        return None
+-    return _ShortPressureContextFeature(
+-        id=row.id,
+-        classification=row.classification,
++    ibmi_config = ibmi_config or load_ib_market_intelligence_config()
++    session = as_of_session or MarketClockService().cutoff_for(
++        cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
++    ).latest_completed_session
++    market_cutoff = market_cutoff or MarketClockService().cutoff_for(
++        cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
+     )
++    base = consumer_context_identity(
++        market_cutoff=market_cutoff,
++        run_id=None,
++        pipeline_id=None,
++        ticker=ticker,
++        globally_reusable=True,
++    )
++    expected = expected_ibmi_identity(
++        context=base,
++        ticker=ticker,
++        config_hash=ibmi_config.config_hash,
++        calculation_version=ibmi_config.calculation_version,
++        source_version=ibmi_config.source_version,
++        module="short_pressure",
++    )
++    for row in rows:
++        if row.coverage_status != "AVAILABLE" or row.as_of_session != session:
++            continue
++        identity = build_ibmi_feature_identity(row)
++        if ibmi_contextual_compatibility(
++            expected=expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
++        ).accepted:
++            return _ShortPressureContextFeature(
++                id=row.id,
++                classification=row.classification,
++                source_identity=identity,
++            )
++    return None
+ 
+ 
+ def _source_ids(features: list[CeriRevisionFeature]) -> list[int]:
+
+commit 6884b0d6a9f5179a0ccdd97b8215f0e542f0032d
+Author:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+AuthorDate: Wed Sep 16 20:36:09 2026 +0200
+Commit:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+CommitDate: Wed Sep 16 20:36:09 2026 +0200
+
+    feat: bind contextual calculations to effective configuration
+
+diff --git a/app/services/ceri/capture_service.py b/app/services/ceri/capture_service.py
+index d4a8e5c..a9d577b 100644
+--- a/app/services/ceri/capture_service.py
++++ b/app/services/ceri/capture_service.py
+@@ -136,8 +136,86 @@ class CeriRunCaptureService:
+         force: bool = False,
+         cutoff_at: datetime | None = None,
+         market_cutoff: MarketCalculationCutoff | None = None,
++        effective_configuration=None,
++        expected_calculation_identity=None,
+     ) -> CeriRunCaptureResult:
+-        if not force and not ceri_flags().run_capture:
++        from copy import deepcopy
++
++        from app.services.contextual_effective_configuration import resolve_ceri_configuration
++
++        settings = deepcopy(get_settings())
++        ibmi_config = load_ib_market_intelligence_config()
++        consumer = {
++            "run_capture": ceri_flags(settings).run_capture,
++            "revision_feature_config_hash": self.snapshot_service.config.config_hash,
++            "ibmi_enabled": bool(getattr(settings, "ib_market_intelligence_enabled", False)),
++            "volatility_enabled": bool(
++                getattr(settings, "ib_volatility_intelligence_enabled", False)
++            ),
++            "short_pressure_enabled": bool(getattr(settings, "ib_short_pressure_enabled", False)),
++            "volatility": {
++                "ceri_risk_max_contribution": float(
++                    ibmi_config.section("volatility").get("ceri_risk_max_contribution", 1.5)
++                )
++            },
++        }
++        from app.services.effective_configuration import (
++            ConfigurationSource,
++            ConfigurationSourceKind,
++        )
++
++        native_sources = dict(getattr(settings, "_contextual_configuration_sources", ()))
++        consumer_sources = {
++            f"consumer.{key}": ConfigurationSource(
++                ConfigurationSourceKind(native_sources.get(field, "SETTINGS_MODEL")), field
++            )
++            for key, field in (
++                ("ibmi_enabled", "ib_market_intelligence_enabled"),
++                ("volatility_enabled", "ib_volatility_intelligence_enabled"),
++                ("short_pressure_enabled", "ib_short_pressure_enabled"),
++            )
++        }
++        consumer_sources["consumer.run_capture"] = ConfigurationSource(
++            ConfigurationSourceKind.SETTINGS_MODEL, "ceri-effective-master-and-run-capture-flags"
++        )
++        consumer_sources["consumer.revision_feature_config_hash"] = ConfigurationSource(
++            ConfigurationSourceKind.REQUEST, "ceri-native-feature-config-filter"
++        )
++        cap_key = "volatility.ceri_risk_max_contribution"
++        consumer_sources[f"consumer.{cap_key}"] = dict(
++            getattr(ibmi_config, "_configuration_sources", ())
++        ).get(
++            cap_key,
++            ConfigurationSource(
++                ConfigurationSourceKind.CODE_DEFAULT, "ceri-options-risk-default-cap"
++            ),
++        )
++        frozen = effective_configuration or resolve_ceri_configuration(
++            self.snapshot_service.config,
++            consumer=consumer,
++            consumer_sources=consumer_sources,
++        )
++        frozen.require_family("contextual.ceri")
++        if frozen.values["consumer"].get("revision_feature_config_hash") is None:
++            raise ValueError("CERI_CAPTURE_INPUT_SELECTION_REQUIRED")
++        if expected_calculation_identity is not None:
++            frozen.require_retry_identity(expected_calculation_identity)
++        self.snapshot_service.effective_configuration = frozen
++        self.snapshot_service.config = frozen.ceri_config()
++        for service in (
++            self.opportunity,
++            self.risk,
++            self.confidence,
++            self.surprise,
++            self.catalysts,
++            self.price_response,
++        ):
++            service.config = self.snapshot_service.config
++        consumer = frozen.values["consumer"]
++        settings.ib_market_intelligence_enabled = consumer["ibmi_enabled"]
++        settings.ib_volatility_intelligence_enabled = consumer["volatility_enabled"]
++        settings.ib_short_pressure_enabled = consumer["short_pressure_enabled"]
++        if not force and not consumer["run_capture"]:
+             return CeriRunCaptureResult(skipped=1)
+         rows = _raw_rows_for_run(db, run_id)
+         if tickers is not None:
+@@ -173,15 +251,12 @@ class CeriRunCaptureService:
+                 for feature in features
+                 if feature.calculation_version
+                 == self.snapshot_service.config.engine.calculation_version
+-                and feature.config_hash == self.snapshot_service.config.config_hash
++                and feature.config_hash == consumer["revision_feature_config_hash"]
+             ]
+             for company_id, features in features_by_company.items()
+         }
+-        pipeline_id = pipeline_id_for_cutoff(
+-            db, run_id=run_id, market_cutoff=market_cutoff
+-        )
+-        ibmi_config = load_ib_market_intelligence_config()
+-        ibmi_candidates = _preload_ibmi_context(db, rows, cutoff_at)
++        pipeline_id = pipeline_id_for_cutoff(db, run_id=run_id, market_cutoff=market_cutoff)
++        ibmi_candidates = _preload_ibmi_context(db, rows, cutoff_at, settings=settings)
+         existing_snapshot_company_ids = _existing_snapshot_company_ids(
+             db,
+             run_id,
+@@ -265,14 +340,26 @@ class CeriRunCaptureService:
+                 )
+                 contextual_permissions = {}
+                 volatility_feature = _point_in_time_volatility_feature(
+-                    db, row.ticker, cutoff_at, as_of_session=as_of_session,
+-                    market_cutoff=market_cutoff, ibmi_config=ibmi_config,
+-                    candidates=ibmi_candidates, decisions=contextual_permissions,
++                    db,
++                    row.ticker,
++                    cutoff_at,
++                    as_of_session=as_of_session,
++                    market_cutoff=market_cutoff,
++                    ibmi_config=ibmi_config,
++                    candidates=ibmi_candidates,
++                    decisions=contextual_permissions,
++                    settings=settings,
+                 )
+                 short_pressure_feature = _point_in_time_short_pressure_feature(
+-                    db, row.ticker, cutoff_at, as_of_session=as_of_session,
+-                    market_cutoff=market_cutoff, ibmi_config=ibmi_config,
+-                    candidates=ibmi_candidates, decisions=contextual_permissions,
++                    db,
++                    row.ticker,
++                    cutoff_at,
++                    as_of_session=as_of_session,
++                    market_cutoff=market_cutoff,
++                    ibmi_config=ibmi_config,
++                    candidates=ibmi_candidates,
++                    decisions=contextual_permissions,
++                    settings=settings,
+                 )
+                 confidence = self.confidence.calculate(
+                     as_of_session=as_of_session,
+@@ -307,7 +394,7 @@ class CeriRunCaptureService:
+                     conflict_penalty=min(3.0, float(company_conflicted)),
+                     as_of_session=as_of_session,
+                 )
+-                volatility_config = ibmi_config.section("volatility")
++                volatility_config = consumer["volatility"]
+                 volatility_risk = (
+                     options_event_premium_score(
+                         volatility_feature,
+@@ -439,10 +526,9 @@ class CeriRunCaptureService:
+                     source_payload=evidence_lineage,
+                     company_id=company.id,
+                 )
++                ceri_identity = self.snapshot_service.effective_configuration.bind(ceri_identity)
+                 evidence_lineage.update(
+-                    identity_metadata(
+-                        ceri_identity, policy=CERI_CONTEXT_COMPATIBILITY.name
+-                    )
++                    identity_metadata(ceri_identity, policy=CERI_CONTEXT_COMPATIBILITY.name)
+                 )
+                 source_ids = sorted(
+                     set(
+@@ -975,6 +1061,11 @@ def _existing_snapshot_company_ids(
+                 "CALCULATION_IDENTITY_REJECTED: consumer=CERI "
+                 "producer=legacy CeriScoreSnapshot reason=LEGACY_UNKNOWN"
+             )
++        frozen = getattr(config, "_effective_configuration", None)
++        if frozen is not None and identity.configuration != frozen.bind(identity).configuration:
++            # A new native input-selection policy is a new calculation, even
++            # when the compatibility row's historical raw config hash is equal.
++            continue
+         expected = consumer_context_identity(
+             market_cutoff=market_cutoff,
+             run_id=run_id,
+@@ -982,9 +1073,7 @@ def _existing_snapshot_company_ids(
+             ticker=row.ticker,
+             company_id=row.company_id,
+         )
+-        result = contextual_compatibility(
+-            expected, identity, policy=CERI_CONTEXT_COMPATIBILITY
+-        )
++        result = contextual_compatibility(expected, identity, policy=CERI_CONTEXT_COMPATIBILITY)
+         if not result.accepted:
+             raise ValueError(
+                 "CALCULATION_IDENTITY_REJECTED: consumer=CERI "
+@@ -1037,37 +1126,45 @@ def _point_in_time_volatility_feature(
+     ibmi_config=None,
+     candidates=None,
+     decisions=None,
++    settings=None,
+ ) -> _VolatilityRiskFeature | None:
+     if decisions is not None:
+         decisions["ibmi_volatility"] = contextual_decision_input(None, IBMI_VOLATILITY_TO_CERI)[1]
+-    settings = get_settings()
++    settings = settings or get_settings()
+     if not (
+         getattr(settings, "ib_market_intelligence_enabled", False)
+         and getattr(settings, "ib_volatility_intelligence_enabled", False)
+     ):
+         return None
+-    rows = candidates if candidates is not None else _scalars(
+-        db,
+-        select(IBIntelligenceFeature)
+-        .options(selectinload(IBIntelligenceFeature.calculation_evidence))
+-        .where(IBIntelligenceFeature.ticker == ticker.upper())
+-        .where(IBIntelligenceFeature.module == "VOLATILITY")
+-        .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
+-        .where(
+-            IBIntelligenceFeature.as_of_session
+-            <= MarketClockService()
+-            .cutoff_for(cutoff_at, reason="CERI_IB_FEATURE_SELECTION")
+-            .latest_completed_session
++    rows = (
++        candidates
++        if candidates is not None
++        else _scalars(
++            db,
++            select(IBIntelligenceFeature)
++            .options(selectinload(IBIntelligenceFeature.calculation_evidence))
++            .where(IBIntelligenceFeature.ticker == ticker.upper())
++            .where(IBIntelligenceFeature.module == "VOLATILITY")
++            .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
++            .where(
++                IBIntelligenceFeature.as_of_session
++                <= MarketClockService()
++                .cutoff_for(cutoff_at, reason="CERI_IB_FEATURE_SELECTION")
++                .latest_completed_session
++            )
++            .order_by(
++                IBIntelligenceFeature.as_of_session.desc(),
++                IBIntelligenceFeature.calculated_at.desc(),
++            ),
+         )
+-        .order_by(
+-            IBIntelligenceFeature.as_of_session.desc(),
+-            IBIntelligenceFeature.calculated_at.desc(),
+-        ),
+     )
+     ibmi_config = ibmi_config or load_ib_market_intelligence_config()
+-    session = as_of_session or MarketClockService().cutoff_for(
+-        cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
+-    ).latest_completed_session
++    session = (
++        as_of_session
++        or MarketClockService()
++        .cutoff_for(cutoff_at, reason="CERI_IB_FEATURE_IDENTITY")
++        .latest_completed_session
++    )
+     market_cutoff = market_cutoff or MarketClockService().cutoff_for(
+         cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
+     )
+@@ -1085,6 +1182,7 @@ def _point_in_time_volatility_feature(
+         calculation_version=ibmi_config.calculation_version,
+         source_version=ibmi_config.source_version,
+         module="volatility",
++        effective_configuration=ibmi_config._effective_configurations["volatility"],
+     )
+     for row in rows:
+         if row.ticker.upper() != ticker.upper() or row.module != "VOLATILITY":
+@@ -1092,8 +1190,20 @@ def _point_in_time_volatility_feature(
+         if row.as_of_session != session:
+             continue
+         identity = build_ibmi_feature_identity(row)
++        candidate_expected = expected
++        if row.evidence_id is None:
++            # An unsealed matching current candidate remains the selected,
++            # blocked input. It cannot authorize fallback to an older READY row.
++            candidate_expected = expected_ibmi_identity(
++                context=base,
++                ticker=ticker,
++                config_hash=ibmi_config.config_hash,
++                calculation_version=ibmi_config.calculation_version,
++                source_version=ibmi_config.source_version,
++                module="volatility",
++            )
+         if ibmi_contextual_compatibility(
+-            expected=expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
++            expected=candidate_expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
+         ).accepted:
+             usable, permission = contextual_decision_input(row, IBMI_VOLATILITY_TO_CERI)
+             if decisions is not None:
+@@ -1118,39 +1228,48 @@ def _point_in_time_short_pressure_feature(
+     ibmi_config=None,
+     candidates=None,
+     decisions=None,
++    settings=None,
+ ) -> _ShortPressureContextFeature | None:
+     if decisions is not None:
+         decisions["ibmi_short_pressure"] = contextual_decision_input(
+-            None, IBMI_SHORT_PRESSURE_TO_CERI,
++            None,
++            IBMI_SHORT_PRESSURE_TO_CERI,
+         )[1]
+-    settings = get_settings()
++    settings = settings or get_settings()
+     if not (
+         getattr(settings, "ib_market_intelligence_enabled", False)
+         and getattr(settings, "ib_short_pressure_enabled", False)
+     ):
+         return None
+-    rows = candidates if candidates is not None else _scalars(
+-        db,
+-        select(IBIntelligenceFeature)
+-        .options(selectinload(IBIntelligenceFeature.calculation_evidence))
+-        .where(IBIntelligenceFeature.ticker == ticker.upper())
+-        .where(IBIntelligenceFeature.module == "SHORT_PRESSURE")
+-        .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
+-        .where(
+-            IBIntelligenceFeature.as_of_session
+-            <= MarketClockService()
+-            .cutoff_for(cutoff_at, reason="CERI_IB_FEATURE_SELECTION")
+-            .latest_completed_session
++    rows = (
++        candidates
++        if candidates is not None
++        else _scalars(
++            db,
++            select(IBIntelligenceFeature)
++            .options(selectinload(IBIntelligenceFeature.calculation_evidence))
++            .where(IBIntelligenceFeature.ticker == ticker.upper())
++            .where(IBIntelligenceFeature.module == "SHORT_PRESSURE")
++            .where(IBIntelligenceFeature.calculated_at <= cutoff_at)
++            .where(
++                IBIntelligenceFeature.as_of_session
++                <= MarketClockService()
++                .cutoff_for(cutoff_at, reason="CERI_IB_FEATURE_SELECTION")
++                .latest_completed_session
++            )
++            .order_by(
++                IBIntelligenceFeature.as_of_session.desc(),
++                IBIntelligenceFeature.calculated_at.desc(),
++            ),
+         )
+-        .order_by(
+-            IBIntelligenceFeature.as_of_session.desc(),
+-            IBIntelligenceFeature.calculated_at.desc(),
+-        ),
+     )
+     ibmi_config = ibmi_config or load_ib_market_intelligence_config()
+-    session = as_of_session or MarketClockService().cutoff_for(
+-        cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
+-    ).latest_completed_session
++    session = (
++        as_of_session
++        or MarketClockService()
++        .cutoff_for(cutoff_at, reason="CERI_IB_FEATURE_IDENTITY")
++        .latest_completed_session
++    )
+     market_cutoff = market_cutoff or MarketClockService().cutoff_for(
+         cutoff_at, reason="CERI_IB_FEATURE_IDENTITY"
+     )
+@@ -1168,6 +1287,7 @@ def _point_in_time_short_pressure_feature(
+         calculation_version=ibmi_config.calculation_version,
+         source_version=ibmi_config.source_version,
+         module="short_pressure",
++        effective_configuration=ibmi_config._effective_configurations["short_pressure"],
+     )
+     for row in rows:
+         if row.ticker.upper() != ticker.upper() or row.module != "SHORT_PRESSURE":
+@@ -1175,8 +1295,18 @@ def _point_in_time_short_pressure_feature(
+         if row.as_of_session != session:
+             continue
+         identity = build_ibmi_feature_identity(row)
++        candidate_expected = expected
++        if row.evidence_id is None:
++            candidate_expected = expected_ibmi_identity(
++                context=base,
++                ticker=ticker,
++                config_hash=ibmi_config.config_hash,
++                calculation_version=ibmi_config.calculation_version,
++                source_version=ibmi_config.source_version,
++                module="short_pressure",
++            )
+         if ibmi_contextual_compatibility(
+-            expected=expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
++            expected=candidate_expected, actual=identity, policy=CERI_IBMI_COMPATIBILITY
+         ).accepted:
+             usable, permission = contextual_decision_input(row, IBMI_SHORT_PRESSURE_TO_CERI)
+             if decisions is not None:
+@@ -1191,22 +1321,31 @@ def _point_in_time_short_pressure_feature(
+     return None
+ 
+ 
+-def _preload_ibmi_context(db: Session, rows, cutoff_at: datetime):
+-    settings = get_settings()
++def _preload_ibmi_context(db: Session, rows, cutoff_at: datetime, *, settings=None):
++    settings = settings or get_settings()
+     if not getattr(settings, "ib_market_intelligence_enabled", False) or not (
+         getattr(settings, "ib_volatility_intelligence_enabled", False)
+         or getattr(settings, "ib_short_pressure_enabled", False)
+     ):
+         return ()
+-    return tuple(_scalars(db, select(IBIntelligenceFeature).options(
+-        selectinload(IBIntelligenceFeature.calculation_evidence),
+-    ).where(
+-        IBIntelligenceFeature.ticker.in_({str(row.ticker).upper() for row in rows}),
+-        IBIntelligenceFeature.module.in_(("VOLATILITY", "SHORT_PRESSURE")),
+-        IBIntelligenceFeature.calculated_at <= cutoff_at,
+-    ).order_by(
+-        IBIntelligenceFeature.as_of_session.desc(), IBIntelligenceFeature.calculated_at.desc(),
+-    )))
++    return tuple(
++        _scalars(
++            db,
++            select(IBIntelligenceFeature)
++            .options(
++                selectinload(IBIntelligenceFeature.calculation_evidence),
++            )
++            .where(
++                IBIntelligenceFeature.ticker.in_({str(row.ticker).upper() for row in rows}),
++                IBIntelligenceFeature.module.in_(("VOLATILITY", "SHORT_PRESSURE")),
++                IBIntelligenceFeature.calculated_at <= cutoff_at,
++            )
++            .order_by(
++                IBIntelligenceFeature.as_of_session.desc(),
++                IBIntelligenceFeature.calculated_at.desc(),
++            ),
++        )
++    )
+ 
+ 
+ def _source_ids(features: list[CeriRevisionFeature]) -> list[int]:
+
+commit 6f3adef073ff7b6a059e3bbe78cebf21ad740a61
+Author:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+AuthorDate: Tue Sep 29 22:39:06 2026 +0200
+Commit:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+CommitDate: Tue Sep 29 22:39:06 2026 +0200
+
+    fix fresh pipeline authority races
+
+diff --git a/app/services/market_calculation_context_service.py b/app/services/market_calculation_context_service.py
+index 92b2154..b84ef88 100644
+--- a/app/services/market_calculation_context_service.py
++++ b/app/services/market_calculation_context_service.py
+@@ -196,6 +196,122 @@ def market_context_for_pipeline(db: Session, pipeline: PipelineRun) -> MarketCal
+     return cutoff_from_row(row)
+ 
+ 
++def create_or_get_pipeline_ceri_context(
++    db: Session,
++    *,
++    pipeline_run_id: int,
++    clock: MarketClockService | None = None,
++) -> MarketCalculationCutoff:
++    """Freeze the CERI context after provider acquisition and normalization.
++
++    A pipeline's market context remains immutable.  CERI provider observations
++    acquired later receive a separate explicitly-authorized context, retained
++    on the pipeline before any feature or capture side effect.  This preserves
++    both identities instead of moving the original cutoff forward.
++    """
++
++    pipeline = db.scalar(
++        select(PipelineRun)
++        .where(PipelineRun.id == int(pipeline_run_id))
++        .with_for_update()
++        .execution_options(populate_existing=True)
++    )
++    if pipeline is None:
++        raise PipelineCalculationContextError(
++            f"Pipeline {pipeline_run_id} was not found for CERI context freeze."
++        )
++    retained = dict(pipeline.result_json or {})
++    existing_id = retained.get("ceri_calculation_context_id")
++    if existing_id is not None:
++        return resolve_pipeline_ceri_context(
++            db,
++            calculation_context_id=int(existing_id),
++            upload_run_id=int(pipeline.upload_run_id),
++            pipeline_run_id=int(pipeline.id),
++        )
++
++    from app.services.pipeline_state_machine import TERMINAL_PIPELINE_STATES
++
++    if pipeline.status in TERMINAL_PIPELINE_STATES or pipeline.status == "CANCEL_REQUESTED":
++        raise PipelineCalculationContextError(
++            f"CERI_CONTEXT_PARENT_NOT_ACTIVE:pipeline={pipeline.id}:status={pipeline.status}"
++        )
++    cutoff = (clock or MarketClockService()).cutoff_for(
++        datetime.now(UTC), reason="CERI_POST_ACQUISITION_FROZEN"
++    )
++    row = MarketCalculationContext(
++        pipeline_run_id=None,
++        upload_run_id=pipeline.upload_run_id,
++        cutoff_at=cutoff.cutoff_at,
++        exchange_timezone=cutoff.exchange_timezone,
++        latest_completed_session=cutoff.latest_completed_session,
++        daily_bar_ready_at=cutoff.daily_bar_ready_at,
++        calendar_version=cutoff.calendar_version,
++        bar_readiness_version=cutoff.bar_readiness_version,
++        cutoff_reason=cutoff.cutoff_reason,
++    )
++    db.add(row)
++    db.flush()
++    pipeline.result_json = {
++        **retained,
++        "ceri_calculation_context_id": row.id,
++        "ceri_calculation_cutoff_at": CanonicalEvidenceSerializer.canonicalize(cutoff.cutoff_at),
++        "ceri_calculation_as_of_session": cutoff.latest_completed_session.isoformat(),
++        "ceri_calculation_calendar_version": cutoff.calendar_version,
++        "ceri_calculation_bar_readiness_version": cutoff.bar_readiness_version,
++        "ceri_calculation_context_reason": cutoff.cutoff_reason,
++    }
++    db.flush()
++    publish_after_commit(
++        db,
++        "increment",
++        "swinglens_market_calculation_cutoffs_total",
++        scope="pipeline_ceri_post_acquisition",
++    )
++    return cutoff.with_context_id(row.id)
++
++
++def resolve_pipeline_ceri_context(
++    db: Session,
++    *,
++    calculation_context_id: int | None,
++    upload_run_id: int,
++    pipeline_run_id: int,
++    expected_cutoff_at: datetime | None = None,
++    expected_latest_completed_session: date | None = None,
++    expected_calendar_version: str | None = None,
++) -> MarketCalculationCutoff:
++    """Resolve the separate post-acquisition CERI context retained by a pipeline."""
++
++    if calculation_context_id is None:
++        raise PipelineCalculationContextError("Pipeline CERI context ID is required.")
++    pipeline = db.get(PipelineRun, int(pipeline_run_id))
++    if pipeline is None or int(pipeline.upload_run_id) != int(upload_run_id):
++        raise PipelineCalculationContextError("Pipeline CERI context owner mismatch.")
++    retained_id = (pipeline.result_json or {}).get("ceri_calculation_context_id")
++    if int(retained_id or 0) != int(calculation_context_id):
++        raise PipelineCalculationContextError(
++            "Supplied CERI calculation context is not retained by the pipeline."
++        )
++    row = db.get(MarketCalculationContext, int(calculation_context_id))
++    if row is None or row.pipeline_run_id is not None or row.upload_run_id != upload_run_id:
++        raise PipelineCalculationContextError("Retained CERI calculation context is invalid.")
++    cutoff = cutoff_from_row(row)
++    if expected_cutoff_at is not None and cutoff.cutoff_at != expected_cutoff_at:
++        raise PipelineCalculationContextError("CERI payload cutoff does not match its context.")
++    if (
++        expected_latest_completed_session is not None
++        and cutoff.latest_completed_session != expected_latest_completed_session
++    ):
++        raise PipelineCalculationContextError("CERI payload session does not match its context.")
++    if (
++        expected_calendar_version is not None
++        and cutoff.calendar_version != expected_calendar_version
++    ):
++        raise PipelineCalculationContextError("CERI payload calendar does not match its context.")
++    return cutoff
++
++
+ def market_context_for_upload_run(
+     db: Session, upload_run_id: int
+ ) -> MarketCalculationCutoff | None:
+@@ -206,7 +322,10 @@ def market_context_for_upload_run(
+         return None
+     row = db.scalar(
+         select(MarketCalculationContext)
+-        .where(MarketCalculationContext.upload_run_id == upload_run_id)
++        .where(
++            MarketCalculationContext.upload_run_id == upload_run_id,
++            MarketCalculationContext.pipeline_run_id.is_not(None),
++        )
+         .order_by(MarketCalculationContext.id.desc())
+         .limit(1)
+     )
+
+commit 36674d17159e56ec601a0097026ecaf5e8139e55
+Author:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+AuthorDate: Wed Sep 30 18:22:15 2026 +0200
+Commit:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+CommitDate: Wed Sep 30 18:22:15 2026 +0200
+
+    Fix CERI run-local source lineage
+
+diff --git a/app/services/ceri/evidence_eligibility.py b/app/services/ceri/evidence_eligibility.py
+index 4ad9837..e7d6623 100644
+--- a/app/services/ceri/evidence_eligibility.py
++++ b/app/services/ceri/evidence_eligibility.py
+@@ -6,16 +6,20 @@ from collections.abc import Iterable, Sequence
+ from dataclasses import dataclass
+ from typing import Any
+ 
+-from sqlalchemy import func, select
++from sqlalchemy import and_, exists, func, or_, select
+ from sqlalchemy.dialects.postgresql import insert as pg_insert
+-from sqlalchemy.orm import Session
++from sqlalchemy.orm import Session, aliased
+ 
+ from app.models.ceri_tables import CeriEvidenceDisposition, CeriScoreSnapshot
++from app.models.tables import MarketCalculationContext, PipelineRun
+ from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+ from app.services.supporting_mutation_authority import supporting_mutation_operation
+ 
+ ELIGIBLE = "ELIGIBLE"
+ EXCLUDED = "EXCLUDED"
++UNSUCCESSFUL_PIPELINE_STATES = frozenset(
++    {"FAILED", "CANCELLED", "BLOCKED", "PARTIAL"}
++)
+ 
+ 
+ @dataclass(frozen=True)
+@@ -51,7 +55,7 @@ def eligible_snapshot_predicate(snapshot: Any = CeriScoreSnapshot) -> Any:
+     """Return the canonical SQL predicate for decision-use eligibility.
+ 
+     The most recent disposition is ordered deterministically by (created_at, id).
+-    Absence of any disposition preserves legacy eligibility.
++    Absence of a disposition never overrides a terminally unsuccessful owner.
+     """
+ 
+     effective = (
+@@ -65,7 +69,8 @@ def eligible_snapshot_predicate(snapshot: Any = CeriScoreSnapshot) -> Any:
+         .correlate(snapshot)
+         .scalar_subquery()
+     )
+-    return func.coalesce(effective, ELIGIBLE) == ELIGIBLE
++    owner_is_eligible = _owner_eligibility_predicate(snapshot)
++    return (func.coalesce(effective, ELIGIBLE) == ELIGIBLE) & owner_is_eligible
+ 
+ 
+ def effective_disposition_subquery(name: str | None = None) -> Any:
+@@ -93,10 +98,44 @@ def apply_snapshot_eligibility(
+     """Apply the canonical set-based eligibility join to a snapshot statement."""
+ 
+     effective = effective_disposition_subquery(name)
+-    return statement.outerjoin(
++    statement = statement.outerjoin(
+         effective,
+         effective.c.ceri_snapshot_id == snapshot.id,
+     ).where(func.coalesce(effective.c.disposition, ELIGIBLE) == ELIGIBLE)
++    owner_is_eligible = _owner_eligibility_predicate(snapshot)
++    return statement.where(owner_is_eligible)
++
++
++def _owner_eligibility_predicate(snapshot: Any) -> Any:
++    # Older incident contexts were accidentally persisted without their
++    # pipeline FK.  Fall back to the upload/run scope, but fail closed if that
++    # scope has any terminally unsuccessful pipeline owner.
++    failed_owner = aliased(PipelineRun)
++    no_unsuccessful_upload_owner = ~exists(
++        select(1).where(
++            failed_owner.upload_run_id == snapshot.run_id,
++            failed_owner.status.in_(UNSUCCESSFUL_PIPELINE_STATES),
++        )
++    )
++    context_owner_is_eligible = exists(
++        select(1)
++        .select_from(MarketCalculationContext)
++        .outerjoin(PipelineRun, PipelineRun.id == MarketCalculationContext.pipeline_run_id)
++        .where(
++            MarketCalculationContext.id == snapshot.calculation_context_id,
++            or_(
++                and_(
++                    MarketCalculationContext.pipeline_run_id.is_(None),
++                    no_unsuccessful_upload_owner,
++                ),
++                PipelineRun.status.not_in(UNSUCCESSFUL_PIPELINE_STATES),
++            ),
++        )
++    )
++    return or_(
++        and_(snapshot.calculation_context_id.is_(None), no_unsuccessful_upload_owner),
++        context_owner_is_eligible,
++    )
+ 
+ 
+ def eligible_snapshot_select(
+@@ -164,6 +203,17 @@ def filter_eligible_snapshots(
+     snapshots: Iterable[CeriScoreSnapshot],
+ ) -> list[CeriScoreSnapshot]:
+     rows = list(snapshots)
++    if isinstance(db, Session) and rows:
++        eligible_ids = set(
++            db.scalars(
++                eligible_snapshot_select(CeriScoreSnapshot.id).where(
++                    CeriScoreSnapshot.id.in_(
++                        [int(row.id) for row in rows if row.id is not None]
++                    )
++                )
++            )
++        )
++        return [row for row in rows if row.id in eligible_ids]
+     dispositions = effective_disposition_by_snapshot(
+         db, (row.id for row in rows if row.id is not None)
+     )
+
+commit cc0610a9730ffb1b9467c0c441716763ad86ea34
+Author:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+AuthorDate: Wed Aug 12 13:05:12 2026 +0200
+Commit:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+CommitDate: Wed Aug 12 13:05:12 2026 +0200
+
+    perf: add bounded CERI workflow and telemetry
+
+diff --git a/app/services/ceri/batched_workflow.py b/app/services/ceri/batched_workflow.py
+new file mode 100644
+index 0000000..e56d5cc
+--- /dev/null
++++ b/app/services/ceri/batched_workflow.py
+@@ -0,0 +1,245 @@
++from __future__ import annotations
++
++from collections.abc import Iterable, Mapping
++from dataclasses import dataclass
++from typing import Any
++
++from sqlalchemy import select
++from sqlalchemy.orm import Session
++
++from app.models.ceri_tables import CeriCompany
++from app.models.tables import RawCompanyRow
++from app.services.background_job_service import enqueue_job
++from app.services.ceri.config import load_ceri_config
++from app.services.ceri.enums import CeriDataset
++from app.services.ceri.provider_registry import CeriProviderRegistry
++from app.settings import Settings, get_settings
++
++CERI_PROVIDER_INGEST_BATCH = "CERI_PROVIDER_INGEST_BATCH"
++CERI_NORMALIZE_BATCH = "CERI_NORMALIZE_BATCH"
++CERI_FEATURE_BATCH = "CERI_FEATURE_BATCH"
++CERI_RUN_FINALIZE = "CERI_RUN_FINALIZE"
++
++DEFAULT_PROVIDER_DATASETS: Mapping[str, tuple[CeriDataset, ...]] = {
++    "eodhd": (CeriDataset.ESTIMATES, CeriDataset.EARNINGS, CeriDataset.CATALYSTS),
++    "sec": (CeriDataset.GUIDANCE,),
++}
++DATASET_PRIORITIES: Mapping[CeriDataset, int] = {
++    CeriDataset.ESTIMATES: 80,
++    CeriDataset.EARNINGS: 90,
++    CeriDataset.CATALYSTS: 100,
++    CeriDataset.GUIDANCE: 120,
++}
++
++
++@dataclass(frozen=True)
++class CeriBatchJobSpec:
++    job_type: str
++    request_key: str
++    priority: int
++    payload: dict[str, Any]
++
++
++@dataclass(frozen=True)
++class CeriBatchedWorkflowPlan:
++    run_id: int
++    workflow_key: str
++    jobs: tuple[CeriBatchJobSpec, ...]
++    provider_batches: int
++    normalization_batches: int
++    feature_batches: int
++
++    @property
++    def initial_job_count(self) -> int:
++        return len(self.jobs)
++
++    @property
++    def expected_total_job_count(self) -> int:
++        return self.initial_job_count + 3
++
++
++def build_ceri_batched_workflow_plan(
++    *,
++    run_id: int,
++    tickers: Iterable[str],
++    config_hash: str,
++    settings: Settings | None = None,
++    provider_datasets: Mapping[str, tuple[CeriDataset, ...]] = DEFAULT_PROVIDER_DATASETS,
++) -> CeriBatchedWorkflowPlan:
++    runtime_settings = settings or get_settings()
++    symbols = tuple(
++        sorted(
++            {
++                str(ticker).strip().upper()
++                for ticker in tickers
++                if str(ticker).strip()
++            }
++        )
++    )
++    workflow_key = f"ceri:pipeline:{run_id}:{config_hash}"
++    jobs: list[CeriBatchJobSpec] = []
++    provider_count = 0
++    normalization_count = 0
++
++    for provider, datasets in sorted(provider_datasets.items()):
++        for dataset in sorted(datasets, key=lambda item: (DATASET_PRIORITIES[item], item.value)):
++            priority = DATASET_PRIORITIES[dataset]
++            for batch_index, batch in enumerate(
++                _chunks(symbols, runtime_settings.ceri_provider_batch_size),
++                start=1,
++            ):
++                request_key = (
++                    f"{workflow_key}:provider:{provider}:{dataset.value}:{batch_index:04d}"
++                )
++                jobs.append(
++                    CeriBatchJobSpec(
++                        job_type=CERI_PROVIDER_INGEST_BATCH,
++                        request_key=request_key,
++                        priority=priority,
++                        payload={
++                            "workflow_key": workflow_key,
++                            "request_key": request_key,
++                            "run_id": run_id,
++                            "provider": provider,
++                            "dataset": dataset.value,
++                            "tickers": list(batch),
++                            "batch_index": batch_index,
++                            "checkpoint_interval": runtime_settings.ceri_batch_checkpoint_interval,
++                        },
++                    )
++                )
++                provider_count += 1
++            for batch_index, batch in enumerate(
++                _chunks(symbols, runtime_settings.ceri_normalization_batch_size),
++                start=1,
++            ):
++                request_key = (
++                    f"{workflow_key}:normalize:{provider}:{dataset.value}:{batch_index:04d}"
++                )
++                jobs.append(
++                    CeriBatchJobSpec(
++                        job_type=CERI_NORMALIZE_BATCH,
++                        request_key=request_key,
++                        priority=priority + 1,
++                        payload={
++                            "workflow_key": workflow_key,
++                            "request_key": request_key,
++                            "run_id": run_id,
++                            "provider": provider,
++                            "dataset": dataset.value,
++                            "tickers": list(batch),
++                            "batch_index": batch_index,
++                            "checkpoint_interval": runtime_settings.ceri_batch_checkpoint_interval,
++                        },
++                    )
++                )
++                normalization_count += 1
++
++    feature_specs: list[CeriBatchJobSpec] = []
++    for batch_index, batch in enumerate(
++        _chunks(symbols, runtime_settings.ceri_feature_batch_size),
++        start=1,
++    ):
++        request_key = f"{workflow_key}:feature:{batch_index:04d}"
++        feature_specs.append(
++            CeriBatchJobSpec(
++                job_type=CERI_FEATURE_BATCH,
++                request_key=request_key,
++                priority=130,
++                payload={
++                    "workflow_key": workflow_key,
++                    "request_key": request_key,
++                    "run_id": run_id,
++                    "tickers": list(batch),
++                    "batch_index": batch_index,
++                    "expected_normalization_batches": normalization_count,
++                    "checkpoint_interval": runtime_settings.ceri_batch_checkpoint_interval,
++                },
++            )
++        )
++    jobs.extend(feature_specs)
++    finalizer_key = f"{workflow_key}:finalize"
++    jobs.append(
++        CeriBatchJobSpec(
++            job_type=CERI_RUN_FINALIZE,
++            request_key=finalizer_key,
++            priority=140,
++            payload={
++                "workflow_key": workflow_key,
++                "request_key": finalizer_key,
++                "run_id": run_id,
++                "expected_feature_batches": len(feature_specs),
++            },
++        )
++    )
++    return CeriBatchedWorkflowPlan(
++        run_id=run_id,
++        workflow_key=workflow_key,
++        jobs=tuple(jobs),
++        provider_batches=provider_count,
++        normalization_batches=normalization_count,
++        feature_batches=len(feature_specs),
++    )
++
++
++def schedule_ceri_batched_workflow(db: Session, run_id: int) -> CeriBatchedWorkflowPlan:
++    tickers = sorted(
++        {
++            row.ticker.upper()
++            for row in db.scalars(select(RawCompanyRow).where(RawCompanyRow.run_id == run_id))
++            if row.ticker
++        }
++    )
++    _ensure_ceri_companies(db, tickers)
++    registry = CeriProviderRegistry()
++    provider_datasets: dict[str, tuple[CeriDataset, ...]] = {}
++    for provider, datasets in DEFAULT_PROVIDER_DATASETS.items():
++        try:
++            capabilities = registry.capabilities(provider)
++        except Exception:
++            continue
++        provider_datasets[provider] = tuple(
++            dataset for dataset in datasets if dataset in capabilities.datasets
++        )
++    plan = build_ceri_batched_workflow_plan(
++        run_id=run_id,
++        tickers=tickers,
++        config_hash=load_ceri_config().config_hash,
++        provider_datasets=provider_datasets,
++    )
++    for spec in plan.jobs:
++        enqueue_job(
++            db,
++            spec.job_type,
++            spec.payload,
++            related_run_id=run_id,
++            priority=spec.priority,
++            request_key=spec.request_key,
++            workflow_key=plan.workflow_key,
++        )
++    db.flush()
++    return plan
++
++
++def _ensure_ceri_companies(db: Session, tickers: Iterable[str]) -> None:
++    existing = {
++        (company.ticker.upper(), (company.exchange or "").upper())
++        for company in db.scalars(select(CeriCompany))
++    }
++    for ticker in tickers:
++        symbol = ticker.upper()
++        if (symbol, "US") in existing:
++            continue
++        db.add(
++            CeriCompany(
++                ticker=symbol,
++                exchange="US",
++                current_provider_ids_json={"eodhd": f"{symbol}.US"},
++            )
++        )
++        existing.add((symbol, "US"))
++    db.flush()
++
++
++def _chunks(values: tuple[str, ...], size: int) -> tuple[tuple[str, ...], ...]:
++    return tuple(values[index : index + size] for index in range(0, len(values), size))
+
+commit a7cbb3b00bb533accf0d2a5b4e845bb9b2bb1fea
+Author:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+AuthorDate: Sun Sep 13 21:01:45 2026 +0200
+Commit:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+CommitDate: Sun Sep 13 21:01:45 2026 +0200
+
+    Add append-only CERI evidence quarantine
+
+diff --git a/app/services/transition_preflight_plan_service.py b/app/services/transition_preflight_plan_service.py
+index 69b21c0..e49a2bf 100644
+--- a/app/services/transition_preflight_plan_service.py
++++ b/app/services/transition_preflight_plan_service.py
+@@ -22,6 +22,7 @@ from app.models.tables import (
+     UploadRun,
+ )
+ from app.services.canonical_evidence import CanonicalEvidenceSerializer
++from app.services.ceri.evidence_eligibility import eligible_snapshot_predicate
+ from app.services.ceri.pit_eligibility import price_bar_is_eligible
+ from app.services.market_calculation_context_service import (
+     attach_reserved_market_context,
+@@ -774,7 +775,10 @@ def _build_decision_handoff_payload(
+     ceri_rows = list(
+         db.scalars(
+             select(CeriScoreSnapshot)
+-            .where(CeriScoreSnapshot.run_id == plan.upload_run_id)
++            .where(
++                CeriScoreSnapshot.run_id == plan.upload_run_id,
++                eligible_snapshot_predicate(),
++            )
+             .order_by(CeriScoreSnapshot.ticker, CeriScoreSnapshot.id)
+         )
+     )
+@@ -862,7 +866,12 @@ def _validate_handoff_temporal_lineage(
+                 failures.append(f"{ticker}:post_cutoff_bar")
+ 
+     ceri_rows = list(
+-        db.scalars(select(CeriScoreSnapshot).where(CeriScoreSnapshot.run_id == upload_run_id))
++        db.scalars(
++            select(CeriScoreSnapshot).where(
++                CeriScoreSnapshot.run_id == upload_run_id,
++                eligible_snapshot_predicate(),
++            )
++        )
+     )
+     ceri_source_ids: set[int] = set()
+     for row in ceri_rows:
+
+commit 3a9d47063be996908b7d5d1cc5769e0bbd033546
+Author:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+AuthorDate: Sun Sep 13 21:23:12 2026 +0200
+Commit:     Ivica Bogoevski <ivica.bogoevski@gmail.com>
+CommitDate: Sun Sep 13 21:25:44 2026 +0200
+
+    Use set-based CERI eligibility joins
+
+diff --git a/app/services/transition_preflight_plan_service.py b/app/services/transition_preflight_plan_service.py
+index e49a2bf..28e88ea 100644
+--- a/app/services/transition_preflight_plan_service.py
++++ b/app/services/transition_preflight_plan_service.py
+@@ -22,7 +22,7 @@ from app.models.tables import (
+     UploadRun,
+ )
+ from app.services.canonical_evidence import CanonicalEvidenceSerializer
+-from app.services.ceri.evidence_eligibility import eligible_snapshot_predicate
++from app.services.ceri.evidence_eligibility import eligible_snapshot_select
+ from app.services.ceri.pit_eligibility import price_bar_is_eligible
+ from app.services.market_calculation_context_service import (
+     attach_reserved_market_context,
+@@ -774,10 +774,9 @@ def _build_decision_handoff_payload(
+         }
+     ceri_rows = list(
+         db.scalars(
+-            select(CeriScoreSnapshot)
++            eligible_snapshot_select(name="effective_handoff_dispositions")
+             .where(
+                 CeriScoreSnapshot.run_id == plan.upload_run_id,
+-                eligible_snapshot_predicate(),
+             )
+             .order_by(CeriScoreSnapshot.ticker, CeriScoreSnapshot.id)
+         )
+@@ -867,9 +866,8 @@ def _validate_handoff_temporal_lineage(
+ 
+     ceri_rows = list(
+         db.scalars(
+-            select(CeriScoreSnapshot).where(
++            eligible_snapshot_select(name="effective_handoff_validation_dispositions").where(
+                 CeriScoreSnapshot.run_id == upload_run_id,
+-                eligible_snapshot_predicate(),
+             )
+         )
+     )

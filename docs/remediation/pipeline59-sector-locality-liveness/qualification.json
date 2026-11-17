@@ -1,0 +1,341 @@
+{
+  "implementation_commit": "2b077b71f4dd5f6af3265b592600e2e692df632d",
+  "product_source_identity": "source-review.json; Python/JavaScript implementation unchanged, progress template uses the existing neutral panel presentation",
+  "fresh_native": {
+    "status": "PASS",
+    "scope": "Normal admitted 466-company cohort; real sealed producers and Sector writer",
+    "started_at": "2026-11-11T00:19:18.745678+00:00",
+    "finished_at": "2026-11-11T01:13:33.344955+00:00",
+    "provider_calls": 0,
+    "fixture": {
+      "companies": 466,
+      "profiles": [
+        "core.ranking:clean_compounder_pullback",
+        "core.ranking:defensive_quality",
+        "core.ranking:early_rocket",
+        "core.ranking:momentum_swing",
+        "core.ranking:quality_momentum"
+      ],
+      "price_sessions_per_feed": 756,
+      "price_symbols": 479,
+      "market_context_id": 1,
+      "pipeline_id": 1,
+      "upload_id": 1,
+      "cutoff_at": "2026-11-11 00:19:19.718000+00:00",
+      "technical_process_pool_enabled": true,
+      "technical_worker_processes": 1,
+      "technical_max_in_flight": 2,
+      "technical_v5_enabled": false,
+      "technical_v5_shadow_compare_enabled": true
+    },
+    "distinct_fundamental_scores": 320,
+    "ranking_evidence_order_descents": 1195,
+    "peak_sample": {
+      "measured_bytes": 3099615232,
+      "rss_bytes": 3053834240,
+      "private_bytes": 3099615232,
+      "phase": "PROFILE_PERSISTED",
+      "observed_at": "2026-11-11T00:50:45.239848+00:00"
+    },
+    "critical_budget_bytes": 6442450944,
+    "published_sector_rows": 11,
+    "canonical_fingerprint": "ca1afe4b20ef77252b0357cc1728158bd8269af8f197052ca2d4db471bdeb6fd",
+    "canonical_and_financial_parity": true,
+    "returned_dto_detached_from_sealed_payload": true,
+    "evidence": [
+      {
+        "artifact_kind": "FUNDAMENTAL",
+        "rows": 466,
+        "payload_json_text_bytes": 52475385
+      },
+      {
+        "artifact_kind": "COMBINED",
+        "rows": 466,
+        "payload_json_text_bytes": 63461777
+      },
+      {
+        "artifact_kind": "TECHNICAL",
+        "rows": 466,
+        "payload_json_text_bytes": 66729719
+      },
+      {
+        "artifact_kind": "SECTOR",
+        "rows": 1,
+        "payload_json_text_bytes": 112928784
+      },
+      {
+        "artifact_kind": "REGIME",
+        "rows": 1,
+        "payload_json_text_bytes": 737640
+      },
+      {
+        "artifact_kind": "RANKING",
+        "rows": 2330,
+        "payload_json_text_bytes": 300958167
+      }
+    ],
+    "metrics_by_phase": {
+      "UNIVERSE_SOURCE_VALIDATION": {
+        "evidence_address_count": 3728,
+        "evidence_bulk_load_count": 118,
+        "evidence_body_rows_loaded": 3760,
+        "evidence_decoded_bytes_loaded": 2652932040,
+        "evidence_cache_hits": 3610,
+        "evidence_cache_misses": 118,
+        "evidence_cache_evictions": 3696,
+        "evidence_peak_resident_count": 64,
+        "evidence_peak_resident_bytes": 50669672
+      },
+      "SECTOR_INPUT_HASH": {
+        "canonical_bytes_hashed": 52810493,
+        "hash_complete": 1
+      },
+      "PERSISTENCE_CANONICAL_HASH": {
+        "canonical_bytes_hashed": 106526850,
+        "hash_complete": 1
+      },
+      "DECLARATION_VALIDATION": {
+        "manifest_traversal_count": 1,
+        "contributor_validation_count": 932,
+        "configuration_anchor_lookup_count": 1,
+        "evidence_address_count": 466,
+        "evidence_bulk_load_count": 15,
+        "evidence_body_rows_loaded": 466,
+        "evidence_decoded_bytes_loaded": 249168112,
+        "evidence_cache_hits": 451,
+        "evidence_cache_misses": 15,
+        "evidence_cache_evictions": 402,
+        "evidence_peak_resident_count": 64,
+        "evidence_peak_resident_bytes": 34220666,
+        "raw_source_lock_count": 466,
+        "etf_source_lock_count": 0,
+        "evidence_source_lock_count": 466
+      },
+      "DECLARATION_VALIDATION_SOURCE_ROLES": {
+        "evidence_address_count": 2797,
+        "evidence_bulk_load_count": 89,
+        "evidence_body_rows_loaded": 2797,
+        "evidence_decoded_bytes_loaded": 1994317064,
+        "evidence_cache_hits": 2708,
+        "evidence_cache_misses": 89,
+        "evidence_cache_evictions": 2733,
+        "evidence_peak_resident_count": 64,
+        "evidence_peak_resident_bytes": 49477416
+      },
+      "PERSISTENCE_VALIDATION": {
+        "manifest_traversal_count": 1,
+        "contributor_validation_count": 932,
+        "configuration_anchor_lookup_count": 1,
+        "evidence_address_count": 466,
+        "evidence_bulk_load_count": 15,
+        "evidence_body_rows_loaded": 466,
+        "evidence_decoded_bytes_loaded": 249168112,
+        "evidence_cache_hits": 451,
+        "evidence_cache_misses": 15,
+        "evidence_cache_evictions": 3199,
+        "evidence_peak_resident_count": 64,
+        "evidence_peak_resident_bytes": 47217646,
+        "raw_source_lock_count": 466,
+        "etf_source_lock_count": 0,
+        "evidence_source_lock_count": 466
+      },
+      "PERSISTENCE_VALIDATION_SOURCE_ROLES": {
+        "evidence_address_count": 2797,
+        "evidence_bulk_load_count": 89,
+        "evidence_body_rows_loaded": 2797,
+        "evidence_decoded_bytes_loaded": 1994317064,
+        "evidence_cache_hits": 2708,
+        "evidence_cache_misses": 89,
+        "evidence_cache_evictions": 5530,
+        "evidence_peak_resident_count": 64,
+        "evidence_peak_resident_bytes": 49477416
+      }
+    },
+    "technical_manifests": [
+      {
+        "source_count": 944,
+        "state_count": 713664,
+        "json_text_bytes": 70805188
+      }
+    ],
+    "producer_json_bytes_before_sector": 484362688,
+    "observed_producer_json_bytes": 488347349,
+    "producer_json_size_ratio_to_observed": 0.9918405188271023,
+    "producer_json_at_least_observed": false
+  },
+  "fresh_sector_phase_durations": [
+    {
+      "phase": "NATIVE_SECTOR_PUBLICATION",
+      "started_at": "2026-11-11T00:50:51.833248+00:00",
+      "finished_at": "2026-11-11T00:50:51.836252+00:00",
+      "seconds": 0.003
+    },
+    {
+      "phase": "LOADING_INPUTS",
+      "started_at": "2026-11-11T00:50:51.836252+00:00",
+      "finished_at": "2026-11-11T00:50:51.972247+00:00",
+      "seconds": 0.136
+    },
+    {
+      "phase": "UNIVERSE_INPUTS_LOADED",
+      "started_at": "2026-11-11T00:50:51.972247+00:00",
+      "finished_at": "2026-11-11T00:50:54.385418+00:00",
+      "seconds": 2.413
+    },
+    {
+      "phase": "UNIVERSE_RANKING_INPUTS_LOADED",
+      "started_at": "2026-11-11T00:50:54.385418+00:00",
+      "finished_at": "2026-11-11T00:50:56.228053+00:00",
+      "seconds": 1.843
+    },
+    {
+      "phase": "UNIVERSE_INPUTS_LOADED",
+      "started_at": "2026-11-11T00:50:56.228053+00:00",
+      "finished_at": "2026-11-11T00:51:06.626226+00:00",
+      "seconds": 10.398
+    },
+    {
+      "phase": "UNIVERSE_SOURCE_VALIDATION",
+      "started_at": "2026-11-11T00:51:06.626226+00:00",
+      "finished_at": "2026-11-11T00:52:27.160278+00:00",
+      "seconds": 80.534
+    },
+    {
+      "phase": "UNIVERSE_CONSTRUCTED",
+      "started_at": "2026-11-11T00:52:27.160278+00:00",
+      "finished_at": "2026-11-11T00:52:27.204275+00:00",
+      "seconds": 0.044
+    },
+    {
+      "phase": "INPUTS_LOADED",
+      "started_at": "2026-11-11T00:52:27.204275+00:00",
+      "finished_at": "2026-11-11T00:52:27.209279+00:00",
+      "seconds": 0.005
+    },
+    {
+      "phase": "SECTOR_AGGREGATION_COMPLETED",
+      "started_at": "2026-11-11T00:52:27.209279+00:00",
+      "finished_at": "2026-11-11T00:52:28.457003+00:00",
+      "seconds": 1.248
+    },
+    {
+      "phase": "RANKING_SOURCE_ROWS_LOADED",
+      "started_at": "2026-11-11T00:52:28.457003+00:00",
+      "finished_at": "2026-11-11T00:52:31.161605+00:00",
+      "seconds": 2.705
+    },
+    {
+      "phase": "RANKING_COMPATIBILITY_VALIDATED",
+      "started_at": "2026-11-11T00:52:31.161605+00:00",
+      "finished_at": "2026-11-11T00:52:38.165052+00:00",
+      "seconds": 7.003
+    },
+    {
+      "phase": "RANKING_COHERENCE_VALIDATED",
+      "started_at": "2026-11-11T00:52:38.165052+00:00",
+      "finished_at": "2026-11-11T00:52:38.552051+00:00",
+      "seconds": 0.387
+    },
+    {
+      "phase": "SOURCE_ROWS_LOADED",
+      "started_at": "2026-11-11T00:52:38.552051+00:00",
+      "finished_at": "2026-11-11T00:52:41.092283+00:00",
+      "seconds": 2.54
+    },
+    {
+      "phase": "SECTOR_INPUT_HASH",
+      "started_at": "2026-11-11T00:52:41.092283+00:00",
+      "finished_at": "2026-11-11T00:53:05.982101+00:00",
+      "seconds": 24.89
+    },
+    {
+      "phase": "SOURCE_MANIFEST_PREPARED",
+      "started_at": "2026-11-11T00:53:05.982101+00:00",
+      "finished_at": "2026-11-11T00:53:05.985101+00:00",
+      "seconds": 0.003
+    },
+    {
+      "phase": "PERSISTENCE_STARTED",
+      "started_at": "2026-11-11T00:53:05.985101+00:00",
+      "finished_at": "2026-11-11T00:53:08.796260+00:00",
+      "seconds": 2.811
+    },
+    {
+      "phase": "PERSISTENCE_CANONICAL_HASH",
+      "started_at": "2026-11-11T00:53:08.796260+00:00",
+      "finished_at": "2026-11-11T00:54:59.247467+00:00",
+      "seconds": 110.451
+    },
+    {
+      "phase": "DECLARATION_VALIDATION",
+      "started_at": "2026-11-11T00:54:59.247467+00:00",
+      "finished_at": "2026-11-11T00:55:43.663460+00:00",
+      "seconds": 44.416
+    },
+    {
+      "phase": "DECLARATION_VALIDATION_SOURCE_ROLES",
+      "started_at": "2026-11-11T00:55:43.663460+00:00",
+      "finished_at": "2026-11-11T00:56:50.318906+00:00",
+      "seconds": 66.655
+    },
+    {
+      "phase": "PERSISTENCE_CANONICAL_HASH",
+      "started_at": "2026-11-11T00:56:50.318906+00:00",
+      "finished_at": "2026-11-11T00:57:48.381953+00:00",
+      "seconds": 58.063
+    },
+    {
+      "phase": "PERSISTENCE_VALIDATION",
+      "started_at": "2026-11-11T00:57:48.381953+00:00",
+      "finished_at": "2026-11-11T00:58:32.691836+00:00",
+      "seconds": 44.31
+    },
+    {
+      "phase": "PERSISTENCE_VALIDATION_SOURCE_LOCKS",
+      "started_at": "2026-11-11T00:58:32.691836+00:00",
+      "finished_at": "2026-11-11T00:58:37.600710+00:00",
+      "seconds": 4.909
+    },
+    {
+      "phase": "PERSISTENCE_VALIDATION_SOURCE_ROLES",
+      "started_at": "2026-11-11T00:58:37.600710+00:00",
+      "finished_at": "2026-11-11T01:05:30.876721+00:00",
+      "seconds": 413.276
+    },
+    {
+      "phase": "PERSISTENCE_CANONICAL_HASH",
+      "started_at": "2026-11-11T01:05:30.876721+00:00",
+      "finished_at": "2026-11-11T01:09:08.316155+00:00",
+      "seconds": 217.439
+    },
+    {
+      "phase": "SNAPSHOT_STAGED",
+      "started_at": "2026-11-11T01:09:08.316155+00:00",
+      "finished_at": "2026-11-11T01:09:10.076602+00:00",
+      "seconds": 1.76
+    },
+    {
+      "phase": "EXACT_LEGACY_SERIALIZATION_COMPARISON",
+      "started_at": "2026-11-11T01:09:10.076602+00:00",
+      "finished_at": "2026-11-11T01:13:33.341955+00:00",
+      "seconds": 263.265
+    },
+    {
+      "phase": "COMPLETED",
+      "started_at": "2026-11-11T01:13:33.341955+00:00",
+      "finished_at": "2026-11-11T01:13:33.344955+00:00",
+      "seconds": 0.003
+    }
+  ],
+  "restored_native": {
+    "status": "PASS",
+    "provider_calls": 0,
+    "frozen_owner_and_binding_preserved": true,
+    "matches_before_fix_native_publication_fingerprint": true,
+    "canonical_fingerprint": "0706f054b8d773cc798f72e6817dd66f7e4782753ea8f82103d162ca29a7d6c7",
+    "legacy_wire_canonical_equal": true,
+    "native_snapshot_and_all_child_values_match_seal": true
+  },
+  "limits": "Sector publication proofs; neither completes later CERI/Setup/Winner stages",
+  "failed_fixture_attempt_preserved": "fresh-native-fixture-failure.json"
+}

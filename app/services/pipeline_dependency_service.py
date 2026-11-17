@@ -191,8 +191,8 @@ def prepare_sec_readiness_dependency(
     root_job_id = (
         ownership.job_id
         if ownership is not None
-        else int((pipeline.result_json or {}).get("pipeline_root_job_id") or 0)
-        or int((pipeline.result_json or {}).get("background_job_id") or 0)
+        else int((pipeline.result_json or {}).get("background_job_id") or 0)
+        or int((pipeline.result_json or {}).get("pipeline_root_job_id") or 0)
     )
     root_job = db.get(BackgroundJob, root_job_id) if root_job_id else None
     if root_job is None or root_job.job_type != "FULL_PIPELINE":
@@ -221,6 +221,27 @@ def prepare_sec_readiness_dependency(
     existing = db.scalar(
         select(PipelineDependency).where(PipelineDependency.dependency_key == dependency_key)
     )
+    previous_dependency_id = None
+    if (
+        existing is not None
+        and existing.state in {"FAILED", "CANCELLED"}
+        and existing.root_job_id != root_job.id
+    ):
+        # An explicit operator resume owns a new root job. Preserve the failed
+        # dependency as history and give this root exactly one recovery child.
+        # Replays of the same root still coalesce on this new identity.
+        previous_dependency_id = existing.id
+        previous_dependency = existing
+        recovery_payload = {**identity_payload, "recovery_root_job_id": root_job.id}
+        continuation_identity = hashlib.sha256(
+            json.dumps(recovery_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        dependency_key = f"pipeline:{pipeline.id}:sec-readiness:{continuation_identity}"
+        existing = db.scalar(
+            select(PipelineDependency).where(PipelineDependency.dependency_key == dependency_key)
+        )
+        if existing is None and pipeline.status not in {"QUEUED", "RUNNING"}:
+            return previous_dependency
     if existing is not None:
         return existing
 
@@ -238,6 +259,8 @@ def prepare_sec_readiness_dependency(
             "processor_signature": signature,
             "readiness": readiness,
             "diagnostics": diagnostics,
+            **({"previous_dependency_id": previous_dependency_id}
+               if previous_dependency_id is not None else {}),
         },
     )
     db.add(dependency)
@@ -569,6 +592,90 @@ def reconcile_safe_pipeline_invariants(
     }
 
 
+def _project_terminal_sec_repair(
+    pipeline: PipelineRun,
+    dependency: PipelineDependency,
+    job: BackgroundJob,
+    *,
+    now: datetime,
+) -> None:
+    """Publish the child's authoritative snapshot for every terminal outcome."""
+
+    child_result = dict(job.result_json or {})
+    metadata = job.operational_metadata_json or {}
+    failure = dict(metadata.get("dependency_failure") or {})
+    diagnostics = {
+        **dict(child_result.get("diagnostics") or {}),
+        **dict(failure.get("diagnostics") or {}),
+    }
+    child_repair = dict(metadata.get("sec_repair") or {})
+    readiness = dict(child_result.get("readiness") or diagnostics.get("readiness") or {})
+    telemetry = dict(child_result.get("telemetry") or diagnostics.get("telemetry") or {})
+    from app.services.ceri.sec.coverage import validate_sec_coverage
+
+    expected_signature = str(
+        (dependency.result_json or {}).get("processor_signature")
+        or readiness.get("processor_signature")
+        or child_repair.get("current_processor_signature")
+        or ""
+    )
+    coverage = validate_sec_coverage(
+        child_result.get("sec_coverage") or child_repair.get("sec_coverage"),
+        pipeline=pipeline,
+        processor_signature=expected_signature,
+    )
+    completed = job.status == JobStatus.COMPLETED
+    error_code = None
+    if not completed:
+        error_code = (
+            failure.get("reason_code") or child_result.get("reason_code")
+            or child_repair.get("last_error_code") or f"SEC_REPAIR_{job.status}"
+        )
+    projected = {
+        **dict((pipeline.result_json or {}).get("sec_repair") or {}),
+        **child_repair,
+        **{key: value for key, value in readiness.items() if key != "tickers"},
+        "repair_stage": job.status,
+        "last_error_code": error_code,
+        "last_error_detail": None if completed else job.error_message,
+        "updated_at": now.isoformat(),
+    }
+    if telemetry:
+        projected["telemetry"] = telemetry
+    unresolved = child_result.get("unresolved_tickers", diagnostics.get("unresolved_tickers"))
+    if isinstance(unresolved, dict):
+        projected["unresolved_tickers"] = [
+            {"ticker": ticker, "reason": reason} for ticker, reason in sorted(unresolved.items())
+        ]
+    elif completed and coverage is not None:
+        projected["unresolved_tickers"] = [
+            {"ticker": gap["ticker"], "reason": gap["reason"]} for gap in coverage["gaps"]
+        ]
+    elif completed:
+        projected["unresolved_tickers"] = []
+    dependency.result_json = {
+        **(dependency.result_json or {}),
+        "child_result": child_result,
+        **({"readiness": readiness} if readiness else {}),
+        **({"diagnostics": diagnostics} if diagnostics else {}),
+        **({"sec_coverage": coverage} if coverage is not None else {}),
+    }
+    pipeline.result_json = {
+        **(pipeline.result_json or {}),
+        "dependency_state": "COMPLETED" if completed else (
+            "CANCELLED" if job.status == JobStatus.CANCELLED else "FAILED"
+        ),
+        "sec_repair": projected,
+        "blocked_reason": error_code,
+        "blocked_diagnostics": diagnostics or None,
+        **({
+            "sec_coverage": coverage,
+            "sec_unresolved_count": len(coverage["gaps"]),
+            "sec_unresolved_tickers": coverage["gaps"],
+        } if coverage is not None else {}),
+    }
+
+
 def _reconcile_dependency_job(db: Session, job: BackgroundJob) -> None:
     dependency = db.scalar(
         select(PipelineDependency)
@@ -582,6 +689,15 @@ def _reconcile_dependency_job(db: Session, job: BackgroundJob) -> None:
     )
     if not pipeline_is_in_activation_scope(pipeline):
         return
+    current_dependency_id = (pipeline.result_json or {}).get("pipeline_dependency_id")
+    if (
+        job.id == dependency.child_job_id
+        and current_dependency_id is not None
+        and str(current_dependency_id) != str(dependency.id)
+    ):
+        # A terminal notification from an earlier repair must not overwrite
+        # the state or coverage of the dependency adopted by a later resume.
+        return
     now = _utcnow()
     if job.id == dependency.child_job_id:
         if job.status == JobStatus.RUNNING:
@@ -592,38 +708,14 @@ def _reconcile_dependency_job(db: Session, job: BackgroundJob) -> None:
             dependency.state = "QUEUED"
             dependency.updated_at = now
             return
+        if job.status in {
+            JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.BLOCKED, JobStatus.CANCELLED
+        }:
+            _project_terminal_sec_repair(pipeline, dependency, job, now=now)
         if job.status == JobStatus.COMPLETED:
             dependency.state = "COMPLETED"
             dependency.completed_at = now
             dependency.updated_at = now
-            dependency.result_json = {
-                **(dependency.result_json or {}),
-                "child_result": job.result_json or {},
-            }
-            # The durable child is authoritative for repair progress. Project
-            # that terminal snapshot into the parent before continuation so
-            # API consumers never keep showing the original QUEUED/readiness
-            # values after the child has completed.
-            child_result = dict(job.result_json or {})
-            child_repair = dict((job.operational_metadata_json or {}).get("sec_repair") or {})
-            readiness = dict(child_result.get("readiness") or {})
-            telemetry = dict(child_result.get("telemetry") or {})
-            if child_repair or readiness or telemetry:
-                projected = {
-                    **dict((pipeline.result_json or {}).get("sec_repair") or {}),
-                    **child_repair,
-                    **readiness,
-                    "repair_stage": "COMPLETED",
-                    "last_error_code": None,
-                    "last_error_detail": None,
-                    "updated_at": now.isoformat(),
-                }
-                if telemetry:
-                    projected["telemetry"] = telemetry
-                pipeline.result_json = {
-                    **(pipeline.result_json or {}),
-                    "sec_repair": projected,
-                }
             _publish_dependency_latency(db, dependency, now, outcome="completed")
             if pipeline.status in TERMINAL_PIPELINE_STATES:
                 return

@@ -1,0 +1,4 @@
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade 0095_ib_bar_admission_receipts -> 0096_ceri_native_context, Scope native CERI score uniqueness to the frozen calculation context.
+WARNI [app.observability.transaction_metrics] observability.metric_publish_failed

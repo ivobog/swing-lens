@@ -21,27 +21,47 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import (
     CombinedResult,
+    CoreCalculationEvidence,
+    CoreCalculationEvidenceSource,
+    ExecutionConfigurationBinding,
     FundamentalScore,
     PipelineRun,
     PriceBar,
     RawCompanyRow,
     SetupLifecycleEvent,
     SetupSignalSnapshot,
+    SetupSignalSnapshotCurrentSelection,
     SignalChangeEvent,
     TechnicalScore,
     UploadRun,
 )
+from app.services.bar_cache_service import price_bar_data_hash
+from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
 from app.services.combined_ranking_identity import (
     build_fundamental_score_identity,
     build_technical_score_identity,
     embed_calculation_identity,
+)
+from app.services.configuration_delivery import (
+    binding_reference,
+    configuration_delivery_scope,
+    load_configuration_delivery,
+    persist_configuration_anchor,
+    resolve_pipeline_configurations,
 )
 from app.services.contextual_calculation_identity import (
     build_contextual_result_identity,
     consumer_context_identity,
     embed_identity,
 )
+from app.services.core_calculation_evidence import (
+    calculation_evidence_payload,
+    normalize_configuration_business_payload,
+)
+from app.services.effective_configuration import CONFIGURATION_PAYLOAD_KEY
 from app.services.market_calculation_context_service import create_pipeline_market_context
+from app.services.market_clock_service import MarketCalculationCutoff
+from app.services.producer_readiness import READINESS_PAYLOAD_KEY, normalize_producer_readiness
 from app.services.setup_lifecycle.evaluation_service import SetupLifecycleEvaluationService
 from app.services.setup_lifecycle.query_service import (
     SetupLifecycleFilters,
@@ -130,16 +150,26 @@ def test_slse_phase_12_performance_certification(
         else:
             for size in (100, 500, 1_000):
                 with Session(engine) as db:
-                    run_id = _seed_source_run(db, size=size, as_of=SCALE_DATES[size])
+                    run_id, pipeline_id, market_cutoff = _seed_source_run(
+                        db, size=size, as_of=SCALE_DATES[size]
+                    )
                 capture = _TimedCaptureService(SetupLifecycleSnapshotCaptureService(), counter)
                 service = SetupLifecycleEvaluationService(capture_service=capture)
                 before_rss = _working_set_bytes()
                 before_queries = counter.count
                 started = time.perf_counter()
                 with Session(engine) as db:
-                    result = service.evaluate_run(
-                        db, run_id, requester="slse-performance-certification"
+                    delivery = load_configuration_delivery(
+                        db, binding_reference(db, pipeline_run_id=pipeline_id)
                     )
+                    with configuration_delivery_scope(delivery):
+                        result = service.evaluate_run(
+                            db,
+                            run_id,
+                            requester="slse-performance-certification",
+                            market_cutoff=market_cutoff,
+                            pipeline_run_id=pipeline_id,
+                        )
                     db.commit()
                 elapsed = time.perf_counter() - started
                 after_rss = _working_set_bytes()
@@ -165,6 +195,7 @@ def test_slse_phase_12_performance_certification(
         with Session(engine) as db:
             for table_name in (
                 "setup_signal_snapshots",
+                "setup_signal_snapshot_current_selections",
                 "setup_lifecycle_events",
                 "signal_change_events",
                 "setup_lifecycle_episodes",
@@ -175,6 +206,7 @@ def test_slse_phase_12_performance_certification(
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
             for table_name in (
                 "setup_signal_snapshots",
+                "setup_signal_snapshot_current_selections",
                 "setup_lifecycle_events",
                 "signal_change_events",
                 "setup_lifecycle_episodes",
@@ -214,6 +246,7 @@ def test_slse_phase_12_performance_certification(
                 ),
             )
         deep_cursor = legacy_deep["next_cursor"]
+        assert legacy_deep["total"] >= 100_000
         assert deep_cursor and deep_cursor.startswith("k1.")
 
         query_cases = {
@@ -330,7 +363,10 @@ def _percentile(values: list[float], percentile: int) -> float:
     return ordered[index]
 
 
-def _seed_source_run(db: Session, *, size: int, as_of: date) -> int:
+def _seed_source_run(
+    db: Session, *, size: int, as_of: date,
+) -> tuple[int, int, MarketCalculationCutoff]:
+    """Retained synthetic upstream adapter values for the native Setup benchmark."""
     processed_at = datetime.combine(as_of, datetime.min.time(), tzinfo=UTC).replace(hour=21)
     run = UploadRun(
         filename=f"slse-performance-{size}.csv",
@@ -356,6 +392,19 @@ def _seed_source_run(db: Session, *, size: int, as_of: date) -> int:
         pipeline,
         cutoff_at=processed_at,
     )
+    configurations = resolve_pipeline_configurations(
+        db, "FULL_PIPELINE", {"run_id": run.id, "pipeline_run_id": pipeline.id}
+    )
+    frozen_sources = {}
+    for namespace in ("core.fundamental", "core.technical", "core.combined"):
+        document = Canonical.canonicalize(configurations[namespace].snapshot.as_dict())
+        frozen_sources[namespace] = (document, Canonical.bytes(document))
+    anchor = persist_configuration_anchor(db, configurations)
+    db.add(ExecutionConfigurationBinding(
+        binding_key=f"pipeline:{pipeline.id}", pipeline_run_id=pipeline.id,
+        anchor_id=anchor["anchor_id"],
+    ))
+    db.flush()
     tickers = [f"P{size:04d}{index:04d}" for index in range(size)]
     db.execute(
         insert(RawCompanyRow),
@@ -456,6 +505,7 @@ def _seed_source_run(db: Session, *, size: int, as_of: date) -> int:
         row.ticker: row
         for row in db.scalars(select(CombinedResult).where(CombinedResult.run_id == run.id))
     }
+    prepared = []
     for ticker in tickers:
         raw = raw_by_ticker[ticker]
         fundamental = fundamental_by_ticker[ticker]
@@ -473,6 +523,8 @@ def _seed_source_run(db: Session, *, size: int, as_of: date) -> int:
             pipeline_run_id=pipeline.id,
             effective_config={"fixture": "slse-performance-v1"},
         )
+        fundamental_identity = configurations["core.fundamental"].bind(fundamental_identity)
+        technical_identity = configurations["core.technical"].bind(technical_identity)
         fundamental.debug_json = embed_calculation_identity(
             fundamental.debug_json,
             fundamental_identity,
@@ -483,6 +535,28 @@ def _seed_source_run(db: Session, *, size: int, as_of: date) -> int:
             technical_identity,
             policy="SLSE_PERFORMANCE_FIXTURE",
         )
+        fundamental_evidence = _performance_source_evidence(
+            fundamental, fundamental_identity, "FUNDAMENTAL",
+            configurations["core.fundamental"], frozen_sources["core.fundamental"],
+        )
+        technical_evidence = _performance_source_evidence(
+            technical, technical_identity, "TECHNICAL",
+            configurations["core.technical"], frozen_sources["core.technical"],
+        )
+        db.add_all((fundamental_evidence, technical_evidence))
+        prepared.append((
+            ticker, fundamental, fundamental_identity, fundamental_evidence,
+            technical, technical_identity, technical_evidence, combined,
+        ))
+    db.flush()
+    for _, fundamental, _, fundamental_evidence, technical, _, technical_evidence, _ in prepared:
+        fundamental.evidence_id = fundamental_evidence.id
+        technical.evidence_id = technical_evidence.id
+    combined_evidence_rows = []
+    for (
+        ticker, fundamental, fundamental_identity, _,
+        technical, technical_identity, _, combined,
+    ) in prepared:
         combined_identity = build_contextual_result_identity(
             base=consumer_context_identity(
                 market_cutoff=market_cutoff,
@@ -500,11 +574,25 @@ def _seed_source_run(db: Session, *, size: int, as_of: date) -> int:
             ),
             source_payload={"fixture": "slse-performance-v1"},
         )
+        combined_identity = configurations["core.combined"].bind(combined_identity)
         combined.debug_json = embed_identity(
             combined.debug_json,
             combined_identity,
             policy="SLSE_PERFORMANCE_FIXTURE",
         )
+        evidence = _performance_source_evidence(
+            combined, combined_identity, "COMBINED", configurations["core.combined"],
+            frozen_sources["core.combined"],
+            sources={"fundamental": fundamental.evidence_id, "technical": technical.evidence_id},
+        )
+        db.add(evidence)
+        combined_evidence_rows.append((combined, evidence))
+    db.flush()
+    for combined, evidence in combined_evidence_rows:
+        combined.evidence_id = evidence.id
+        db.add_all(CoreCalculationEvidenceSource(
+            evidence_id=evidence.id, source_role=role, source_evidence_id=source_id,
+        ) for role, source_id in evidence.source_evidence_ids_json.items())
     db.execute(
         insert(PriceBar),
         [
@@ -527,8 +615,53 @@ def _seed_source_run(db: Session, *, size: int, as_of: date) -> int:
             for ticker in tickers
         ],
     )
+    for bar in db.scalars(select(PriceBar).where(PriceBar.ticker.in_(tickers))):
+        bar.data_hash = price_bar_data_hash(bar)
     db.commit()
-    return run.id
+    return run.id, pipeline.id, market_cutoff
+
+
+def _performance_source_evidence(row, identity, kind, configuration, frozen, *, sources=None):
+    """Explicit synthetic producer boundary; no Core-writer certification claim."""
+    source_ids = dict(sources or {})
+    row.debug_json = {
+        **row.debug_json,
+        "performance_fixture_semantics": "SLSE_PERFORMANCE_SYNTHETIC_UPSTREAM_ADAPTER",
+    }
+    payload = calculation_evidence_payload(row)
+    normalize_configuration_business_payload(
+        payload, namespace=configuration.snapshot.family.namespace, source_ids=source_ids
+    )
+    document, encoded = frozen
+    payload[CONFIGURATION_PAYLOAD_KEY] = document
+    identity_payload = identity.canonical_payload()
+    fingerprint = str(identity.fingerprint())
+    temporal = identity_payload["temporal"]
+    payload[READINESS_PAYLOAD_KEY] = normalize_producer_readiness(
+        kind, payload, identity_fingerprint=fingerprint,
+        calculation_versions=identity_payload["algorithm"],
+        evaluated_at=temporal["calculation_cutoff"]["value"],
+        business_anchor=temporal["as_of_session"]["value"],
+    ).canonical_payload()
+    # Stable fragment reuse belongs only to this synthetic seed. The native
+    # consumer independently rehashes every complete stored evidence payload.
+    precomputed = {id(document): document}
+    payload = Canonical.canonicalize(payload, _precomputed=precomputed)
+    payload_hash = Canonical.fingerprint_streaming(
+        payload, precomputed=precomputed, fragments={id(document): encoded}
+    )
+    return CoreCalculationEvidence(
+        artifact_kind=kind, run_id=row.run_id, ticker=row.ticker,
+        calculation_identity_json=identity_payload,
+        calculation_identity_fingerprint=fingerprint,
+        payload_json=payload, payload_fingerprint=payload_hash,
+        source_evidence_ids_json=source_ids,
+        evidence_key=Canonical.fingerprint({
+            "artifact_kind": kind, "calculation_identity_fingerprint": fingerprint,
+            "payload_fingerprint": payload_hash, "source_evidence_ids": source_ids,
+        }),
+        calculated_at=identity.temporal.calculation_cutoff.value,
+    )
 
 
 def _seed_query_history(db: Session, *, snapshot_count: int, event_count: int) -> None:
@@ -598,6 +731,25 @@ def _seed_query_history(db: Session, *, snapshot_count: int, event_count: int) -
         .where(SetupSignalSnapshot.source_run_id_text == "slse-performance-100k")
         .order_by(SetupSignalSnapshot.id)
     ).all()
+    # This query-only synthetic history uses the explicit standalone/legacy
+    # publication contract. Model its actual current pointers; is_canonical on
+    # an immutable snapshot alone no longer grants current presentation.
+    selection_rows = [
+        {
+            "ticker": row.ticker,
+            "timeframe": "1d",
+            "data_as_of_date": row.data_as_of_date,
+            "selected_snapshot_id": row.id,
+            "selected_run_id": None,
+            "selected_evaluation_run_id": None,
+            "selection_reason": "PERFORMANCE_ONLY_SYNTHETIC_STANDALONE_HISTORY",
+            "selection_decision_json": {"financial_certification": "NOT_CLAIMED"},
+        }
+        for row in snapshot_refs
+    ]
+    for chunk in _chunks(selection_rows, 5_000):
+        db.execute(insert(SetupSignalSnapshotCurrentSelection), chunk)
+        db.commit()
     lifecycle_count = event_count // 2
     lifecycle_rows = [
         {

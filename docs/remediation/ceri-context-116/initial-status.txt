@@ -1,0 +1,18 @@
+ M app/models/ceri_tables.py
+ M app/services/ceri/capture_service.py
+ M app/services/ceri/change_rebuild_service.py
+ M app/services/ceri/evidence_eligibility.py
+ M app/services/ceri/job_handlers.py
+ M app/services/ceri/pipeline_containment_service.py
+ M app/services/core_mutation_authority.py
+ M app/services/pipeline_service.py
+ M app/services/transition_preflight_plan_service.py
+ M tests/ceri/test_ceri_schema.py
+ M tests/integration/test_ceri_batched_workflow_v2.py
+ M tests/integration/test_ceri_pipeline_completion_barrier.py
+ M tests/integration/test_ceri_run_isolation_remediation.py
+?? alembic/versions/20261116_0096_ceri_native_context.py
+?? app/services/ceri/score_ownership.py
+?? app/services/ceri/score_population.py
+?? docs/remediation/ceri-context-116/
+?? tests/integration/test_ceri_context_uniqueness.py

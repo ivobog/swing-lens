@@ -1,0 +1,698 @@
+{
+  "components": {
+    "balance_sheet_quality_score": {
+      "bonus": "0",
+      "expected": "9.2826",
+      "rounded_mean": "9.2826",
+      "terms": [
+        {
+          "field": "total_liabilities_annual",
+          "formula": "liabilities/assets=.35 <= .45",
+          "input": "3500000000",
+          "normalized": "10.0000",
+          "weight": "1.2"
+        },
+        {
+          "field": "working_capital_per_share_annual",
+          "formula": "positive",
+          "input": "5",
+          "normalized": "10.0000",
+          "weight": "0.7"
+        },
+        {
+          "field": "working_capital_per_share_quarterly",
+          "formula": "positive",
+          "input": "5.5",
+          "normalized": "10.0000",
+          "weight": "0.8"
+        },
+        {
+          "field": "working_capital_per_share_quarterly",
+          "formula": "5.5>=5",
+          "input": "5.5",
+          "normalized": "8.0000",
+          "weight": "0.4"
+        },
+        {
+          "field": "quick_ratio_quarterly",
+          "formula": "clamp10((x-0.5)/(1.5-0.5)*10)",
+          "input": "1.3",
+          "normalized": "8.0000",
+          "weight": "0.9"
+        },
+        {
+          "field": "quick_ratio_annual",
+          "formula": "clamp10((x-0.5)/(1.5-0.5)*10)",
+          "input": "1.2",
+          "normalized": "7.0000",
+          "weight": "0.4"
+        },
+        {
+          "field": "cash_short_term_investments_annual",
+          "formula": "positive",
+          "input": "1000000000",
+          "normalized": "10.0000",
+          "weight": "0.5"
+        },
+        {
+          "field": "current_ratio",
+          "formula": "(6-3.2)/(6-3)*10",
+          "input": "3.2",
+          "normalized": "9.3333",
+          "weight": "0.8"
+        },
+        {
+          "field": "net_debt_to_ebitda",
+          "formula": "clamp10((5-x)/(5-0)*10)",
+          "input": "0.2",
+          "normalized": "9.6000",
+          "weight": "0.9"
+        },
+        {
+          "field": "debt_to_ebitda_annual",
+          "formula": "clamp10((5-x)/(5-0)*10)",
+          "input": "0.6",
+          "normalized": "8.8000",
+          "weight": "0.7"
+        },
+        {
+          "field": "debt_to_equity",
+          "formula": "clamp10((250-x)/(250-30)*10)",
+          "input": "40",
+          "normalized": "9.5455",
+          "weight": "0.5"
+        },
+        {
+          "field": "debt_to_assets",
+          "formula": "clamp10((70-x)/(70-20)*10)",
+          "input": "25",
+          "normalized": "9.0000",
+          "weight": "0.6"
+        },
+        {
+          "field": "total_debt_to_capital_annual",
+          "formula": "clamp10((80-x)/(80-25)*10)",
+          "input": "30",
+          "normalized": "9.0909",
+          "weight": "0.5"
+        },
+        {
+          "field": "ebitda_interest_coverage_ttm",
+          "formula": "clamp10((x-1)/(10-1)*10)",
+          "input": "12",
+          "normalized": "10.0000",
+          "weight": "0.6"
+        }
+      ],
+      "weight_sum": "9.5",
+      "weighted_numerator": "88.18484"
+    },
+    "capital_efficiency_score": {
+      "bonus": ".9",
+      "expected": "10.0000",
+      "rounded_mean": "9.3854",
+      "terms": [
+        {
+          "field": "roic_ttm",
+          "formula": "clamp10((x-0)/(20-0)*10)",
+          "input": "29",
+          "normalized": "10.0000",
+          "weight": "1.3"
+        },
+        {
+          "field": "roic_annual",
+          "formula": "clamp10((x-0)/(20-0)*10)",
+          "input": "21",
+          "normalized": "10.0000",
+          "weight": "0.9"
+        },
+        {
+          "field": "return_on_total_capital_ttm",
+          "formula": "clamp10((x-0)/(20-0)*10)",
+          "input": "21",
+          "normalized": "10.0000",
+          "weight": "0.9"
+        },
+        {
+          "field": "roa_ttm",
+          "formula": "clamp10((x-0)/(15-0)*10)",
+          "input": "15",
+          "normalized": "10.0000",
+          "weight": "1.1"
+        },
+        {
+          "field": "roa_annual",
+          "formula": "clamp10((x-0)/(15-0)*10)",
+          "input": "13",
+          "normalized": "8.6667",
+          "weight": "0.7"
+        },
+        {
+          "field": "asset_turnover_ttm",
+          "formula": "clamp10((x-0.1)/(1.5-0.1)*10)",
+          "input": "1.3",
+          "normalized": "8.5714",
+          "weight": "0.9"
+        },
+        {
+          "field": "asset_turnover_annual",
+          "formula": "clamp10((x-0.1)/(1.5-0.1)*10)",
+          "input": "1.1",
+          "normalized": "7.1429",
+          "weight": "0.6"
+        }
+      ],
+      "weight_sum": "6.4",
+      "weighted_numerator": "60.06669"
+    },
+    "earnings_quality_score": {
+      "bonus": "0",
+      "expected": "9.5500",
+      "rounded_mean": "9.5500",
+      "terms": [
+        {
+          "field": "sloan_ratio_ttm",
+          "formula": "clamp10((20-x)/(20-0)*10)",
+          "input": "2",
+          "normalized": "9.0000",
+          "weight": "0.45"
+        },
+        {
+          "field": "fcf_ttm",
+          "formula": "clamp10(900000000/800000000*10)",
+          "input": "900000000",
+          "normalized": "10.0000",
+          "weight": "0.35"
+        },
+        {
+          "field": "operating_cash_flow_per_share_ttm",
+          "formula": "positive",
+          "input": "5",
+          "normalized": "10.0000",
+          "weight": "0.2"
+        }
+      ],
+      "weight_sum": "1.00",
+      "weighted_numerator": "9.550000"
+    },
+    "fcf_quality_score": {
+      "bonus": "0",
+      "expected": "8.9363",
+      "rounded_mean": "8.9363",
+      "terms": [
+        {
+          "field": "fcf_ttm",
+          "formula": "positive",
+          "input": "900000000",
+          "normalized": "10.0000",
+          "weight": "1.5"
+        },
+        {
+          "field": "fcf_margin_ttm",
+          "formula": "clamp10((x-0)/(20-0)*10)",
+          "input": "24",
+          "normalized": "10.0000",
+          "weight": "1.3"
+        },
+        {
+          "field": "fcf_growth_ttm_yoy",
+          "formula": "clamp10((x--20)/(30--20)*10)",
+          "input": "32",
+          "normalized": "10.0000",
+          "weight": "1"
+        },
+        {
+          "field": "pfcf",
+          "formula": "clamp10((35-x)/(35-8)*10)",
+          "input": "22",
+          "normalized": "4.8148",
+          "weight": "0.7"
+        },
+        {
+          "field": "ev_fcf",
+          "formula": "clamp10((35-x)/(35-8)*10)",
+          "input": "21",
+          "normalized": "5.1852",
+          "weight": "0.7"
+        },
+        {
+          "field": "operating_cash_flow_per_share_ttm",
+          "formula": "positive",
+          "input": "5",
+          "normalized": "10.0000",
+          "weight": "0.9"
+        },
+        {
+          "field": "capex_ttm",
+          "formula": "10-min(7,abs(-100000000)/900000000*3)",
+          "input": "-100000000",
+          "normalized": "9.6667",
+          "weight": "0.7"
+        }
+      ],
+      "weight_sum": "6.8",
+      "weighted_numerator": "60.76669"
+    },
+    "forward_quality_score": {
+      "bonus": ".3",
+      "expected": "10.0000",
+      "rounded_mean": "9.8269",
+      "terms": [
+        {
+          "field": "eps_estimate_annual",
+          "formula": "positive",
+          "input": "7",
+          "normalized": "10.0000",
+          "weight": "1"
+        },
+        {
+          "field": "eps_estimate_quarterly",
+          "formula": "positive",
+          "input": "1.5",
+          "normalized": "10.0000",
+          "weight": "0.7"
+        },
+        {
+          "field": "revenue_estimate_annual",
+          "formula": "positive",
+          "input": "5500000000",
+          "normalized": "10.0000",
+          "weight": "0.8"
+        },
+        {
+          "field": "net_income_estimate_ntm",
+          "formula": "positive",
+          "input": "900000000",
+          "normalized": "10.0000",
+          "weight": "1"
+        },
+        {
+          "field": "ebit_estimate_ntm",
+          "formula": "positive",
+          "input": "1200000000",
+          "normalized": "10.0000",
+          "weight": "1"
+        },
+        {
+          "field": "cash_short_term_investments_estimate_annual",
+          "formula": "positive",
+          "input": "1100000000",
+          "normalized": "10.0000",
+          "weight": "0.4"
+        },
+        {
+          "field": "capex_estimate_ntm",
+          "formula": "negative capex estimate",
+          "input": "-120000000",
+          "normalized": "7.0000",
+          "weight": "0.3"
+        }
+      ],
+      "weight_sum": "5.2",
+      "weighted_numerator": "51.10000"
+    },
+    "growth_quality_score": {
+      "bonus": "0",
+      "expected": "9.4101",
+      "rounded_mean": "9.4101",
+      "terms": [
+        {
+          "field": "revenue_growth_quarterly_yoy",
+          "formula": "clamp10((x--10)/(25--10)*10)",
+          "input": "34",
+          "normalized": "10.0000",
+          "weight": "0.8"
+        },
+        {
+          "field": "revenue_growth_ttm_yoy",
+          "formula": "clamp10((x--10)/(25--10)*10)",
+          "input": "31",
+          "normalized": "10.0000",
+          "weight": "1.4"
+        },
+        {
+          "field": "revenue_growth_5y_cagr",
+          "formula": "clamp10((x-0)/(20-0)*10)",
+          "input": "24",
+          "normalized": "10.0000",
+          "weight": "1"
+        },
+        {
+          "field": "eps_growth_quarterly_yoy",
+          "formula": "clamp10((x--10)/(25--10)*10)",
+          "input": "41",
+          "normalized": "10.0000",
+          "weight": "0.7"
+        },
+        {
+          "field": "eps_growth_ttm_yoy",
+          "formula": "clamp10((x--10)/(25--10)*10)",
+          "input": "38",
+          "normalized": "10.0000",
+          "weight": "1.1"
+        },
+        {
+          "field": "ebitda_growth_ttm_yoy",
+          "formula": "clamp10((x--10)/(25--10)*10)",
+          "input": "18",
+          "normalized": "8.0000",
+          "weight": "0.8"
+        },
+        {
+          "field": "fcf_growth_ttm_yoy",
+          "formula": "clamp10((x--20)/(30--20)*10)",
+          "input": "32",
+          "normalized": "10.0000",
+          "weight": "1.1"
+        },
+        {
+          "field": "gross_profit_growth_ttm_yoy",
+          "formula": "clamp10((x--10)/(25--10)*10)",
+          "input": "17",
+          "normalized": "7.7143",
+          "weight": "0.8"
+        },
+        {
+          "field": "net_income_growth_ttm_yoy",
+          "formula": "clamp10((x--10)/(25--10)*10)",
+          "input": "19",
+          "normalized": "8.2857",
+          "weight": "1.2"
+        },
+        {
+          "field": "total_revenue_ttm",
+          "formula": "positive amount; no growth-divergence penalty",
+          "input": "5000000000",
+          "normalized": "10.0000",
+          "weight": "0.4"
+        }
+      ],
+      "weight_sum": "9.3",
+      "weighted_numerator": "87.51428"
+    },
+    "liquidity_risk_score": {
+      "bonus": "0",
+      "expected": "9.4865",
+      "rounded_mean": "9.4865",
+      "terms": [
+        {
+          "field": "dollar_volume_10d",
+          "formula": "clamp10((x-2000000)/(25000000-2000000)*10)",
+          "input": "40000000",
+          "normalized": "10.0000",
+          "weight": "0.9"
+        },
+        {
+          "field": "dollar_volume_30d",
+          "formula": "clamp10((x-2000000)/(25000000-2000000)*10)",
+          "input": "190000000",
+          "normalized": "10.0000",
+          "weight": "1"
+        },
+        {
+          "field": "dollar_volume_60d",
+          "formula": "clamp10((x-2000000)/(25000000-2000000)*10)",
+          "input": "50000000",
+          "normalized": "10.0000",
+          "weight": "1"
+        },
+        {
+          "field": "free_float",
+          "formula": "positive",
+          "input": "900000000",
+          "normalized": "10.0000",
+          "weight": "0.6"
+        },
+        {
+          "field": "relative_volume_1d",
+          "formula": "ideal range .8..2.5",
+          "input": "1.2",
+          "normalized": "10.0000",
+          "weight": "0.4"
+        },
+        {
+          "field": "volume_change_1d_pct",
+          "formula": "ideal range -20..80",
+          "input": "10",
+          "normalized": "10.0000",
+          "weight": "0.3"
+        },
+        {
+          "field": "price_change_1d_pct",
+          "formula": "ideal range -5..5",
+          "input": "1",
+          "normalized": "10.0000",
+          "weight": "0.3"
+        },
+        {
+          "field": "beta_1y",
+          "formula": "clamp10((2.2-x)/(2.2-0.8)*10)",
+          "input": "1.0",
+          "normalized": "8.5714",
+          "weight": "0.8"
+        },
+        {
+          "field": "beta_3y",
+          "formula": "clamp10((2.2-x)/(2.2-0.8)*10)",
+          "input": "1.1",
+          "normalized": "7.8571",
+          "weight": "0.7"
+        },
+        {
+          "field": "tradingview_atr_pct_14d",
+          "formula": "clamp10((12-x)/(12-2)*10)",
+          "input": "3",
+          "normalized": "9.0000",
+          "weight": "0.9"
+        }
+      ],
+      "weight_sum": "6.9",
+      "weighted_numerator": "65.45709"
+    },
+    "profitability_quality_score": {
+      "bonus": ".3",
+      "expected": "10.0000",
+      "rounded_mean": "9.9136",
+      "terms": [
+        {
+          "field": "gross_margin_ttm",
+          "formula": "clamp10((x-10)/(60-10)*10)",
+          "input": "78",
+          "normalized": "10.0000",
+          "weight": "0.8"
+        },
+        {
+          "field": "gross_margin_annual",
+          "formula": "clamp10((x-10)/(60-10)*10)",
+          "input": "60",
+          "normalized": "10.0000",
+          "weight": "0.5"
+        },
+        {
+          "field": "ebitda_margin_ttm",
+          "formula": "clamp10((x-5)/(35-5)*10)",
+          "input": "35",
+          "normalized": "10.0000",
+          "weight": "0.8"
+        },
+        {
+          "field": "operating_margin_ttm",
+          "formula": "clamp10((x-0)/(25-0)*10)",
+          "input": "31",
+          "normalized": "10.0000",
+          "weight": "1.2"
+        },
+        {
+          "field": "operating_margin_annual",
+          "formula": "clamp10((x-0)/(25-0)*10)",
+          "input": "26",
+          "normalized": "10.0000",
+          "weight": "0.7"
+        },
+        {
+          "field": "net_margin_ttm",
+          "formula": "clamp10((x-0)/(20-0)*10)",
+          "input": "25",
+          "normalized": "10.0000",
+          "weight": "1.1"
+        },
+        {
+          "field": "net_margin_annual",
+          "formula": "clamp10((x-0)/(20-0)*10)",
+          "input": "21",
+          "normalized": "10.0000",
+          "weight": "0.7"
+        },
+        {
+          "field": "roe_ttm",
+          "formula": "clamp10((x-0)/(25-0)*10)",
+          "input": "33",
+          "normalized": "10.0000",
+          "weight": "0.7"
+        },
+        {
+          "field": "roa_ttm",
+          "formula": "clamp10((x-0)/(15-0)*10)",
+          "input": "15",
+          "normalized": "10.0000",
+          "weight": "1.1"
+        },
+        {
+          "field": "roa_annual",
+          "formula": "clamp10((x-0)/(15-0)*10)",
+          "input": "13",
+          "normalized": "8.6667",
+          "weight": "0.7"
+        },
+        {
+          "field": "roic_ttm",
+          "formula": "clamp10((x-0)/(20-0)*10)",
+          "input": "29",
+          "normalized": "10.0000",
+          "weight": "1.1"
+        },
+        {
+          "field": "roce_ttm",
+          "formula": "clamp10((x-0)/(20-0)*10)",
+          "input": "22",
+          "normalized": "10.0000",
+          "weight": "0.6"
+        },
+        {
+          "field": "return_on_total_capital_ttm",
+          "formula": "clamp10((x-0)/(20-0)*10)",
+          "input": "21",
+          "normalized": "10.0000",
+          "weight": "0.8"
+        }
+      ],
+      "weight_sum": "10.8",
+      "weighted_numerator": "107.06669"
+    },
+    "shareholder_quality_score": {
+      "bonus": "0",
+      "expected": "7.9111",
+      "rounded_mean": "7.9111",
+      "terms": [
+        {
+          "field": "buyback_yield",
+          "formula": "5+1.5",
+          "input": "1.5",
+          "normalized": "6.5000",
+          "weight": "1"
+        },
+        {
+          "field": "dividend_yield_ttm",
+          "formula": "5+1.2*.6",
+          "input": "1.2",
+          "normalized": "5.7200",
+          "weight": "0.5"
+        },
+        {
+          "field": "dividend_payout_ratio_ttm",
+          "formula": "clamp10((90-x)/(90-65)*10)",
+          "input": "35",
+          "normalized": "10.0000",
+          "weight": "1"
+        },
+        {
+          "field": "total_common_shares_outstanding",
+          "formula": "positive",
+          "input": "1000000000",
+          "normalized": "10.0000",
+          "weight": "0.2"
+        }
+      ],
+      "weight_sum": "2.7",
+      "weighted_numerator": "21.36000"
+    },
+    "valuation_quality_score": {
+      "bonus": "0",
+      "expected": "6.5515",
+      "rounded_mean": "6.5515",
+      "terms": [
+        {
+          "field": "pe_ratio",
+          "formula": "clamp10((60-x)/(60-12)*10)",
+          "input": "24",
+          "normalized": "7.5000",
+          "weight": "1"
+        },
+        {
+          "field": "forward_pe",
+          "formula": "clamp10((45-x)/(45-10)*10)",
+          "input": "19",
+          "normalized": "7.4286",
+          "weight": "1"
+        },
+        {
+          "field": "earnings_yield_ttm",
+          "formula": "clamp10((x-0)/(8-0)*10)",
+          "input": "5",
+          "normalized": "6.2500",
+          "weight": "1.1"
+        },
+        {
+          "field": "ps_ratio",
+          "formula": "clamp10((12-x)/(12-2)*10)",
+          "input": "6",
+          "normalized": "6.0000",
+          "weight": "0.8"
+        },
+        {
+          "field": "ev_revenue",
+          "formula": "clamp10((12-x)/(12-2)*10)",
+          "input": "5",
+          "normalized": "7.0000",
+          "weight": "0.8"
+        },
+        {
+          "field": "ev_ebitda",
+          "formula": "clamp10((30-x)/(30-8)*10)",
+          "input": "15",
+          "normalized": "6.8182",
+          "weight": "0.9"
+        },
+        {
+          "field": "pfcf",
+          "formula": "clamp10((35-x)/(35-8)*10)",
+          "input": "22",
+          "normalized": "4.8148",
+          "weight": "0.9"
+        },
+        {
+          "field": "ev_fcf",
+          "formula": "clamp10((35-x)/(35-8)*10)",
+          "input": "21",
+          "normalized": "5.1852",
+          "weight": "0.9"
+        },
+        {
+          "field": "peg_ratio",
+          "formula": "clamp10((3-x)/(3-0.8)*10)",
+          "input": "1.2",
+          "normalized": "8.1818",
+          "weight": "0.7"
+        }
+      ],
+      "weight_sum": "8.1",
+      "weighted_numerator": "53.06724"
+    }
+  },
+  "expected": "9.1909",
+  "label": "Clean compounder",
+  "rounding": "Decimal ROUND_HALF_EVEN, four places at each normalized term, mean, bonus/clamp and aggregate; no missing penalty for this complete specimen",
+  "warnings": [],
+  "weights": {
+    "balance_sheet_quality_score": 0.12,
+    "capital_efficiency_score": 0.12,
+    "earnings_quality_score": 0.12,
+    "fcf_quality_score": 0.12,
+    "forward_quality_score": 0.08,
+    "growth_quality_score": 0.13,
+    "liquidity_risk_score": 0.03,
+    "profitability_quality_score": 0.13,
+    "shareholder_quality_score": 0.05,
+    "valuation_quality_score": 0.1
+  }
+}

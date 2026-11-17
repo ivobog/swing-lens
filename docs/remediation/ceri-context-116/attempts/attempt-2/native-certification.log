@@ -1,0 +1,54 @@
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+WARNI [app.observability.transaction_metrics] observability.metric_publish_failed
+Traceback (most recent call last):
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\scripts\qa\ceri_context_116_certification.py", line 331, in main
+    capture = execute(enqueue_capture("first"), execute_capture_run_job)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\scripts\qa\ceri_context_116_certification.py", line 316, in execute
+    values = execute_job(
+             ^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\background_worker.py", line 1325, in execute_job
+    return handler(db, job)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\configuration_delivery.py", line 114, in execute
+    return calculation(db, job, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\ceri\job_handlers.py", line 560, in execute_capture_run_job
+    result = capture.capture_run(db, run_id, **capture_kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\ceri\capture_service.py", line 805, in capture_run
+    _capture_score_comparisons(
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\ceri\capture_service.py", line 1119, in _capture_score_comparisons
+    changes = service.change_detection.detect_score_changes(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\configuration_delivery.py", line 914, in execute
+    return calculation(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\core_mutation_authority.py", line 777, in transactional
+    result = writer(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\ceri\change_detection_service.py", line 82, in detect_score_changes
+    event, created = self._persist_change(
+                     ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\configuration_delivery.py", line 914, in execute
+    return calculation(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\core_mutation_authority.py", line 777, in transactional
+    result = writer(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\ceri\change_detection_service.py", line 345, in _persist_change
+    proof = validate_score_change(
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\ceri\change_authority.py", line 479, in validate_score_change
+    decision_authority(
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\decision_mutation_authority.py", line 619, in decision_authority
+    retained = assert_pipeline_calculation_context(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\market_calculation_context_service.py", line 828, in assert_pipeline_calculation_context
+    authoritative = resolve_pipeline_market_context(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ivica\Documents\SwingLens\.worktrees\ceri-context-remediation\app\services\market_calculation_context_service.py", line 755, in resolve_pipeline_market_context
+    raise PipelineCalculationContextError(
+app.services.market_calculation_context_service.PipelineCalculationContextError: Market calculation context 116 is not owned by a pipeline.
+verified disposable database before Alembic: database=swinglens_qa_ceri_context_1794788997961 server=127.0.0.1/32:5432 url=postgresql+psycopg://<restricted:userinfo>@127.0.0.1:5432/swinglens_qa_ceri_context_1794788997961

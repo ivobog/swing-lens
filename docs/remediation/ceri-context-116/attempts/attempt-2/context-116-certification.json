@@ -1,0 +1,25 @@
+{
+  "decision": "FAIL",
+  "database": "swinglens_qa_ceri_context_1794788997961",
+  "steps": {
+    "migration": "PASS"
+  },
+  "frozen_anchor": {
+    "anchor_id": "8e37564fc30dfa21e72a9bb31a68944894b399619e23ce8a74ceb461e5fad43e",
+    "fingerprint": "326a130767119b99288c8897fd5bfcfc806ab778994bdca52fd9cad143395807"
+  },
+  "frozen_configuration": "77c7ae22de5372b399c60fd407f3caee849a29cac00cb430b9ce0d8d8f892348",
+  "genuine_upstream_job_counts": {
+    "CERI_FEATURE_BATCH": 9,
+    "CERI_NORMALIZE_BATCH": 36,
+    "CERI_PROVIDER_INGEST_BATCH": 72,
+    "CERI_RUN_FINALIZE": 1
+  },
+  "worker_id": "ceri-context-116-disposable:6cefba836016",
+  "workflow_key": "ceri:pipeline:owner:66:certification:6cefba836016",
+  "dependency_id": 89,
+  "error": {
+    "type": "PipelineCalculationContextError",
+    "message": "Market calculation context 116 is not owned by a pipeline."
+  }
+}

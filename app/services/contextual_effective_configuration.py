@@ -66,24 +66,34 @@ def ceri_calculation_values(config):
     return {key: payload[key] for key in CERI_CALCULATION_FIELDS}
 
 
-def _restore(kind, value):
+def _restore(kind, value, *, _hints=None):
+    if _hints is None:
+        _hints = {}
     if value is None:
         return None
     origin, args = get_origin(kind), get_args(kind)
     if is_dataclass(kind):
-        hints = get_type_hints(kind)
-        return kind(**{f.name: _restore(hints[f.name], value[f.name]) for f in fields(kind)})
+        if kind not in _hints:
+            _hints[kind] = get_type_hints(kind)
+        hints = _hints[kind]
+        return kind(**{
+            f.name: _restore(hints[f.name], value[f.name], _hints=_hints)
+            for f in fields(kind)
+        })
     if origin is dict:
-        return {_restore(args[0], k): _restore(args[1], v) for k, v in value.items()}
+        return {
+            _restore(args[0], k, _hints=_hints): _restore(args[1], v, _hints=_hints)
+            for k, v in value.items()
+        }
     if origin in {tuple, list, set, frozenset}:
-        items = [_restore(args[0], item) for item in value]
+        items = [_restore(args[0], item, _hints=_hints) for item in value]
         return origin(items)
     if isinstance(kind, type) and issubclass(kind, Enum):
         return kind(value)
     if kind is time:
         return time.fromisoformat(value)
     if args and type(None) in args:
-        return _restore(next(arg for arg in args if arg is not type(None)), value)
+        return _restore(next(arg for arg in args if arg is not type(None)), value, _hints=_hints)
     return value
 
 

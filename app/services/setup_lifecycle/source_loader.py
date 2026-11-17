@@ -112,7 +112,15 @@ class SetupLifecycleSourceLoader:
         *,
         market_cutoff: MarketCalculationCutoff | None = None,
         tickers: set[str] | None = None,
+        checkpoint_callback=None,
     ) -> RunSourceContext:
+        def checkpoint(phase, processed, total, current_item):
+            if checkpoint_callback is not None:
+                checkpoint_callback(
+                    phase=phase, processed=processed, total=total, current_item=current_item,
+                    last_completed_item=current_item,
+                )
+
         upload_run = db.get(UploadRun, run_id)
         if upload_run is None:
             raise ValueError(f"Upload run {run_id} was not found.")
@@ -134,6 +142,7 @@ class SetupLifecycleSourceLoader:
                 func.upper(RawCompanyRow.ticker).in_({ticker.upper() for ticker in tickers})
             )
         raw_rows = tuple(db.scalars(raw_statement.order_by(RawCompanyRow.row_number)))
+        checkpoint("SETUP_RAW_ROWS_LOADED", len(raw_rows), len(raw_rows), "raw-rows")
         tickers = tuple(row.ticker.upper() for row in raw_rows if row.ticker)
         market_cutoff = market_cutoff or standalone_market_context(
             reason="STANDALONE_SETUP_LIFECYCLE",
@@ -146,7 +155,9 @@ class SetupLifecycleSourceLoader:
             cutoff=source_cutoff,
             cutoff_at=market_cutoff.cutoff_at,
             calculation_context_id=market_cutoff.context_id,
+            **({"checkpoint_callback": checkpoint_callback} if checkpoint_callback else {}),
         )
+        checkpoint("SETUP_PRICE_CONTEXT_LOADED", len(price_bars), len(price_bars), "price-bars")
         operational_metrics.increment(
             "swinglens_setup_price_rows_materialized_total",
             len(price_bars),
@@ -173,8 +184,13 @@ class SetupLifecycleSourceLoader:
                     pipeline_id=pipeline_id,
                     market_cutoff=market_cutoff,
                     policy=SETUP_TECHNICAL_COMPATIBILITY,
+                    checkpoint_callback=checkpoint_callback,
                 )
             )
+        checkpoint(
+            "SETUP_TECHNICAL_CONTEXT_LOADED", len(technical_scores), len(technical_scores),
+            "technical-scores",
+        )
         # Regime and sector snapshots are global session artifacts. Their temporal
         # eligibility is anchored to the frozen market context, never to an
         # individual ticker's latest OHLCV observation. A stale/terminal ticker
@@ -213,6 +229,10 @@ class SetupLifecycleSourceLoader:
             )
         market_candidates = tuple(db.scalars(market_statement))
         sector_candidates = tuple(db.scalars(sector_statement))
+        checkpoint(
+            "SETUP_GLOBAL_CANDIDATES_LOADED", len(market_candidates) + len(sector_candidates),
+            len(market_candidates) + len(sector_candidates), "global-candidates",
+        )
         regime_expected = (
             expected_regime_identity(
                 market_cutoff=market_cutoff,
@@ -258,6 +278,7 @@ class SetupLifecycleSourceLoader:
         )
         market_by_ticker = dict.fromkeys(context_tickers, market_snapshot)
         sector_by_ticker = dict.fromkeys(context_tickers, sector_snapshot)
+        checkpoint("SETUP_GLOBAL_CONTEXT_SELECTED", 2, 2, "regime-and-sector")
         sector_snapshot_ids = tuple(
             snapshot.id for snapshot in sector_candidates if snapshot.id is not None
         )
@@ -296,6 +317,7 @@ class SetupLifecycleSourceLoader:
                     pipeline_id=pipeline_id,
                     market_cutoff=market_cutoff,
                     policy=SETUP_COMBINED_COMPATIBILITY,
+                    checkpoint_callback=checkpoint_callback,
                 )
             )
             ranking_results = tuple(
@@ -305,8 +327,13 @@ class SetupLifecycleSourceLoader:
                     pipeline_id=pipeline_id,
                     market_cutoff=market_cutoff,
                     policy=SETUP_RANKING_METADATA_COMPATIBILITY,
+                    checkpoint_callback=checkpoint_callback,
                 )
             )
+        checkpoint(
+            "SETUP_DECISION_CONTEXT_LOADED", len(combined_results) + len(ranking_results),
+            len(combined_results) + len(ranking_results), "combined-and-ranking",
+        )
         context = build_run_source_context(
             upload_run=upload_run,
             raw_rows=raw_rows,
@@ -332,6 +359,9 @@ class SetupLifecycleSourceLoader:
         self.last_metrics["setup_context_build_ms"] = round(
             (perf_counter() - context_started_at) * 1000, 3
         )
+        checkpoint(
+            "SETUP_SOURCE_CONTEXT_BUILT", len(context.tickers), len(context.tickers), "run-context",
+        )
         return context
 
     def _load_price_bars(
@@ -342,12 +372,16 @@ class SetupLifecycleSourceLoader:
         cutoff: date,
         cutoff_at: datetime | None = None,
         calculation_context_id: int | None = None,
+        checkpoint_callback=None,
     ) -> tuple[PriceBar, ...]:
         if not tickers:
             self.last_metrics["setup_latest_bar_query_ms"] = 0.0
             return ()
 
         started_at = perf_counter()
+        progress_kwargs = (
+            {"checkpoint_callback": checkpoint_callback} if checkpoint_callback is not None else {}
+        )
         legacy_price_bars: tuple[PriceBar, ...] | None = None
         projected_price_bars: tuple[PriceBar, ...] | None = None
 
@@ -370,6 +404,7 @@ class SetupLifecycleSourceLoader:
                         session_count=2,
                         one_source_per_session=True,
                         source_priority=PRICE_BAR_SOURCE_ORDER,
+                        **progress_kwargs,
                     )
                 )
             else:
@@ -398,6 +433,7 @@ class SetupLifecycleSourceLoader:
                         max_session=cutoff,
                         as_of=cutoff_at,
                         calculation_context_id=calculation_context_id,
+                        **progress_kwargs,
                     )
                 )
             else:
@@ -766,9 +802,10 @@ def _compatible_ticker_artifacts(
     pipeline_id: int | None,
     market_cutoff: MarketCalculationCutoff,
     policy,
+    checkpoint_callback=None,
 ):
     accepted = []
-    for row in rows:
+    for index, row in enumerate(rows, start=1):
         expected = consumer_context_identity(
             market_cutoff=market_cutoff,
             run_id=run_id,
@@ -782,6 +819,11 @@ def _compatible_ticker_artifacts(
             include_fingerprints=False,
         ).accepted:
             accepted.append(row)
+        if checkpoint_callback is not None and (index % 10 == 0 or index == len(rows)):
+            checkpoint_callback(
+                phase="SETUP_ARTIFACT_COMPATIBILITY_VERIFIED", processed=index, total=len(rows),
+                current_item=f"{type(row).__name__}:{row.id}", last_completed_item=row.ticker,
+            )
     return accepted
 
 

@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.models.tables import (
     CombinedResult,
@@ -88,9 +89,11 @@ def build_universe_sector_metrics(
     combined_list = _combined_results_for_run(db, run_id)
     loaded(4, "combined")
     ranking_results = (
-        _ranking_results_for_run(db, run_id, checkpoint_callback=checkpoint_callback)
+        _ranking_results_for_run(db, run_id, checkpoint_callback=checkpoint_callback,
+                                with_evidence=False)
         if isinstance(db, Session) and checkpoint_callback is not None
-        else _ranking_results_for_run(db, run_id)
+        else (_ranking_results_for_run(db, run_id, with_evidence=False)
+              if isinstance(db, Session) else _ranking_results_for_run(db, run_id))
     )
     loaded(5, "rankings")
     if market_cutoff is not None and isinstance(db, Session):
@@ -106,30 +109,17 @@ def build_universe_sector_metrics(
             ranking_results, run_id, pipeline_id, market_cutoff
         )
     permissions = {}
-    candidates = fundamentals_list + technicals_list + combined_list + ranking_results
     evidence_rows = {}
-    locked_source_rows = {}
     if isinstance(db, Session):
-        from app.models.tables import CoreCalculationEvidence
+        from app.services.core_mutation_authority import sector_evidence_rows
 
-        evidence_ids = {row.evidence_id for row in candidates if row.evidence_id is not None}
-        # The acquisition queries already selectin-load these immutable records.
-        # Keep them resident; loading them again decodes their full JSON columns.
-        evidence_rows = {
-            row.evidence_id: retained
-            for row in candidates
-            if (retained := row.__dict__.get("calculation_evidence")) is not None
-        }
-        missing = evidence_ids - evidence_rows.keys()
-        if missing:
-            evidence_rows.update({
-                row.id: row for row in db.scalars(
-                    select(CoreCalculationEvidence).where(CoreCalculationEvidence.id.in_(missing))
-                )
-            })
-        # The native validator previously acquired these locks one row at a
-        # time. Acquire the same candidate row locks in model/id batches, then
-        # keep every selected row/value comparison in the native validator.
+        evidence_rows = sector_evidence_rows(db, {
+            row.evidence_id
+            for rows in (fundamentals_list, technicals_list, combined_list, ranking_results)
+            for row in rows if row.evidence_id is not None
+        })
+        # Preserve the original lock order without hydrating another retained
+        # cohort. Each selected frozen value still passes the native validator.
         for model, rows in ((FundamentalScore, fundamentals_list),
                             (TechnicalScore, technicals_list),
                             (CombinedResult, combined_list),
@@ -137,19 +127,17 @@ def build_universe_sector_metrics(
             ids = [row.id for row in rows if row.evidence_id is not None]
             if ids:
                 with db.no_autoflush:
-                    locked_source_rows.update({
-                        (model, row.id): row for row in db.scalars(
-                            select(model).where(model.id.in_(ids)).order_by(model.id).with_for_update()
-                        )
-                    })
+                    list(db.scalars(select(model.id).where(model.id.in_(ids))
+                                    .order_by(model.id).with_for_update()))
     processed = 0
-    total = len(candidates)
+    total = sum(map(len, (fundamentals_list, technicals_list, combined_list, ranking_results)))
 
     def checkpoint(item):
         if checkpoint_callback is not None and (processed % 25 == 0 or processed == total):
             checkpoint_callback(
                 phase="UNIVERSE_SOURCE_VALIDATION", processed=processed, total=total,
                 current_item=item, last_completed_item=item if processed else None,
+                metrics=evidence_rows.load_metrics() if isinstance(db, Session) else None,
             )
 
     checkpoint("started")
@@ -158,27 +146,57 @@ def build_universe_sector_metrics(
         if isinstance(db, Session) and row.evidence_id is not None:
             from app.services.core_mutation_authority import validate_source_values
 
-            validate_source_values(row, evidence_rows.get(row.evidence_id), db=db,
-                                   locked_source_rows=locked_source_rows)
+            validate_source_values(row, evidence_rows.get(row.evidence_id), db=db)
 
     def permitted(rows, policy, selector):
         nonlocal processed
         retained = []
-        for index, row in enumerate(rows):
-            projected, permission = selector(row, policy)
-            permissions[f"{policy.policy_version}:{index:06d}"] = permission
-            if projected is not None:
-                validate_selected_values(projected)
-                retained.append(projected)
+        visits = list(range(len(rows)))
+        if isinstance(db, Session):
+            from app.services.core_mutation_authority import sector_evidence_visit_order
+
+            visits = sector_evidence_visit_order([row.evidence_id for row in rows])
+        for index in visits:
+            row = rows[index]
+            native = isinstance(db, Session)
+            if native and row.evidence_id is not None:
+                # Selectors consume this exact pointer, not an independently
+                # decoded eager relationship for every member of the cohort.
+                set_committed_value(row, "calculation_evidence",
+                                    evidence_rows.get(row.evidence_id))
+            try:
+                projected, permission = selector(row, policy)
+                permissions[f"{policy.policy_version}:{index:06d}"] = permission
+                if projected is not None:
+                    validate_selected_values(projected)
+                    view = _sector_source_view(projected) if native else projected
+                    retained.append((index, view))
+            finally:
+                if native:
+                    # The aggregation retains only values it actually uses after
+                    # full financial validation; no source/debug tree survives.
+                    db.expire(row, ["calculation_evidence"])
+                    rows[index] = None
             processed += 1
             checkpoint(f"{type(row).__name__}:{getattr(row, 'id', None)}")
-        return retained
+        return [value for _, value in sorted(retained, key=lambda item: item[0])]
 
     technicals_list = permitted(technicals_list, TECHNICAL_TO_SECTOR, technical_decision_input)
     combined_list = permitted(combined_list, COMBINED_TO_SECTOR, contextual_decision_input)
     ranking_results = permitted(ranking_results, RANKING_TO_SECTOR, contextual_decision_input)
-    for item in fundamentals_list:
+    fundamental_visits = list(range(len(fundamentals_list)))
+    if isinstance(db, Session):
+        from app.services.core_mutation_authority import sector_evidence_visit_order
+
+        fundamental_visits = sector_evidence_visit_order([
+            row.evidence_id for row in fundamentals_list
+        ])
+    for index in fundamental_visits:
+        item = fundamentals_list[index]
         validate_selected_values(item)
+        if isinstance(db, Session):
+            fundamentals_list[index] = _sector_source_view(item)
+            db.expire(item, ["calculation_evidence"])
         processed += 1
         checkpoint(f"{type(item).__name__}:{getattr(item, 'id', None)}")
     fundamentals = _by_ticker(fundamentals_list)
@@ -209,6 +227,23 @@ def build_universe_sector_metrics(
             config=config,
         )
 
+    native_source_manifest = {
+        "financial_inputs": [
+            {"artifact_kind": kind, "evidence_id": item.evidence_id,
+             "ticker": item.ticker, "run_id": item.run_id}
+            for kind, items in (("FUNDAMENTAL", fundamentals_list),
+                                ("TECHNICAL", technicals_list),
+                                ("COMBINED", combined_list), ("RANKING", ranking_results))
+            for item in items
+        ],
+        "raw_inputs": [
+            {"id": item.id, "fingerprint": CanonicalEvidenceSerializer.fingerprint({
+                "run_id": item.run_id, "ticker": item.ticker, "raw_json": item.raw_json,
+                "sector": item.sector, "sector_canonical": item.sector_canonical,
+            })}
+            for item in raw_rows
+        ],
+    } if isinstance(db, Session) else {}
     rows = [
         _to_metrics(
             bucket=bucket,
@@ -225,45 +260,43 @@ def build_universe_sector_metrics(
             debug={
                 **row.debug,
                 CONTEXTUAL_ELIGIBILITY_KEY: permissions,
-                "native_source_manifest": {
-                    "financial_inputs": [
-                        {
-                            "artifact_kind": kind,
-                            "evidence_id": item.evidence_id,
-                            "ticker": item.ticker,
-                            "run_id": item.run_id,
-                        }
-                        for kind, items in (
-                            ("FUNDAMENTAL", fundamentals_list),
-                            ("TECHNICAL", technicals_list),
-                            ("COMBINED", combined_list),
-                            ("RANKING", ranking_results),
-                        )
-                        for item in items
-                    ],
-                    "raw_inputs": [
-                        {
-                            "id": item.id,
-                            "fingerprint": CanonicalEvidenceSerializer.fingerprint(
-                                {
-                                    "run_id": item.run_id,
-                                    "ticker": item.ticker,
-                                    "raw_json": item.raw_json,
-                                    "sector": item.sector,
-                                    "sector_canonical": item.sector_canonical,
-                                }
-                            ),
-                        }
-                        for item in raw_rows
-                    ],
-                }
-                if isinstance(db, Session)
-                else {},
+                "native_source_manifest": native_source_manifest,
             },
         )
         for row in rows
     ]
     return sorted(rows, key=lambda row: (row.sector == "Unknown", row.sector))
+
+
+@dataclass(frozen=True, slots=True)
+class _SectorSourceView:
+    """Validated frozen values needed by aggregation, without producer JSON."""
+
+    id: int | None
+    evidence_id: int | None
+    run_id: int
+    ticker: str
+    company_name: str | None = None
+    sector: str | None = None
+    fundamental_score: Any = None
+    dual_score: Any = None
+    classification: str | None = None
+    vcp_score: Any = None
+    feature_flags_json: tuple = ()
+    warning_flags_json: tuple = ()
+    final_score: Any = None
+    final_rank: int | None = None
+    ranking_profile: str | None = None
+    profile_score: Any = None
+    profile_rank: int | None = None
+
+
+def _sector_source_view(row) -> _SectorSourceView:
+    values = {name: getattr(row, name, None)
+              for name in _SectorSourceView.__dataclass_fields__}
+    for name in ("feature_flags_json", "warning_flags_json"):
+        values[name] = tuple(values[name] or ())
+    return _SectorSourceView(**values)
 
 
 @dataclass
@@ -769,7 +802,6 @@ def _fundamentals_for_run(db: Session, run_id: int) -> list[FundamentalScore]:
     return list(
         db.scalars(
             select(FundamentalScore)
-            .options(selectinload(FundamentalScore.calculation_evidence))
             .where(FundamentalScore.run_id == run_id)
         )
     )
@@ -779,7 +811,6 @@ def _technicals_for_run(db: Session, run_id: int) -> list[TechnicalScore]:
     return list(
         db.scalars(
             select(TechnicalScore)
-            .options(selectinload(TechnicalScore.calculation_evidence))
             .where(TechnicalScore.run_id == run_id)
         )
     )
@@ -789,7 +820,6 @@ def _combined_results_for_run(db: Session, run_id: int) -> list[CombinedResult]:
     return list(
         db.scalars(
             select(CombinedResult)
-            .options(selectinload(CombinedResult.calculation_evidence))
             .where(CombinedResult.run_id == run_id)
         )
     )

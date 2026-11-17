@@ -1,0 +1,2 @@
+verified disposable database before Alembic: database=swinglens_qa_ceri_context_1794788997961 server=127.0.0.1/32:5432 url=postgresql+psycopg://<restricted:userinfo>@127.0.0.1:5432/swinglens_qa_ceri_context_1794788997961
+Postflight and historical manifest membership PASS

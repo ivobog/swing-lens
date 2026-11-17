@@ -1,0 +1,6 @@
+pg_restore: error: could not execute query: ERROR:  insert or update on table "ceri_feature_source_manifests" violates foreign key constraint "ceri_feature_source_manifests_run_id_fkey"
+DETAIL:  Key (run_id)=(1) is not present in table "upload_runs".
+Command was: ALTER TABLE ONLY public.ceri_feature_source_manifests
+    ADD CONSTRAINT ceri_feature_source_manifests_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.upload_runs(id) ON DELETE RESTRICT;
+
+

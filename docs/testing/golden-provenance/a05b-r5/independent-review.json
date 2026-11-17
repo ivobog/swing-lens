@@ -1,0 +1,132 @@
+{
+  "activation_authorized": false,
+  "expectation_changes": [
+    {
+      "after": "a05-v5",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "a05-v3",
+      "pointer": "/version",
+      "reason": "Distinct candidate contract identity; all financial values and precisions retained."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/0/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/1/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/2/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/3/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/4/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/5/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/6/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/7/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/8/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/9/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    }
+  ],
+  "financial_rows_retained": 402,
+  "historical_v4_artifacts": {
+    "tests/e2e/single_run_certification/golden/v4/DERIVATIONS.md": "096f44c04fa56df0227c72bedb95092f30a1c182f941688eb4a3b40df54173eb",
+    "tests/e2e/single_run_certification/golden/v4/calendar.json": "72c85eb606d68c6928b2d7710a8a27986c41eb31734cf8d57c4cfa3d4b92b5cc",
+    "tests/e2e/single_run_certification/golden/v4/configuration.json": "caf5e2936ff3bd9e8fc7313549daa279988c2a2e0543e92c82549f951cd6dcdc",
+    "tests/e2e/single_run_certification/golden/v4/expected-results.json": "adbcd782752be4d851a173badfdff81013b4028b4b8f0370c43f1c7678f78191",
+    "tests/e2e/single_run_certification/golden/v4/financial-source.json": "f46da1fe44b3ac01fce2d654ad1ed04f003b79a1dc1d7ef998754fbdfef1e32a",
+    "tests/e2e/single_run_certification/golden/v4/fundamental-derivation.json": "02c867000316d33048fff2d5444d0d812af10d233b319012450a71e5e206635f",
+    "tests/e2e/single_run_certification/golden/v4/history.json": "bf9c645b1e95558010c81cbcb93c1cfffce153b9246fc4677e175121ba6d8b44",
+    "tests/e2e/single_run_certification/golden/v4/instruments.json": "9edbb37f82101add2d5a840217c4672f52a33b2800581303458f0c18c5338f9c",
+    "tests/e2e/single_run_certification/golden/v4/manifest.json": "8a32fb927bffbcb9d9cb5b4cd9913e8a3f14287dea91ae7a9b8dada07202989b",
+    "tests/e2e/single_run_certification/golden/v4/market-data.json": "18fbe874def6e2ce7a925a21a23fd05d4b3f4c7427a94ddddd58186eaee1d95b",
+    "tests/e2e/single_run_certification/golden/v4/negative-control-specimens.json": "6f11fffa697e208a82151aaf524ec1b4a2b3efafd14fd2f44b0932e50be406af",
+    "tests/e2e/single_run_certification/golden/v4/oracle-completion/DERIVATIONS.md": "621f1c4f387da4fe9c1a02bd20fd31621099b5a8b984e8c69914a40022f541a6",
+    "tests/e2e/single_run_certification/golden/v4/oracle-completion/ceri-derivations.json": "3269fa3190a54cd1b4261c5933688d97303ccf883d3d9ebd1225a1c7d3213b9c",
+    "tests/e2e/single_run_certification/golden/v4/oracle-completion/ceri-expected.json": "9cfdcb92dd389c91c56f1263239e06b5d8107cb0083170936a1deaab60898e2f",
+    "tests/e2e/single_run_certification/golden/v4/oracle-completion/context-derivations.json": "00950a9e7b8a55eee01d63fa109935944daa794962262932b66a03abe7ac9959",
+    "tests/e2e/single_run_certification/golden/v4/oracle-completion/context-expected.json": "651e28cc83a1f4500b5492e9572e99bd183c96846a7d702a58f64211dab400a7",
+    "tests/e2e/single_run_certification/golden/v4/oracle-completion/core-derivations.json": "7c07f2fc649e0278e6fcd738793e5c9a543912884753d8c87a3acaf5137b37a8",
+    "tests/e2e/single_run_certification/golden/v4/oracle-completion/core-expected.json": "58a4093c33e8926766a7fd576e8965c4972a205a7f0fc3cbcc154bbfa8a25044",
+    "tests/e2e/single_run_certification/golden/v4/oracle-completion/downstream-derivations.json": "e2a507f698954a5bf959186839a7b8d5d2b08a30a6d42c94285fce426a1f2abe",
+    "tests/e2e/single_run_certification/golden/v4/oracle-completion/downstream-expected.json": "d5ac9ae177f2d0de01a4378d217fa130a2323c2706dc5e600926c82d55e09601",
+    "tests/e2e/single_run_certification/golden/v4/oracle-completion/manifest.json": "7489d95eeee8050a619e43cc8a39526b57c2162fced972edbccfd4805c9a8502",
+    "tests/e2e/single_run_certification/golden/v4/prerequisites-source.py.txt": "e291ef0f54e0b97972e9ee6f5bc3c50b52716200e86c3b2cee6c405c0bcf3ce4",
+    "tests/e2e/single_run_certification/golden/v4/provider-replay.json": "0ad2ccfd12c4dfdba9b279b4fcabdced446c8d455535d7f044e4e5fbc78506cc",
+    "tests/e2e/single_run_certification/golden/v4/runtime-settings.json": "da3a2dd948c92fd9b99658f2cd48fa234d6fddffcfde4ffe85ae3e9aa38ef22f",
+    "tests/e2e/single_run_certification/golden/v4/universe.csv": "562c079f471fe125f7aa28ef762b2236c196ff68bd6ed6ed87727a2603c09990"
+  },
+  "independent_human_review": "NOT_CLAIMED",
+  "known_states": 10,
+  "literal_members": [
+    "ACMR",
+    "AVT",
+    "BHE",
+    "BLLN",
+    "DVN",
+    "JNJ",
+    "KLIC",
+    "LSCC",
+    "PDFS",
+    "RDVT"
+  ],
+  "method": "INDEPENDENT_FORMULA_REVIEW",
+  "numerical_expectation_changes": 0,
+  "owner_authorization": "NOT_EVALUATED",
+  "production_outputs_used": false,
+  "relationships_retained": 541,
+  "rule": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable.",
+  "schema": "swinglens.ceri-owner-independent-contract-review.v1",
+  "source_revision": "7348116b3ee9c5ff2ada33f95f4d23dbb45a1399"
+}

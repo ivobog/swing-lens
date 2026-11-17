@@ -1,0 +1,106 @@
+{
+  "market_regime": [
+    {
+      "as_of_date": "2026-10-26",
+      "calculation_version": "mrcc-1.0.0",
+      "confidence": "normal",
+      "config_version": "2026-07-28",
+      "constituents": [
+        "BHE",
+        "BLLN",
+        "KLIC",
+        "LSCC",
+        "PDFS",
+        "ACMR",
+        "RDVT",
+        "AVT",
+        "DVN",
+        "JNJ"
+      ],
+      "gate_ok": true,
+      "input_symbols": {
+        "primary_market": "SPY",
+        "risk_proxy": "QQQ",
+        "use_risk_proxy": true
+      },
+      "participation": {
+        "above_sma200_pct": null,
+        "above_sma50_pct": "100.00",
+        "average_technical_score": "7.0971",
+        "clean_pullback_count": 0,
+        "danger_count": 0,
+        "fresh_breakout_count": 0,
+        "market_risk_warning_count": 0,
+        "ranking_profile_average_scores": {},
+        "technical_count": 10,
+        "ticker_count": 10,
+        "vcp_count": 0
+      },
+      "reasons": [],
+      "regime": "Bull trend",
+      "risk_off": false,
+      "risk_state": "Green",
+      "score": "9.5000"
+    }
+  ],
+  "sector": [
+    {
+      "as_of_date": "2026-10-26",
+      "average_final_score": "7.6487",
+      "average_fundamental_score": "9.1909",
+      "average_profile_score": "7.3197",
+      "average_technical_score": "7.0971",
+      "buyable_count": 0,
+      "component_scores": {
+        "average_profile_score": "7.3197",
+        "average_technical_score": "7.0971",
+        "risk_control": "5.8000",
+        "setup_density": "0",
+        "top_candidate_share": "5"
+      },
+      "confidence": "high",
+      "constituents": [
+        "BHE",
+        "BLLN",
+        "KLIC",
+        "LSCC",
+        "PDFS",
+        "ACMR",
+        "RDVT",
+        "AVT",
+        "DVN",
+        "JNJ"
+      ],
+      "consumer_permission": "POLICY_UNDECIDED",
+      "current_rank": 1,
+      "danger_count": 6,
+      "etf_rotation_score": null,
+      "extended_or_overheated_count": 4,
+      "missing_fundamental_count": 0,
+      "missing_technical_count": 0,
+      "permission": "avoid_new_longs",
+      "position_size_multiplier": "0",
+      "previous_rank": null,
+      "producer_readiness": "DEGRADED",
+      "rank_change": null,
+      "rotation_state": "Risk-off",
+      "score_change": null,
+      "sector": "Technology",
+      "sector_final_score": "5.1082",
+      "sector_slug": "technology",
+      "setup_distribution": {
+        "No trade": 6,
+        "Overheated momentum": 4
+      },
+      "ticker_count": 10,
+      "top_counts": {
+        "top_10": 10,
+        "top_25": 10,
+        "top_50": 10
+      },
+      "universe_leadership_score": "5.1082",
+      "universe_share": "1",
+      "watch_count": 0
+    }
+  ]
+}

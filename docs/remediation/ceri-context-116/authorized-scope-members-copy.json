@@ -1,0 +1,740 @@
+{
+  "database": "swinglens_qa_ceri_context_1794788997961",
+  "scope_id": "64e85af7ad2fd70281a845671b1b3de85f5121242a7c35f9aa1c7794465eab29",
+  "production_access": "READ ONLY",
+  "before": [
+    447,
+    "4a7be91ac8c27e6c5a12e1ed9b57c9c1"
+  ],
+  "copied": 0,
+  "after": [
+    447,
+    "4a7be91ac8c27e6c5a12e1ed9b57c9c1"
+  ],
+  "retained_expired_historical_running_jobs": [
+    182
+  ],
+  "job_2550": "DEFERRED_FOR_FRESH_CLAIM",
+  "qa_sequence_counters": [
+    {
+      "table": "ceri_alert_rules",
+      "column": "id",
+      "before": 1,
+      "after": 2
+    },
+    {
+      "table": "ceri_alert_events",
+      "column": "id",
+      "before": 39,
+      "after": 39
+    },
+    {
+      "table": "ceri_estimate_snapshots",
+      "column": "id",
+      "before": 1,
+      "after": 75226
+    },
+    {
+      "table": "ceri_feature_build_states",
+      "column": "id",
+      "before": 1,
+      "after": 7036
+    },
+    {
+      "table": "ceri_source_records",
+      "column": "id",
+      "before": 1,
+      "after": 222706
+    },
+    {
+      "table": "ceri_purge_audits",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ceri_sec_sync_states",
+      "column": "id",
+      "before": 1,
+      "after": 996
+    },
+    {
+      "table": "combined_results",
+      "column": "id",
+      "before": 1,
+      "after": 8865
+    },
+    {
+      "table": "core_calculation_evidence",
+      "column": "id",
+      "before": 75373,
+      "after": 75373
+    },
+    {
+      "table": "core_calculation_current_projections",
+      "column": "id",
+      "before": 64680,
+      "after": 64680
+    },
+    {
+      "table": "core_calculation_evidence_sources",
+      "column": "id",
+      "before": 1,
+      "after": 151647
+    },
+    {
+      "table": "engine_parameters",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "fundamental_scores",
+      "column": "id",
+      "before": 1,
+      "after": 19344
+    },
+    {
+      "table": "ib_intelligence_features",
+      "column": "id",
+      "before": 1,
+      "after": 20
+    },
+    {
+      "table": "ib_historical_gate",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ib_scanner_parameter_cache",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "pipeline_dependencies",
+      "column": "id",
+      "before": 90,
+      "after": 90
+    },
+    {
+      "table": "price_bars",
+      "column": "id",
+      "before": 1,
+      "after": 1521520
+    },
+    {
+      "table": "price_series_versions",
+      "column": "id",
+      "before": 1,
+      "after": 2016
+    },
+    {
+      "table": "ranking_results",
+      "column": "id",
+      "before": 1,
+      "after": 32655
+    },
+    {
+      "table": "pipeline_steps",
+      "column": "id",
+      "before": 1,
+      "after": 858
+    },
+    {
+      "table": "technical_feature_artifacts",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_cohort_statistics",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_evidence_manifests",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_estimate_evidence_members",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_market_data_obligations",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_target_stop_outcomes",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "background_jobs",
+      "column": "id",
+      "before": 2550,
+      "after": 2550
+    },
+    {
+      "table": "ceri_ingestion_runs",
+      "column": "id",
+      "before": 1,
+      "after": 26613
+    },
+    {
+      "table": "ceri_processing_runs",
+      "column": "id",
+      "before": 30540,
+      "after": 30540
+    },
+    {
+      "table": "ib_fetch_runs",
+      "column": "id",
+      "before": 1,
+      "after": 51
+    },
+    {
+      "table": "market_sector_rotation_rows",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "market_sector_rotation_snapshots",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "pipeline_runs",
+      "column": "id",
+      "before": 1,
+      "after": 66
+    },
+    {
+      "table": "ceri_evidence_dispositions",
+      "column": "id",
+      "before": 1,
+      "after": 5436
+    },
+    {
+      "table": "consumer_eligibility_decisions",
+      "column": "id",
+      "before": 1,
+      "after": 24311
+    },
+    {
+      "table": "eligibility_shadow_evaluations",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_acquisition_decisions",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_temporal_validity_decisions",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_training_eligibility_decisions",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_training_outcome_replays",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_cohort_generations",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_estimate_publication_requests",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_processing_runs",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ceri_catalyst_event_revisions",
+      "column": "id",
+      "before": 1,
+      "after": 8908
+    },
+    {
+      "table": "ceri_change_events",
+      "column": "id",
+      "before": 1509,
+      "after": 1509
+    },
+    {
+      "table": "ceri_catalyst_events",
+      "column": "id",
+      "before": 1,
+      "after": 8907
+    },
+    {
+      "table": "ceri_companies",
+      "column": "id",
+      "before": 1,
+      "after": 1000
+    },
+    {
+      "table": "ceri_catalyst_sources",
+      "column": "id",
+      "before": 1,
+      "after": 10611
+    },
+    {
+      "table": "ceri_score_snapshots",
+      "column": "id",
+      "before": 7829,
+      "after": 7829
+    },
+    {
+      "table": "ceri_company_aliases",
+      "column": "id",
+      "before": 1,
+      "after": 274
+    },
+    {
+      "table": "upload_runs",
+      "column": "id",
+      "before": 1,
+      "after": 62
+    },
+    {
+      "table": "ceri_controlled_replays",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ceri_derived_features",
+      "column": "id",
+      "before": 1,
+      "after": 19227
+    },
+    {
+      "table": "ceri_earnings_actuals",
+      "column": "id",
+      "before": 1,
+      "after": 6642
+    },
+    {
+      "table": "ceri_feature_source_manifests",
+      "column": "id",
+      "before": 1,
+      "after": 153
+    },
+    {
+      "table": "market_calculation_contexts",
+      "column": "id",
+      "before": 1,
+      "after": 116
+    },
+    {
+      "table": "ceri_guidance_events",
+      "column": "id",
+      "before": 1,
+      "after": 7507
+    },
+    {
+      "table": "ceri_ingestion_run_source_records",
+      "column": "id",
+      "before": 1,
+      "after": 490306
+    },
+    {
+      "table": "ceri_manual_reviews",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ceri_price_response_features",
+      "column": "id",
+      "before": 1,
+      "after": 7036
+    },
+    {
+      "table": "ceri_revision_features",
+      "column": "id",
+      "before": 1,
+      "after": 164874
+    },
+    {
+      "table": "ceri_sec_filing_documents",
+      "column": "id",
+      "before": 1,
+      "after": 33538
+    },
+    {
+      "table": "ceri_sec_document_extractions",
+      "column": "id",
+      "before": 1,
+      "after": 5704
+    },
+    {
+      "table": "ceri_provider_request_telemetry",
+      "column": "id",
+      "before": 1,
+      "after": 19455
+    },
+    {
+      "table": "background_job_enqueue_attempts",
+      "column": "id",
+      "before": 4,
+      "after": 2672
+    },
+    {
+      "table": "market_regime_snapshots",
+      "column": "id",
+      "before": 1,
+      "after": 58
+    },
+    {
+      "table": "ib_fetch_items",
+      "column": "id",
+      "before": 1,
+      "after": 14394
+    },
+    {
+      "table": "sector_rotation_snapshots",
+      "column": "id",
+      "before": 1,
+      "after": 58
+    },
+    {
+      "table": "setup_lifecycle_evaluation_evidence",
+      "column": "id",
+      "before": 1,
+      "after": 4531
+    },
+    {
+      "table": "setup_lifecycle_episodes",
+      "column": "id",
+      "before": 1,
+      "after": 1393
+    },
+    {
+      "table": "setup_lifecycle_transition_evidence",
+      "column": "id",
+      "before": 1,
+      "after": 2262
+    },
+    {
+      "table": "setup_lifecycle_events",
+      "column": "id",
+      "before": 1,
+      "after": 6338
+    },
+    {
+      "table": "setup_signal_snapshots",
+      "column": "id",
+      "before": 1,
+      "after": 11227
+    },
+    {
+      "table": "signal_alert_decision_evidence",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "signal_alert_events",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "technical_scores",
+      "column": "id",
+      "before": 1,
+      "after": 7972
+    },
+    {
+      "table": "technical_source_manifests",
+      "column": "id",
+      "before": 1,
+      "after": 52
+    },
+    {
+      "table": "winner_evidence_manifest_members",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ib_contracts",
+      "column": "id",
+      "before": 1,
+      "after": 1012
+    },
+    {
+      "table": "winner_forward_outcomes",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_prediction_snapshots",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_probability_estimates",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_cohort_refresh_state",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ib_flex_import_runs",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ib_execution_fills",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ib_intelligence_runs",
+      "column": "id",
+      "before": 1,
+      "after": 8
+    },
+    {
+      "table": "ib_histogram_snapshots",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ib_histogram_bins",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ib_historical_metric_bars",
+      "column": "id",
+      "before": 1,
+      "after": 3929
+    },
+    {
+      "table": "ib_historical_metric_revisions",
+      "column": "id",
+      "before": 1,
+      "after": 3929
+    },
+    {
+      "table": "ib_intelligence_request_items",
+      "column": "id",
+      "before": 1,
+      "after": 110
+    },
+    {
+      "table": "ib_market_intelligence_snapshots",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ib_scanner_candidates",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ib_scanner_runs",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ib_trade_research_links",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "ib_trade_episodes",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "instrument_lifecycle_records",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "market_data_session_dispositions",
+      "column": "id",
+      "before": 1,
+      "after": 6493
+    },
+    {
+      "table": "price_bar_revisions",
+      "column": "id",
+      "before": 1,
+      "after": 8349
+    },
+    {
+      "table": "raw_company_rows",
+      "column": "id",
+      "before": 1,
+      "after": 8098
+    },
+    {
+      "table": "sector_rotation_rows",
+      "column": "id",
+      "before": 1,
+      "after": 477
+    },
+    {
+      "table": "setup_lifecycle_evaluation_runs",
+      "column": "id",
+      "before": 1,
+      "after": 128
+    },
+    {
+      "table": "setup_lifecycle_administrative_audit_events",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "setup_signal_snapshot_current_selections",
+      "column": "id",
+      "before": 1,
+      "after": 3160
+    },
+    {
+      "table": "setup_signal_snapshot_selection_events",
+      "column": "id",
+      "before": 1,
+      "after": 4076
+    },
+    {
+      "table": "signal_alert_rule_evidence",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "signal_alert_rules",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "signal_change_events",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "transition_decision_handoff_manifests",
+      "column": "id",
+      "before": 41,
+      "after": 41
+    },
+    {
+      "table": "transition_preflight_plans",
+      "column": "id",
+      "before": 43,
+      "after": 43
+    },
+    {
+      "table": "winner_model_versions",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_calibration_bins",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_outcome_definitions",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_cohort_definitions",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_drift_metrics",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_prediction_episodes",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_model_lifecycle_events",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_model_training_runs",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    },
+    {
+      "table": "winner_similarity_links",
+      "column": "id",
+      "before": 1,
+      "after": 1
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+"""One-time literal/contract authoring record; no production-output imports."""
+import copy
+import hashlib
+import json
+import shutil
+from pathlib import Path
+
+ROOT = Path.cwd()
+OLD = ROOT / "tests/e2e/single_run_certification/golden/v4"
+NEW = ROOT / "tests/e2e/single_run_certification/golden/v5"
+REVIEW = ROOT / "docs/testing/golden-provenance/a05b-r5"
+SOURCE = "7348116b3ee9c5ff2ada33f95f4d23dbb45a1399"
+
+
+def read(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def write(path, value):
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def canonical(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def differences(before, after, pointer=""):
+    if type(before) is type(after) and isinstance(before, dict):
+        assert set(before) == set(after)
+        return {p: v for k in sorted(before) for p, v in differences(before[k], after[k], pointer + "/" + k).items()}
+    if type(before) is type(after) and isinstance(before, list):
+        assert len(before) == len(after)
+        return {p: v for i, (a, b) in enumerate(zip(before, after, strict=True)) for p, v in differences(a, b, pointer + "/" + str(i)).items()}
+    return {} if type(before) is type(after) and before == after else {pointer: (before, after)}
+
+
+assert not NEW.exists(), "A candidate version is authored once, never refreshed from output"
+shutil.copytree(OLD, NEW)
+old_proposal = read(ROOT / "docs/testing/golden-update-proposal.json")
+shutil.copyfile(ROOT / "docs/testing/golden-update-proposal.json", REVIEW / "previous-v4-proposal.json")
+shutil.copyfile(Path(__file__), REVIEW / "authoring-record.py.txt")
+
+result = read(NEW / "expected-results.json")
+result["version"] = "a05-v5"
+write(NEW / "expected-results.json", result)
+expected = read(NEW / "oracle-completion/ceri-expected.json")
+assert len(expected["captures"]) == 10
+for row in expected["captures"]:
+    assert row["pipeline_ownership_state"] == "UNKNOWN"
+    # A unique explicit parent/upload/job/context/config/cutoff binding entails
+    # known ownership. The dedicated context's direct pipeline FK stays NULL.
+    row["pipeline_ownership_state"] = "KNOWN"
+write(NEW / "oracle-completion/ceri-expected.json", expected)
+derivation = read(NEW / "oracle-completion/ceri-derivations.json")
+rule = "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+for ticker, row in derivation["per_ticker"].items():
+    assert ticker in {r["ticker"] for r in expected["captures"]}
+    row["ownership_policy"] = rule
+write(NEW / "oracle-completion/ceri-derivations.json", derivation)
+for relative in ("DERIVATIONS.md", "oracle-completion/DERIVATIONS.md"):
+    path = NEW / relative
+    retained = path.read_text(encoding="utf-8")
+    path.write_text(
+        "# A05 v5 / A05B r5 CERI owner contract\n\n"
+        "The current candidate changes only the ten new-capture ownership states "
+        "to KNOWN under the explicit verified-parent contract. See "
+        "docs/testing/golden-provenance/a05b-r5/REVIEW.md for the independent "
+        "derivation and full difference inventory. Numerical formulas, inputs, "
+        "populations and tolerances are retained. Historical UNKNOWN is unchanged.\n\n"
+        "The following historical arithmetic/provenance record is retained for "
+        "review; its version-specific historical descriptions are not new "
+        "ownership rules.\n\n" + retained,
+        encoding="utf-8", newline="\n",
+    )
+
+inputs = read(NEW / "manifest.json")
+inputs["version"] = "a05-v5"
+inputs["supersedes"] = "Distinct current CERI verified-owner candidate; retains v4 inputs/configuration and historical v3 baseline; no numerical or tolerance changes"
+inputs["artifacts"] = {name: sha(NEW / name) for name in inputs["artifacts"]}
+write(NEW / "manifest.json", inputs)
+identity = canonical(inputs)
+supplement = read(NEW / "oracle-completion/manifest.json")
+supplement["expectation_revision"] = "a05b-r5"
+supplement["base_input_identity"] = identity
+supplement["candidate_review"] = "docs/testing/golden-provenance/a05b-r5/independent-review.json"
+supplement["supersedes_manifest_sha256"] = sha(OLD / "oracle-completion/manifest.json")
+supplement["artifacts"] = {name: sha(NEW / "oracle-completion" / name) for name in supplement["artifacts"]}
+write(NEW / "oracle-completion/manifest.json", supplement)
+
+proposal = copy.deepcopy(old_proposal)
+candidate = proposal["candidate"]
+candidate["input_version"] = "a05-v5"
+candidate["expectation_revision"] = "a05b-r5"
+candidate["input_manifest"] = "tests/e2e/single_run_certification/golden/v5/manifest.json"
+candidate["completion_manifest"] = "tests/e2e/single_run_certification/golden/v5/oracle-completion/manifest.json"
+candidate["input_manifest_sha256"] = sha(NEW / "manifest.json")
+candidate["completion_manifest_sha256"] = sha(NEW / "oracle-completion/manifest.json")
+candidate["input_identity"] = identity
+candidate["artifacts"] = {p.relative_to(ROOT).as_posix(): sha(p) for p in sorted(NEW.rglob("*")) if p.is_file()}
+candidate["expectation_artifacts"] = {old: new.replace("/v4/", "/v5/") for old, new in candidate["expectation_artifacts"].items()}
+changes = []
+for old, new in candidate["expectation_artifacts"].items():
+    for pointer, (before, after) in differences(read(ROOT / old), read(ROOT / new)).items():
+        reason = "Distinct candidate contract identity; all financial values and precisions retained."
+        if pointer != "/version":
+            assert pointer.startswith("/captures/") and pointer.endswith("/pipeline_ownership_state")
+            assert (before, after) == ("UNKNOWN", "KNOWN")
+            reason = rule
+        changes.append(dict(artifact=old, pointer=pointer, before=before, after=after, reason=reason))
+assert len(changes) == 11
+proposal["expectation_changes"] = changes
+proposal["contract_change"]["source_revision"] = SOURCE
+proposal["contract_change"]["reason"] = "CERI verified-parent capture identity under the requested context/ownership/handoff remediation. Dedicated CERI context FK remains NULL; explicit reverse binding and exact job/workflow/context/configuration/cutoff authorize the new capture's KNOWN parent. Historical UNKNOWN remains immutable. Retain prior v4 configuration and independent financial derivations; no numerical or tolerance changes."
+proposal["affected_obligations"][0]["selectors"] = "Both original ten-ticker handoff variants and genuine native worker-recovery comparisons; all 620 obligations per original variant retained"
+review = {
+    "schema": "swinglens.ceri-owner-independent-contract-review.v1",
+    "method": "INDEPENDENT_FORMULA_REVIEW",
+    "production_outputs_used": False,
+    "source_revision": SOURCE,
+    "rule": rule,
+    "literal_members": sorted(row["ticker"] for row in expected["captures"]),
+    "known_states": 10,
+    "expectation_changes": changes,
+    "numerical_expectation_changes": 0,
+    "financial_rows_retained": 402,
+    "relationships_retained": 541,
+    "historical_v4_artifacts": {p.relative_to(ROOT).as_posix(): sha(p) for p in sorted(OLD.rglob("*")) if p.is_file()},
+    "independent_human_review": "NOT_CLAIMED",
+    "owner_authorization": "NOT_EVALUATED",
+    "activation_authorized": False,
+}
+write(REVIEW / "independent-review.json", review)
+artifacts = dict(old_proposal["independent_derivation"]["artifacts"])
+artifacts.update({p.relative_to(ROOT).as_posix(): sha(p) for p in REVIEW.iterdir() if p.is_file()})
+artifacts.update(review["historical_v4_artifacts"])
+proposal["independent_derivation"]["artifacts"] = artifacts
+proposal["review_request"] = dict(status="PROPOSED", producer="INDEPENDENT_FORMULA_REVIEW", source_revision=SOURCE, input_version="a05-v5", expectation_revision="a05b-r5")
+proposal["review_request"]["candidate_digest"] = canonical({key: value for key, value in proposal.items() if key != "review_request"})
+write(ROOT / "docs/testing/golden-update-proposal.json", proposal)
+print("candidate", candidate["input_version"], candidate["expectation_revision"], "semantic_changes", len(changes), "numerical_changes", 0)

@@ -1094,6 +1094,30 @@
           {
             "path": "app/services/canonical_evidence.py",
             "symbol": "CanonicalEvidenceSerializer._already_canonical_json"
+          },
+          {
+            "path": "app/services/contextual_calculation_identity.py",
+            "symbol": "build_contextual_result_identity"
+          },
+          {
+            "path": "app/services/decision_mutation_authority.py",
+            "symbol": "decision_authority"
+          },
+          {
+            "path": "app/services/core_mutation_authority.py",
+            "symbol": "_validate_configuration"
+          },
+          {
+            "path": "app/services/core_mutation_authority.py",
+            "symbol": "_configuration_material"
+          },
+          {
+            "path": "app/services/contextual_effective_configuration.py",
+            "symbol": "_restore"
+          },
+          {
+            "path": "app/services/decision_effective_configuration.py",
+            "symbol": "DecisionEffectiveConfiguration.setup_config"
           }
         ],
         "impact_patterns": [
@@ -1109,7 +1133,9 @@
           "app/services/combined_decision.py",
           "app/services/ranking_profile_engine.py",
           "app/services/warning_taxonomy.py",
-          "app/services/ranking_profile_service.py"
+          "app/services/ranking_profile_service.py",
+          "docs/remediation/calculation-lineage/T14D_semantic_review_source_pins.json",
+          "tests/test_contextual_calculation_identity_adoption.py"
         ],
         "tests": [
           {
@@ -1570,6 +1596,42 @@
             "positive": "Canonical bytes and fingerprints equal the independent full normalization for typed, nested and mutated inputs.",
             "negative": "Changed mutable evidence cannot reuse a previous canonical or identity result.",
             "reviewed_test_sha256": "c9d2f419a81af8b01117704c4108d7985998204cd28445d05f49a473533a23ed"
+          },
+          {
+            "id": "tests/test_configuration_material.py::test_warm_configuration_material_rechecks_declared_and_typed_content",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "A valid typed configuration remains accepted after warming pure calculation reuse.",
+            "negative": "Changed supplied hashes/identity, values, provenance and boolean-versus-integer fields fail closed.",
+            "reviewed_test_sha256": "403902a8208dc3683bd9ff4f3a27d6cf06a3c6690d0629a48cb0fb53f7da170e"
+          },
+          {
+            "id": "tests/test_configuration_material.py::test_warm_configuration_material_keeps_exact_retained_metadata",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Matching configuration resolves its owner binding on every call after warming.",
+            "negative": "Producer/evaluation/compatibility metadata drift is refused even when both configuration hashes match.",
+            "reviewed_test_sha256": "403902a8208dc3683bd9ff4f3a27d6cf06a3c6690d0629a48cb0fb53f7da170e"
+          },
+          {
+            "id": "tests/test_configuration_material.py::test_nonstandard_snapshot_extension_keeps_uncached_serialization",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Unchanged financial configuration hashes remain intact for extension shapes.",
+            "negative": "Changing extension metadata cannot be hidden by standard-shape calculation reuse.",
+            "reviewed_test_sha256": "403902a8208dc3683bd9ff4f3a27d6cf06a3c6690d0629a48cb0fb53f7da170e"
+          },
+          {
+            "id": "tests/test_configuration_material.py::test_restore_shares_only_type_metadata_within_each_fresh_call",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Repeated definitions retain their types, order and independently constructed native objects.",
+            "negative": "A changed nested enum annotation is resolved anew on the next call; no stale schema or mutable output is reused.",
+            "reviewed_test_sha256": "403902a8208dc3683bd9ff4f3a27d6cf06a3c6690d0629a48cb0fb53f7da170e"
           }
         ],
         "oracle": "A05B independent values and canonical immutable evidence; fixture helpers are not independent financial truth.",
@@ -1580,7 +1642,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "9d2dc4072e15f33293aea8b4162f167e3a5429a7e74dc1dc6628e79217fc655b",
+        "review_sha256": "41bb98606d6ce693af586d5e90b20cb7c419191e1d977097f6295a6a6ee69f25",
         "review_addenda": [
           {
             "task": "PIPELINE55-20261109",
@@ -1588,6 +1650,39 @@
             "evidence": "docs/verification/pipeline55-symbol-change-review-20261109.md",
             "scope": "Dated common-stock symbol continuity, frozen market-data recovery and explicit subset admission; exact source paths and meaningful refusal/native selectors. Existing financial expectations and release requirements retained.",
             "claim": "STATIC_INTENT only; no authenticated human approval, measured execution, current certificate or live-provider verdict is supplied by this mapping."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-PREREQUISITES-20261117",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/prerequisite-ownership-review.md",
+            "associations": [
+              {
+                "path": "app/services/contextual_calculation_identity.py",
+                "symbol": "build_contextual_result_identity",
+                "scope": "Sector input hashing adds checkpoint-aware streaming while retaining canonical identity and source references."
+              },
+              {
+                "path": "app/services/decision_mutation_authority.py",
+                "symbol": "decision_authority",
+                "scope": "Only the native CERI change writer chooses dedicated CERI context; other writers retain MAIN context checks."
+              }
+            ],
+            "claim": "STATIC_INTENT only. Exact prerequisite paths are assigned to existing accountable domains and existing mandatory validation. Unknown high-risk paths still fail closed; manual replay is not an automated producer. No financial oracle, historical source identity, authenticated approval or certificate is changed."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-CONFIGURATION-MATERIAL-20261117",
+            "kind": "STATIC_PURE_CALCULATION_AND_ASSERTION_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/configuration-material-review.md",
+            "scope": "Bounded pure configuration calculations keyed by complete type-preserving immutable field values. Every supplied hash/identity, complete retained canonical material, live binding and native mutation guard remains checked. Nonstandard shapes keep uncached behavior. Type-hint reuse is bounded to each reconstruction call; live schemas are resolved again across calls and native outputs remain fresh.",
+            "claim": "STATIC_INTENT only; eleven unit-double cache/reconstruction controls do not replace native fault/rollback regressions, current scale budgets, A04 financial validation or authenticated owner acknowledgement."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
           }
         ]
       },
@@ -1612,6 +1707,10 @@
           {
             "path": "app/services/ib_contract_resolver.py",
             "symbol": "resolve_us_stock_contract"
+          },
+          {
+            "path": "app/services/technical_score_service.py",
+            "symbol": "_availability_score_results"
           }
         ],
         "impact_patterns": [
@@ -1636,7 +1735,21 @@
           "tests/test_market_data_session_readiness.py",
           "tests/test_ib_historical_errors.py",
           "tests/integration/test_market_data_readiness_postgresql.py",
-          "docs/operations/market_data_recovery.md"
+          "docs/operations/market_data_recovery.md",
+          "docs/operations/pipeline_market_data_retry.md",
+          "docs/remediation/pipeline58-market-readiness/implementation.md",
+          "docs/remediation/pipeline58-market-readiness/raw-bootstrap-caller-review.json",
+          "tests/integration/test_ib_bar_admission_receipts_postgresql.py",
+          "tests/integration/test_ib_gap_repair_delivery_postgresql.py",
+          "tests/integration/test_market_data_availability_postgresql.py",
+          "tests/integration/test_market_data_initial_admission_durability_postgresql.py",
+          "tests/integration/test_market_data_recovery_postgresql.py",
+          "tests/integration/test_unstarted_market_data_resume_postgresql.py",
+          "tests/test_ib_gap_repair_service.py",
+          "tests/test_ib_history_gap_admission.py",
+          "tests/test_market_data_availability_policy.py",
+          "tests/test_market_data_unstarted_resume.py",
+          "tests/test_pipeline61_price_projection.py"
         ],
         "tests": [
           {
@@ -2449,7 +2562,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "c9ff2063f123ad948f6768bc5bdcefb977916c5d9d985693bda9185cdc8fd6b1",
+        "review_sha256": "f1b5e203c7ff31263f2d363b21b2c1d60875524e567c056a3988b2347cde4594",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -2547,6 +2660,27 @@
             "evidence": "docs/verification/pipeline55-symbol-change-review-20261109.md",
             "scope": "Dated common-stock symbol continuity, frozen market-data recovery and explicit subset admission; exact source paths and meaningful refusal/native selectors. Existing financial expectations and release requirements retained.",
             "claim": "STATIC_INTENT only; no authenticated human approval, measured execution, current certificate or live-provider verdict is supplied by this mapping."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-PREREQUISITES-20261117",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/prerequisite-ownership-review.md",
+            "associations": [
+              {
+                "path": "app/services/technical_score_service.py",
+                "symbol": "_availability_score_results",
+                "scope": "Known source unavailability prevents publishing a stale numeric technical score; hard readiness blockers still reject finalization."
+              }
+            ],
+            "claim": "STATIC_INTENT only. Exact prerequisite paths are assigned to existing accountable domains and existing mandatory validation. Unknown high-risk paths still fail closed; manual replay is not an automated producer. No financial oracle, historical source identity, authenticated approval or certificate is changed."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
           }
         ]
       },
@@ -2587,6 +2721,26 @@
           {
             "path": "app/services/ceri/deployment_identity.py",
             "symbol": "current_deployment_identity"
+          },
+          {
+            "path": "app/services/ceri/score_ownership.py",
+            "symbol": "bound_pipeline_id"
+          },
+          {
+            "path": "app/services/ceri/score_population.py",
+            "symbol": "certified_scores"
+          },
+          {
+            "path": "app/services/export_service.py",
+            "symbol": "_combined_sec_coverage"
+          },
+          {
+            "path": "scripts/replay_sec_identity.py",
+            "symbol": "main"
+          },
+          {
+            "path": "app/services/ticker_intelligence_service.py",
+            "symbol": "_ceri"
           }
         ],
         "impact_patterns": [
@@ -2597,7 +2751,138 @@
           "tests/test_alembic_heads.py",
           "tests/ceri/test_t15d_residual_findings.py",
           "tests/integration/test_ceri_change_rebuild_scoping_postgresql.py",
-          "tests/sector_native_helpers.py"
+          "tests/sector_native_helpers.py",
+          "artifacts/ceri-context-116-remediation/SwingLens_CERI_Capture_Remediation.zip",
+          "artifacts/ceri-context-116-remediation/SwingLens_CERI_Capture_Remediation.zip.sha256",
+          "artifacts/ceri-context-116-remediation/delivery-verification.json",
+          "artifacts/ceri-context-116-remediation/implementation.patch",
+          "docs/operations/ceri_filing_authorities.md",
+          "docs/operations/decision_handoff_recovery.md",
+          "docs/remediation/ceri-context-116/EVIDENCE_INDEX.md",
+          "docs/remediation/ceri-context-116/FILE_INVENTORY.md",
+          "docs/remediation/ceri-context-116/IDENTITY_AND_OWNERSHIP.md",
+          "docs/remediation/ceri-context-116/IMPLEMENTATION_REPORT.md",
+          "docs/remediation/ceri-context-116/MIGRATION_AND_RECOVERY.md",
+          "docs/remediation/ceri-context-116/affected-regressions-current-source.log",
+          "docs/remediation/ceri-context-116/affected-regressions-final.xml",
+          "docs/remediation/ceri-context-116/affected-regressions-initial-failures.json",
+          "docs/remediation/ceri-context-116/affected-regressions-initial.xml",
+          "docs/remediation/ceri-context-116/attempt-2-terminalization.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/certification-environment-blocker.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/certification-harness-at-attempt.py",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/context-116-certification.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/historical-after.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/historical-before.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/migration-postflight.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/native-certification.log",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/postflight-attempt-1.log",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/qa-capture-stack-final.txt",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/qa-capture-stack.txt",
+          "docs/remediation/ceri-context-116/attempts/attempt-1/qa-claim-deadline.log",
+          "docs/remediation/ceri-context-116/attempts/attempt-2/attempt-2-terminalization.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-2/context-116-certification.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-2/historical-after.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-2/historical-before.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-2/migration-postflight.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-2/native-certification.log",
+          "docs/remediation/ceri-context-116/attempts/attempt-2/postflight-attempt-2.log",
+          "docs/remediation/ceri-context-116/attempts/attempt-3-final-check-harness/context-116-certification.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-3-final-check-harness/native-certification-handoff-resumed.log",
+          "docs/remediation/ceri-context-116/attempts/attempt-3-handoff-prerequisite/context-116-certification.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-3-handoff-prerequisite/native-certification-resumed.log",
+          "docs/remediation/ceri-context-116/attempts/attempt-3/context-116-certification.json",
+          "docs/remediation/ceri-context-116/attempts/attempt-3/native-certification.log",
+          "docs/remediation/ceri-context-116/attempts/regression-before-authority-fix/affected-regressions-final.xml",
+          "docs/remediation/ceri-context-116/attempts/regression-before-authority-fix/regression-summary.json",
+          "docs/remediation/ceri-context-116/authoritative-input/6d6952f.patch",
+          "docs/remediation/ceri-context-116/authoritative-input/7e113f7.patch",
+          "docs/remediation/ceri-context-116/authoritative-input/REPORT.md",
+          "docs/remediation/ceri-context-116/authoritative-input/checkout-audit.txt",
+          "docs/remediation/ceri-context-116/authoritative-input/evidence.json",
+          "docs/remediation/ceri-context-116/authoritative-input/history.txt",
+          "docs/remediation/ceri-context-116/authoritative-input/queries.sql",
+          "docs/remediation/ceri-context-116/authoritative-input/replay.py",
+          "docs/remediation/ceri-context-116/authoritative-input/replay.txt",
+          "docs/remediation/ceri-context-116/authorized-closure-tables.json",
+          "docs/remediation/ceri-context-116/authorized-fixture-copy.json",
+          "docs/remediation/ceri-context-116/authorized-handoff-prerequisites-copy.json",
+          "docs/remediation/ceri-context-116/authorized-scope-members-copy.json",
+          "docs/remediation/ceri-context-116/baseline-ibmi-calendar-pristine.log",
+          "docs/remediation/ceri-context-116/baseline-ibmi-pristine.log",
+          "docs/remediation/ceri-context-116/baseline-integration.log",
+          "docs/remediation/ceri-context-116/certification-environment-blocker.json",
+          "docs/remediation/ceri-context-116/certification-harness-at-attempt.py",
+          "docs/remediation/ceri-context-116/comparison-evidence-size.json",
+          "docs/remediation/ceri-context-116/context-116-certification.json",
+          "docs/remediation/ceri-context-116/disposable-environment.json",
+          "docs/remediation/ceri-context-116/file-inventory.json",
+          "docs/remediation/ceri-context-116/final-certification-review.json",
+          "docs/remediation/ceri-context-116/final-certification-review.log",
+          "docs/remediation/ceri-context-116/final-postflight.log",
+          "docs/remediation/ceri-context-116/focused-test-results/dedicated-context-change.xml",
+          "docs/remediation/ceri-context-116/focused-test-results/focused-pg.xml",
+          "docs/remediation/ceri-context-116/focused-test-results/immutability-and-ambiguity.xml",
+          "docs/remediation/ceri-context-116/focused-test-results/native-identity-ownership.xml",
+          "docs/remediation/ceri-context-116/focused-test-results/native-positive-negative.xml",
+          "docs/remediation/ceri-context-116/focused-test-results/shared-main-ceri-authority.xml",
+          "docs/remediation/ceri-context-116/focused-test-summary.json",
+          "docs/remediation/ceri-context-116/foreign-keys-restore.list",
+          "docs/remediation/ceri-context-116/foreign-keys-restore.log",
+          "docs/remediation/ceri-context-116/frozen-scope-prerequisites.json",
+          "docs/remediation/ceri-context-116/handoff-prerequisites-copy.log",
+          "docs/remediation/ceri-context-116/handoff-technical-prerequisites.json",
+          "docs/remediation/ceri-context-116/historical-after.json",
+          "docs/remediation/ceri-context-116/historical-before.json",
+          "docs/remediation/ceri-context-116/historical-state-and-prerequisites.json",
+          "docs/remediation/ceri-context-116/initial-status.txt",
+          "docs/remediation/ceri-context-116/keys-restore.list",
+          "docs/remediation/ceri-context-116/keys-restore.log",
+          "docs/remediation/ceri-context-116/migration-postflight.json",
+          "docs/remediation/ceri-context-116/migration-preflight.json",
+          "docs/remediation/ceri-context-116/native-certification-final-checks.log",
+          "docs/remediation/ceri-context-116/native-certification-handoff-resumed.log",
+          "docs/remediation/ceri-context-116/native-certification-resumed.log",
+          "docs/remediation/ceri-context-116/native-certification.log",
+          "docs/remediation/ceri-context-116/new-context-116-scores.json",
+          "docs/remediation/ceri-context-116/patch-apply-check.txt",
+          "docs/remediation/ceri-context-116/pipeline-66-continuation.json",
+          "docs/remediation/ceri-context-116/pipeline-66-continuation.log",
+          "docs/remediation/ceri-context-116/pipeline-66-progress.jsonl",
+          "docs/remediation/ceri-context-116/postflight-attempt-1.log",
+          "docs/remediation/ceri-context-116/postflight-attempt-2.log",
+          "docs/remediation/ceri-context-116/postflight.sql",
+          "docs/remediation/ceri-context-116/preflight.sql",
+          "docs/remediation/ceri-context-116/production-read-only-final-check.json",
+          "docs/remediation/ceri-context-116/production-read-only-final-check.log",
+          "docs/remediation/ceri-context-116/qa-capture-stack-final.txt",
+          "docs/remediation/ceri-context-116/qa-capture-stack.txt",
+          "docs/remediation/ceri-context-116/qa-claim-deadline.log",
+          "docs/remediation/ceri-context-116/qa-handoff-restored-stack-2.txt",
+          "docs/remediation/ceri-context-116/qa-handoff-restored-stack.txt",
+          "docs/remediation/ceri-context-116/qa-handoff-stack-latest.txt",
+          "docs/remediation/ceri-context-116/qa-handoff-stack.txt",
+          "docs/remediation/ceri-context-116/qa-heartbeat-supervisor.log",
+          "docs/remediation/ceri-context-116/qa-regression-stack.txt",
+          "docs/remediation/ceri-context-116/regression-summary.json",
+          "docs/remediation/ceri-context-116/restored-technical-context-compatibility.json",
+          "docs/remediation/ceri-context-116/schema-restore.log",
+          "tests/ceri/test_batched_workflow_v2.py",
+          "tests/ceri/test_ceri_acceptance_fixture.py",
+          "tests/ceri/test_ceri_schema.py",
+          "tests/ceri/test_filing_authority.py",
+          "tests/ceri/test_sec_continuation_downstream.py",
+          "tests/ceri/test_sec_coverage.py",
+          "tests/ceri/test_sec_coverage_export.py",
+          "tests/ceri/test_sec_identity_repair.py",
+          "tests/ceri/test_sec_issuer_succession.py",
+          "tests/ceri/test_sec_pipeline_preflight.py",
+          "tests/ceri/test_sec_processor_lifecycle.py",
+          "tests/ceri/test_wave1_p0.py",
+          "tests/integration/test_ceri_pipeline_completion_barrier.py",
+          "tests/integration/test_ceri_run_isolation_remediation.py",
+          "tests/integration/test_ceri_systemic_remediation.py",
+          "tests/integration/test_sec_readiness_repair_postgresql.py",
+          "tests/test_sec_continuation_executor.py"
         ],
         "tests": [
           {
@@ -2616,7 +2901,7 @@
             "lane": "python-regressions",
             "positive": "Nonempty four-domain committed lineage is identical on retry.",
             "negative": "Wrong owner/context/cutoff and duplicate retry effects are excluded.",
-            "reviewed_test_sha256": "2456f8492f9da78acfa01d0c834924f74c7ff4000a7d1825371d4f31bae861d9"
+            "reviewed_test_sha256": "4778dcceb3f38f463f61d5257755f115450d02cd0e07c88ebbdc993f32e79312"
           },
           {
             "id": "tests/ceri/test_eodhd_provider.py::test_eodhd_does_not_relabel_mismatched_or_invalid_response_identity",
@@ -2751,7 +3036,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
             "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
-            "reviewed_test_sha256": "29d5765c0ff24db7eb0bd497d3fd29695e320b36fd140a2b8e17ba34d21dae32"
+            "reviewed_test_sha256": "251e8ecba11db9a580aeb90f13c1f22aacd25ee818c8297567b2b78d9ae0b527"
           },
           {
             "id": "tests/ceri/test_t15d_residual_findings.py::test_deployment_identity_rejects_stale_database_head_and_preserves_historical_identity",
@@ -2760,7 +3045,79 @@
             "lane": "python-regressions",
             "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
             "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
-            "reviewed_test_sha256": "29d5765c0ff24db7eb0bd497d3fd29695e320b36fd140a2b8e17ba34d21dae32"
+            "reviewed_test_sha256": "251e8ecba11db9a580aeb90f13c1f22aacd25ee818c8297567b2b78d9ae0b527"
+          },
+          {
+            "id": "tests/integration/test_ceri_context_uniqueness.py::test_context_keys_on_postgresql",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Independent native contexts, legacy NULL-context and controlled replay keys coexist under actual PostgreSQL migration.",
+            "negative": "Duplicate native and replay keys are rejected; concurrent writers yield one winner; a lossy downgrade rolls back without losing rows.",
+            "reviewed_test_sha256": "cf7ef11678280b65b4182f095c016c8c1888d49b71e37e324189e89358c49cef"
+          },
+          {
+            "id": "tests/integration/test_ceri_dedicated_change_authority.py::test_native_dedicated_capture_persists_score_change_with_strict_owner",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "A genuine sealed comparator and a dedicated reverse-bound CERI context persist a native score-change event.",
+            "negative": "MAIN-role substitution and ambiguous pipeline ownership fail closed.",
+            "reviewed_test_sha256": "01aebcc4d796e38a73ddcd4157a03e964cba979007c3df3c467d7edd7b03b30f"
+          },
+          {
+            "id": "tests/integration/test_ceri_batched_workflow_v2.py::test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Native claim, frozen dedicated context, exact score IDs, tail, dependency, manifest and durable continuation retry agree.",
+            "negative": "Wrong context, configuration, owner, tampered seal and an empty expected-ID receipt are rejected.",
+            "reviewed_test_sha256": "4778dcceb3f38f463f61d5257755f115450d02cd0e07c88ebbdc993f32e79312"
+          },
+          {
+            "id": "tests/ceri/test_native_score_identity.py::test_native_physical_key_matches_the_frozen_identity",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "A complete physical native key matches the frozen identity.",
+            "negative": "Separate parametrized physical-field and temporal-drift controls reject incompatible candidates.",
+            "reviewed_test_sha256": "ff718ff20cb884f0c9842a4d591681fc20c5988c7b2641a53e9c62aca3f6576c"
+          },
+          {
+            "id": "tests/ceri/test_native_score_identity.py::test_native_physical_key_cannot_disagree_with_sealed_identity",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The unchanged baseline key remains valid in the companion positive control.",
+            "negative": "Each mismatched sealed native identity field is rejected.",
+            "reviewed_test_sha256": "ff718ff20cb884f0c9842a4d591681fc20c5988c7b2641a53e9c62aca3f6576c"
+          },
+          {
+            "id": "tests/ceri/test_native_score_identity.py::test_native_temporal_key_cannot_drift_within_a_context",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The frozen baseline temporal identity is accepted by the companion positive control.",
+            "negative": "A changed cutoff within the native context is rejected.",
+            "reviewed_test_sha256": "ff718ff20cb884f0c9842a4d591681fc20c5988c7b2641a53e9c62aca3f6576c"
+          },
+          {
+            "id": "tests/test_ticker_intelligence.py::test_ceri_eligible_current_cutoff_scores_changes_alerts_and_freshness",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Stored context/owner links expose the exact current independent score, date and retained activity across selected decision runs.",
+            "negative": "A newer excluded legacy snapshot cannot replace the eligible projection.",
+            "reviewed_test_sha256": "fd08a55636fc85be4494e4d78b81de84270f0a52b66a1248f7896df0744ff31c"
+          },
+          {
+            "id": "tests/test_ticker_intelligence.py::test_ceri_unattributed_pipeline_snapshot_is_not_a_current_projection",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "An older genuinely attributed owner remains selectable when the newer snapshot loses its owner/context link.",
+            "negative": "Removing both context links refuses the current projection despite matching upload histories.",
+            "reviewed_test_sha256": "fd08a55636fc85be4494e4d78b81de84270f0a52b66a1248f7896df0744ff31c"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -2772,7 +3129,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "71dc736f641bfeb0ae13dcd7a244250e05110d2751cd4f3c5616050a88bfbb42",
+        "review_sha256": "3dde2e85ea49f5b6eb7184432b5ff10aad558c846b4b3a4c1eff9ff77c2bb73f",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -2800,6 +3157,79 @@
               "tests/test_alembic_heads.py": "5e6e60d7874f8ebf802197f7203ca7d435f9e08e31e8e604167eca8bb9170282",
               "tests/ceri/test_t15d_residual_findings.py": "29d5765c0ff24db7eb0bd497d3fd29695e320b36fd140a2b8e17ba34d21dae32"
             }
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-20261117",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/source-contract-review.md",
+            "bindings": [
+              {
+                "test_id": "tests/integration/test_ceri_batched_workflow_v2.py::test_postgresql_bulk_rebuild_is_idempotent_incremental_and_query_bounded",
+                "old_reviewed_test_sha256": "2456f8492f9da78acfa01d0c834924f74c7ff4000a7d1825371d4f31bae861d9",
+                "new_reviewed_test_sha256": "4778dcceb3f38f463f61d5257755f115450d02cd0e07c88ebbdc993f32e79312",
+                "test_ast_unchanged": true,
+                "assertions_before": 12,
+                "assertions_current": 12
+              },
+              {
+                "test_id": "tests/ceri/test_t15d_residual_findings.py::test_deployment_identity_reports_current_database_head_and_separate_evidence_schema",
+                "old_reviewed_test_sha256": "29d5765c0ff24db7eb0bd497d3fd29695e320b36fd140a2b8e17ba34d21dae32",
+                "new_reviewed_test_sha256": "251e8ecba11db9a580aeb90f13c1f22aacd25ee818c8297567b2b78d9ae0b527",
+                "test_ast_unchanged": false,
+                "assertions_before": 5,
+                "assertions_current": 5
+              },
+              {
+                "test_id": "tests/ceri/test_t15d_residual_findings.py::test_deployment_identity_rejects_stale_database_head_and_preserves_historical_identity",
+                "old_reviewed_test_sha256": "29d5765c0ff24db7eb0bd497d3fd29695e320b36fd140a2b8e17ba34d21dae32",
+                "new_reviewed_test_sha256": "251e8ecba11db9a580aeb90f13c1f22aacd25ee818c8297567b2b78d9ae0b527",
+                "test_ast_unchanged": true,
+                "assertions_before": 4,
+                "assertions_current": 4
+              }
+            ],
+            "claim": "STATIC_INTENT only: review the migration-head expectation, real owner/workflow fixtures and additive canonical-hash fault boundary. Existing assertion counts, original review identities, financial expectations, fault/rollback checks, release lanes and authenticated golden approval requirements remain unchanged. This digest records review intent and supplies no execution certificate.",
+            "additional_critical_controls": [
+              "tests/integration/test_ceri_context_uniqueness.py::test_context_keys_on_postgresql",
+              "tests/integration/test_ceri_dedicated_change_authority.py::test_native_dedicated_capture_persists_score_change_with_strict_owner",
+              "tests/integration/test_ceri_batched_workflow_v2.py::test_pipeline_ceri_zero_history_freezes_post_acquisition_context_and_scores",
+              "tests/ceri/test_native_score_identity.py::test_native_physical_key_matches_the_frozen_identity",
+              "tests/ceri/test_native_score_identity.py::test_native_physical_key_cannot_disagree_with_sealed_identity",
+              "tests/ceri/test_native_score_identity.py::test_native_temporal_key_cannot_drift_within_a_context"
+            ]
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-PREREQUISITES-20261117",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/prerequisite-ownership-review.md",
+            "associations": [
+              {
+                "path": "app/services/export_service.py",
+                "symbol": "_combined_sec_coverage",
+                "scope": "Export disclosed SEC facts from the exact latest pipeline, processor signature and retained scope; do not invent readiness or attribute a different owner."
+              },
+              {
+                "path": "scripts/replay_sec_identity.py",
+                "symbol": "main",
+                "scope": "Manual-only reviewed SEC replay wrapper; requires processing run, ingestion run and actor, calls the existing locked scope validator, and is never selected as an automated test."
+              }
+            ],
+            "claim": "STATIC_INTENT only. Exact prerequisite paths are assigned to existing accountable domains and existing mandatory validation. Unknown high-risk paths still fail closed; manual replay is not an automated producer. No financial oracle, historical source identity, authenticated approval or certificate is changed."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-READER-FIXTURE-20261117",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/browser-fixture-review.md",
+            "scope": "Seed true persisted dedicated context/reverse-owner links for positive current-presentation fixtures. Preserve the excluded legacy row and all browser/financial assertions; add explicit unattributed-context refusal. Reader payloads remain doubles and are not promoted to financial-writer certification.",
+            "claim": "STATIC_INTENT only; native seals, current CI evidence and authenticated golden approval remain separately required."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
           }
         ]
       },
@@ -2840,6 +3270,10 @@
           {
             "path": "app/services/sector_universe_service.py",
             "symbol": "_coherent_compatible_rankings"
+          },
+          {
+            "path": "app/services/sector_serialization.py",
+            "symbol": "canonical_sector_payload"
           }
         ],
         "impact_patterns": [
@@ -2867,7 +3301,22 @@
           "tests/test_market_sector_intelligence_technical_pit.py",
           "tests/test_market_sector_refresh.py",
           "tests/test_sector_read_budget.py",
-          "tests/test_sector_refresh_browser.py"
+          "tests/test_sector_refresh_browser.py",
+          "docs/remediation/pipeline59-sector-locality-liveness/README.md",
+          "docs/remediation/pipeline59-sector-locality-liveness/qualification.json",
+          "docs/remediation/pipeline59-sector-locality-liveness/source-review.json",
+          "docs/remediation/pipeline59-sector-memory-recovery/README.md",
+          "docs/remediation/pipeline59-sector-memory-recovery/qualify_registry.py",
+          "docs/remediation/pipeline59-sector-memory-recovery/source-review.json",
+          "tests/integration/test_sector_evidence_memory_postgresql.py",
+          "tests/integration/test_sector_memory_continuation_postgresql.py",
+          "tests/integration/test_sector_memory_scale_postgresql.py",
+          "tests/integration/test_sector_universe_residency_postgresql.py",
+          "tests/sector_full_native_scale_probe.py",
+          "tests/sector_memory_scale_probe.py",
+          "tests/test_sector_locality_liveness.py",
+          "tests/test_sector_recovery_continuation.py",
+          "tests/test_sector_serialization.py"
         ],
         "tests": [
           {
@@ -2904,7 +3353,7 @@
             "lane": "python-regressions",
             "positive": "One native writer loads immutable JSON once while every pass rechecks seals and row existence.",
             "negative": "Nested mutations still fail; transaction and Session changes cannot reuse the record scope.",
-            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+            "reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa"
           },
           {
             "id": "tests/test_sector_universe_service.py::test_universe_metrics_groups_sector_metrics_and_profile_distribution",
@@ -2949,7 +3398,7 @@
             "lane": "python-regressions",
             "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
             "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
-            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+            "reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa"
           },
           {
             "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-UNIVERSE_SOURCE_VALIDATION]",
@@ -2958,7 +3407,7 @@
             "lane": "python-regressions",
             "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
             "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
-            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+            "reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa"
           },
           {
             "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-PERSISTENCE_VALIDATION_SOURCE_LOCKS]",
@@ -2967,7 +3416,7 @@
             "lane": "python-regressions",
             "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
             "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
-            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+            "reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa"
           },
           {
             "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-PERSISTENCE_VALIDATION_SOURCE_ROLES]",
@@ -2976,7 +3425,7 @@
             "lane": "python-regressions",
             "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
             "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
-            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+            "reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa"
           },
           {
             "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-UNIVERSE_RANKING_INPUTS_LOADED]",
@@ -2985,7 +3434,7 @@
             "lane": "python-regressions",
             "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
             "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
-            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+            "reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa"
           },
           {
             "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-UNIVERSE_SOURCE_VALIDATION]",
@@ -2994,7 +3443,7 @@
             "lane": "python-regressions",
             "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
             "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
-            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+            "reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa"
           },
           {
             "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-PERSISTENCE_VALIDATION_SOURCE_LOCKS]",
@@ -3003,7 +3452,7 @@
             "lane": "python-regressions",
             "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
             "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
-            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+            "reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa"
           },
           {
             "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-PERSISTENCE_VALIDATION_SOURCE_ROLES]",
@@ -3012,7 +3461,7 @@
             "lane": "python-regressions",
             "positive": "Input hydration stays read-only; mutation batches retain acquired Ranking locks and keep staged rows invisible.",
             "negative": "Universe/writer cancellation and failure roll back serving/evidence/projection rows; CPU preparation cannot reopen a lazy transaction.",
-            "reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb"
+            "reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa"
           },
           {
             "id": "tests/test_sector_refresh_fixture_calendar.py::test_forming_provider_fixture_obeys_reviewed_session_window",
@@ -3032,7 +3481,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "3bf1f7efbec0e25d38e4fc8976111db6c2457a079f2827efc67d9d9392c18da2",
+        "review_sha256": "cced07a41c1d9753f5d942f0eaacf830810d697d51f09f0676aec40dfc6c1321",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -3074,6 +3523,107 @@
             "evidence": "docs/verification/pipeline55-symbol-change-review-20261109.md",
             "scope": "The existing local calendar-aware provider double corrects pre-open CI failures. Native durable-worker, cache-freshness and frozen SPY/QQQ lineage assertions remain intact; production response admission remains unchanged.",
             "claim": "STATIC_INTENT only; no execution, human approval or financial expectation is asserted by this metadata."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-20261117",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/source-contract-review.md",
+            "bindings": [
+              {
+                "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_residency_rechecks_seals_and_expires_with_its_transaction",
+                "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+                "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+                "test_ast_unchanged": true,
+                "assertions_before": 5,
+                "assertions_current": 5
+              },
+              {
+                "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-UNIVERSE_RANKING_INPUTS_LOADED]",
+                "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+                "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+                "test_ast_unchanged": false,
+                "assertions_before": 12,
+                "assertions_current": 12
+              },
+              {
+                "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-UNIVERSE_SOURCE_VALIDATION]",
+                "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+                "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+                "test_ast_unchanged": false,
+                "assertions_before": 12,
+                "assertions_current": 12
+              },
+              {
+                "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-PERSISTENCE_VALIDATION_SOURCE_LOCKS]",
+                "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+                "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+                "test_ast_unchanged": false,
+                "assertions_before": 12,
+                "assertions_current": 12
+              },
+              {
+                "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[cancel-PERSISTENCE_VALIDATION_SOURCE_ROLES]",
+                "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+                "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+                "test_ast_unchanged": false,
+                "assertions_before": 12,
+                "assertions_current": 12
+              },
+              {
+                "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-UNIVERSE_RANKING_INPUTS_LOADED]",
+                "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+                "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+                "test_ast_unchanged": false,
+                "assertions_before": 12,
+                "assertions_current": 12
+              },
+              {
+                "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-UNIVERSE_SOURCE_VALIDATION]",
+                "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+                "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+                "test_ast_unchanged": false,
+                "assertions_before": 12,
+                "assertions_current": 12
+              },
+              {
+                "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-PERSISTENCE_VALIDATION_SOURCE_LOCKS]",
+                "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+                "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+                "test_ast_unchanged": false,
+                "assertions_before": 12,
+                "assertions_current": 12
+              },
+              {
+                "test_id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_source_role_checkpoints_preserve_locks_and_rollback[failure-PERSISTENCE_VALIDATION_SOURCE_ROLES]",
+                "old_reviewed_test_sha256": "0f9b6551dd02ce7c4b004b708fdb6e8ec2f370914e59ebef9cf0075af7f0a8fb",
+                "new_reviewed_test_sha256": "d7e23476dabf1a60b0714e27aa2e44b5f08c43b7efba8671638396c9e9a656fa",
+                "test_ast_unchanged": false,
+                "assertions_before": 12,
+                "assertions_current": 12
+              }
+            ],
+            "claim": "STATIC_INTENT only: review the migration-head expectation, real owner/workflow fixtures and additive canonical-hash fault boundary. Existing assertion counts, original review identities, financial expectations, fault/rollback checks, release lanes and authenticated golden approval requirements remain unchanged. This digest records review intent and supplies no execution certificate."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-PREREQUISITES-20261117",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/prerequisite-ownership-review.md",
+            "associations": [
+              {
+                "path": "app/services/sector_serialization.py",
+                "symbol": "canonical_sector_payload",
+                "scope": "Fresh per-call copies and streaming canonical hashes preserve bytes, unordered fields, cycle refusal and cancellation."
+              }
+            ],
+            "claim": "STATIC_INTENT only. Exact prerequisite paths are assigned to existing accountable domains and existing mandatory validation. Unknown high-risk paths still fail closed; manual replay is not an automated producer. No financial oracle, historical source identity, authenticated approval or certificate is changed."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
           }
         ]
       },
@@ -3252,6 +3802,18 @@
           {
             "path": "app/worker_supervisor.py",
             "symbol": "_supervise_once"
+          },
+          {
+            "path": "app/services/background_queue.py",
+            "symbol": "job_queue_class"
+          },
+          {
+            "path": "app/services/job_progress_diagnostics.py",
+            "symbol": "JobProgressDiagnostics.observe"
+          },
+          {
+            "path": "app/services/process_identity.py",
+            "symbol": "inspect_process_identity"
           }
         ],
         "impact_patterns": [
@@ -3269,7 +3831,16 @@
           "tests/integration/test_ib_market_intelligence_runtime_resilience.py",
           "tests/ops/test_lifecycle_config.py",
           "tests/ops/test_readiness_metrics.py",
-          "tests/ops/test_worker_quiesce.py"
+          "tests/ops/test_worker_quiesce.py",
+          "docs/remediation/pipeline-scheduler-readiness-20261111/README.md",
+          "tests/integration/test_pipeline_scheduler_readiness_postgresql.py",
+          "tests/integration/test_supervisor_recovery_isolation_postgresql.py",
+          "tests/test_background_job_service.py",
+          "tests/test_background_queue.py",
+          "tests/test_memory_failure_recovery.py",
+          "tests/test_pipeline61_progress_diagnostics.py",
+          "tests/test_pipeline_execution_authority.py",
+          "tests/test_worker_supervisor_reliability.py"
         ],
         "tests": [
           {
@@ -3328,7 +3899,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "9c076aa31f14ddb800cccc3210e0d9cbec3d4ebfd5b9fcf30c03e555df14dd9e",
+        "review_sha256": "ffb42030a939a4405d6b3ddd2a0fe0c4d03f1c6757627c6639cba58cca14473a",
         "review_addenda": [
           {
             "task": "FR02",
@@ -3411,6 +3982,37 @@
               }
             ],
             "claim": "STATIC_INTENT only; no historical source-pin, financial expectation or approval rule changed."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-PREREQUISITES-20261117",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/prerequisite-ownership-review.md",
+            "associations": [
+              {
+                "path": "app/services/background_queue.py",
+                "symbol": "job_queue_class",
+                "scope": "SEC readiness repair joins the existing interactive queue; existing fairness and queue-name refusals remain."
+              },
+              {
+                "path": "app/services/job_progress_diagnostics.py",
+                "symbol": "JobProgressDiagnostics.observe",
+                "scope": "Bounded stack/memory observation excludes locals and does not renew, commit, or fabricate useful progress."
+              },
+              {
+                "path": "app/services/process_identity.py",
+                "symbol": "inspect_process_identity",
+                "scope": "Compare PID and creation time; denied inspection remains UNKNOWN and cannot be treated as death."
+              }
+            ],
+            "claim": "STATIC_INTENT only. Exact prerequisite paths are assigned to existing accountable domains and existing mandatory validation. Unknown high-risk paths still fail closed; manual replay is not an automated producer. No financial oracle, historical source identity, authenticated approval or certificate is changed."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
           }
         ]
       },
@@ -3455,6 +4057,10 @@
           {
             "path": "app/observability/db_monitor.py",
             "symbol": "JsonlTelemetryWriter._run"
+          },
+          {
+            "path": "tests/e2e/single_run_certification/evidence.py",
+            "symbol": "evaluate_pipeline_evidence"
           }
         ],
         "impact_patterns": [
@@ -3484,7 +4090,19 @@
           "tests/test_pipeline_executor.py",
           "tests/test_pipeline_gui_semantics.py",
           "tests/test_pipeline_partial_results.py",
-          "docs/verification/pipeline55-symbol-change-review-20261109.md"
+          "docs/verification/pipeline55-symbol-change-review-20261109.md",
+          "app/templates/history_gap_repair.html",
+          "tests/integration/test_pipeline61_handoff_postgresql.py",
+          "tests/integration/test_terminal_publication_recovery_postgresql.py",
+          "tests/test_pipeline61_handoff_progress.py",
+          "tests/test_pipeline_dependency_progress.py",
+          "tests/test_pipeline_gap_routes.py",
+          "tests/test_pipeline_progress_route.py",
+          "tests/test_pipeline_recovery_transition.py",
+          "tests/test_pipeline_recovery_visibility.py",
+          "tests/test_pipeline_service.py",
+          "tests/test_run_detail_view_models.py",
+          "tests/test_scheduler_release_qualification.py"
         ],
         "tests": [
           {
@@ -3701,7 +4319,7 @@
             "lane": "python-regressions",
             "positive": "Frozen market-data recovery reuses completed fundamentals and validates the retained checkpoint.",
             "negative": "Upstream fundamental execution and completed-step attempt counters must not replay.",
-            "reviewed_test_sha256": "7fe5b07d44815f4228725b0902ed584baa665dc61972a4ad7393d692bc039e6b"
+            "reviewed_test_sha256": "acdc4f89a5d4b57acd6ae246de9444f8af2d16e310e1faaaf534e3bf5e359687"
           },
           {
             "id": "tests/test_pipeline_executor.py::test_contract_preflight_failure_blocks_pipeline_before_technicals",
@@ -3710,7 +4328,7 @@
             "lane": "python-regressions",
             "positive": "Typed qualification failure is retained as a blocked market-data pipeline stage.",
             "negative": "Technical and combined producers are not invoked after unresolved instrument identity.",
-            "reviewed_test_sha256": "7fe5b07d44815f4228725b0902ed584baa665dc61972a4ad7393d692bc039e6b"
+            "reviewed_test_sha256": "acdc4f89a5d4b57acd6ae246de9444f8af2d16e310e1faaaf534e3bf5e359687"
           },
           {
             "id": "tests/test_pipeline_partial_results.py::test_partial_admission_records_exact_subset_and_preserves_source",
@@ -3747,6 +4365,186 @@
             "positive": "Server-rendered progress exposes recovery and explicit subset controls for the retained readiness evidence.",
             "negative": "The original pipeline must remain explicitly disclosed as blocked; rendering these controls does not establish browser interaction or server admission proof.",
             "reviewed_test_sha256": "328b0d25e9119cab0b481a7f217163f7536b1622334243d7e8f62b62ed73e1ce"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_file_finalizer_requires_exact_known_capture_owner[False]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_file_finalizer_requires_exact_known_capture_owner[True]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-unknown-owner]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-owner]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-run]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-context]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-cutoff]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-changed-configuration]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-changed-sources]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-missing-member]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-unknown-owner]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-owner]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-run]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-context]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-cutoff]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-changed-configuration]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-changed-sources]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-missing-member]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_historical_capture_ownership_is_not_reinterpreted[False]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_historical_capture_ownership_is_not_reinterpreted[True]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
           }
         ],
         "oracle": "Only original A04 finalizer plus A05B independent oracle; 13 required evidence seals.",
@@ -3758,7 +4556,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "9e87eb38f65b9bd280621951b18d506c34c798e4a4ddd8ca953a93698e572036",
+        "review_sha256": "1757658d3ce65b92c367a3909b253d20f0db2f339b4fd37fede4db007eedcfff",
         "review_addenda": [
           {
             "task": "MSI-20261104-renderer",
@@ -3826,6 +4624,57 @@
             "evidence": "docs/verification/pipeline55-symbol-change-review-20261109.md",
             "scope": "Dated common-stock symbol continuity, frozen market-data recovery and explicit subset admission; exact source paths and meaningful refusal/native selectors. Existing financial expectations and release requirements retained.",
             "claim": "STATIC_INTENT only; no authenticated human approval, measured execution, current certificate or live-provider verdict is supplied by this mapping."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-20261117",
+            "kind": "STATIC_ASSERTION_AND_FIXTURE_SCOPE_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/source-contract-review.md",
+            "bindings": [
+              {
+                "test_id": "tests/test_pipeline_executor.py::test_market_data_resume_preserves_fundamentals_and_completed_steps",
+                "old_reviewed_test_sha256": "7fe5b07d44815f4228725b0902ed584baa665dc61972a4ad7393d692bc039e6b",
+                "new_reviewed_test_sha256": "acdc4f89a5d4b57acd6ae246de9444f8af2d16e310e1faaaf534e3bf5e359687",
+                "test_ast_unchanged": true,
+                "assertions_before": 5,
+                "assertions_current": 5
+              },
+              {
+                "test_id": "tests/test_pipeline_executor.py::test_contract_preflight_failure_blocks_pipeline_before_technicals",
+                "old_reviewed_test_sha256": "7fe5b07d44815f4228725b0902ed584baa665dc61972a4ad7393d692bc039e6b",
+                "new_reviewed_test_sha256": "acdc4f89a5d4b57acd6ae246de9444f8af2d16e310e1faaaf534e3bf5e359687",
+                "test_ast_unchanged": true,
+                "assertions_before": 4,
+                "assertions_current": 4
+              }
+            ],
+            "claim": "STATIC_INTENT only: review the migration-head expectation, real owner/workflow fixtures and additive canonical-hash fault boundary. Existing assertion counts, original review identities, financial expectations, fault/rollback checks, release lanes and authenticated golden approval requirements remain unchanged. This digest records review intent and supplies no execution certificate."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-PREREQUISITES-20261117",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/prerequisite-ownership-review.md",
+            "associations": [
+              {
+                "path": "app/templates/history_gap_repair.html",
+                "scope": "Exact bounded history-gap review form retains the server manifest fingerprint; native repair routes own admission and mutation. No neighboring template wildcard is added."
+              }
+            ],
+            "claim": "STATIC_INTENT only. Exact prerequisite paths are assigned to existing accountable domains and existing mandatory validation. Unknown high-risk paths still fail closed; manual replay is not an automated producer. No financial oracle, historical source identity, authenticated approval or certificate is changed."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-FINALIZER-OWNERSHIP-20261117",
+            "kind": "STATIC_SEALED_MANIFEST_AND_FAULT_CONTROL_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+            "scope": "One stale CERI UNKNOWN literal is replaced by the exact selected sealed capture row state; KNOWN requires the native parent ID, UNKNOWN stays exact, other states refuse. All other lineage/financial/source checks and 620-gate inventory remain. Twenty new controls are FAST/UNIT_DOUBLES.",
+            "claim": "STATIC_INTENT. The 128 passing unit cases and two original-source diagnostic rechecks do not substitute for fresh current-source native CI or actual owner authorization."
           }
         ]
       },
@@ -3858,6 +4707,18 @@
           {
             "path": "scripts/qa/golden_provenance.py",
             "symbol": "_protected_branch"
+          },
+          {
+            "path": "tests/e2e/single_run_certification/candidate_validation.py",
+            "symbol": "candidate_proposal"
+          },
+          {
+            "path": "tests/e2e/single_run_certification/golden_assertions.py",
+            "symbol": "assert_completed_oracle"
+          },
+          {
+            "path": "scripts/qa/release_evidence.py",
+            "symbol": "_enable_native_browser_candidate"
           }
         ],
         "impact_patterns": [
@@ -3866,7 +4727,8 @@
           "tests/e2e/single_run_certification/golden_*.py",
           "config/*.yaml",
           ".gitattributes",
-          ".env.example"
+          ".env.example",
+          "docs/testing/golden-update-proposal.json"
         ],
         "tests": [
           {
@@ -3993,7 +4855,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "aa15f32b53e1a5cf61f6422578b280b5cacb4f58e4a8f2b4329db43504dd821a"
+            "reviewed_test_sha256": "06a02e8eb7c698d7d259a121d1eb3afef89cf8959924a6f1a3fe992b0ac46375"
           },
           {
             "id": "tests/test_ibmi_golden_recertification.py::test_proposal_does_not_select_or_authorize_a_golden",
@@ -4002,7 +4864,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "aa15f32b53e1a5cf61f6422578b280b5cacb4f58e4a8f2b4329db43504dd821a"
+            "reviewed_test_sha256": "06a02e8eb7c698d7d259a121d1eb3afef89cf8959924a6f1a3fe992b0ac46375"
           },
           {
             "id": "tests/test_ibmi_golden_recertification.py::test_changed_candidate_literals_fail_even_after_prior_success",
@@ -4011,7 +4873,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "aa15f32b53e1a5cf61f6422578b280b5cacb4f58e4a8f2b4329db43504dd821a"
+            "reviewed_test_sha256": "06a02e8eb7c698d7d259a121d1eb3afef89cf8959924a6f1a3fe992b0ac46375"
           },
           {
             "id": "tests/test_ibmi_golden_recertification.py::test_candidate_cannot_claim_promotion_or_reuse_another_binding",
@@ -4020,7 +4882,16 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "aa15f32b53e1a5cf61f6422578b280b5cacb4f58e4a8f2b4329db43504dd821a"
+            "reviewed_test_sha256": "06a02e8eb7c698d7d259a121d1eb3afef89cf8959924a6f1a3fe992b0ac46375"
+          },
+          {
+            "id": "tests/test_ibmi_golden_recertification.py::test_native_browser_candidate_selection_refuses_a_stale_adapter",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "A fresh isolated native browser adapter validates and selects the complete proposed candidate.",
+            "negative": "An adapter initialized against historical data cannot silently substitute for the declared native candidate.",
+            "reviewed_test_sha256": "06a02e8eb7c698d7d259a121d1eb3afef89cf8959924a6f1a3fe992b0ac46375"
           }
         ],
         "oracle": "Unchanged A05 v3/A05B-r3 seals and independent derivations; A13-R10 requires live sole-owner acknowledgement, never automatic activation.",
@@ -4031,7 +4902,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "b2048ad251f3faeefc883e8565c1fc0bbee8c5695d73a22973c6d173983e6500",
+        "review_sha256": "aa2b2d8bac228703a645c3e169d33f590565d4a0d81579af3096b99b24df4e88",
         "policy_amendment": {
           "id": "A13-R10",
           "date": "2026-11-01",
@@ -4048,7 +4919,24 @@
           "financial_expectations_changed": false,
           "new_independent_reviewer_required": false,
           "coverage_claim": "STATIC_INTENT; actual execution evidence recorded separately"
-        }
+        },
+        "review_addenda": [
+          {
+            "task": "CERI-CONTEXT116-PR82-CANDIDATE-20261117",
+            "kind": "STATIC_ASSERTION_AND_CANDIDATE_SCOPE_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/ci-prerequisite-review.md",
+            "scope": "Four candidate-integrity controls preserve historical v3, exact financial literals and variants, corruption rejection, foreign-binding rejection and non-activation. Only the version and ten independently derived current CERI owner states change. Native immutable scope now requires the exact parent ID.",
+            "claim": "STATIC_INTENT only; candidate validation cannot authorize or activate a golden. Current native A04 and the unchanged trusted A13 owner acknowledgement remain required."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
+          }
+        ]
       },
       {
         "id": "CI_RELEASE_GOVERNANCE",
@@ -4111,7 +4999,22 @@
           "docs/audit/whole-application-closure/MUTATION_WRITER_REGISTRY.md",
           "docs/audit/whole-application-closure/TRANSACTION_BOUNDARY_REGISTRY.md",
           "docs/routes_exports.md",
-          "docs/testing/ci_snapshot_baseline.md"
+          "docs/testing/ci_snapshot_baseline.md",
+          "docs/remediation/ceri-context-116-publication/README.md",
+          "docs/remediation/ceri-context-116-publication/architecture-check.log",
+          "docs/remediation/ceri-context-116-publication/browser-fixture-review.md",
+          "docs/remediation/ceri-context-116-publication/ci-prerequisite-review.md",
+          "docs/remediation/ceri-context-116-publication/configuration-material-review.md",
+          "docs/remediation/ceri-context-116-publication/integration-tests.log",
+          "docs/remediation/ceri-context-116-publication/integration-tests.xml",
+          "docs/remediation/ceri-context-116-publication/lint-check.log",
+          "docs/remediation/ceri-context-116-publication/prerequisite-ownership-review.md",
+          "docs/remediation/ceri-context-116-publication/publication-summary.json",
+          "docs/remediation/ceri-context-116-publication/source-contract-review.json",
+          "docs/remediation/ceri-context-116-publication/source-contract-review.md",
+          "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+          "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+          "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md"
         ],
         "tests": [
           {
@@ -5087,7 +5990,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "36220adc34a9b7728c9f2832f2462085500c08267d3060cc7b7c1b2bc1e59332",
+        "review_sha256": "183ce65606b662e776a87da8797184211542783bdc277525e2a8b76209c64a6b",
         "review_addenda": [
           {
             "task": "INTEGRATION-20261107-budget-retention",
@@ -5095,6 +5998,21 @@
             "claim": "STATIC_INTENT: retain owned native inputs when the original test passes but its stage budget fails. Preserve the original report and sealed certificate files; passing cases within budgets avoid a dump. Existing ownership rejection remains.",
             "source_sha256": "bc94eb1a075232b78384340611582ff1a3de6da1805779c408f65e3766bd6447",
             "test_sha256": "029a86842da7404d9bd2907f915ff70a1342a4d591a26b3d3120e02a173ffda8"
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-EXACT-IMPACT-OWNERSHIP-20261117",
+            "kind": "STATIC_EXACT_PATH_OWNERSHIP_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
+            "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+            "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
+            "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-FINALIZER-OWNERSHIP-20261117",
+            "kind": "STATIC_SEALED_MANIFEST_AND_FAULT_CONTROL_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+            "scope": "One stale CERI UNKNOWN literal is replaced by the exact selected sealed capture row state; KNOWN requires the native parent ID, UNKNOWN stays exact, other states refuse. All other lineage/financial/source checks and 620-gate inventory remain. Twenty new controls are FAST/UNIT_DOUBLES.",
+            "claim": "STATIC_INTENT. The 128 passing unit cases and two original-source diagnostic rechecks do not substitute for fresh current-source native CI or actual owner authorization."
           }
         ]
       }
@@ -6682,6 +7600,206 @@
           "tests/integration/test_pipeline_authority_certification_postgresql.py",
           "docs/verification/ci443-seed-connection-cleanup-20261107.md"
         ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_file_finalizer_requires_exact_known_capture_owner[False]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_file_finalizer_requires_exact_known_capture_owner[True]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-unknown-owner]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-owner]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-run]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-context]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-cutoff]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-changed-configuration]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-changed-sources]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-missing-member]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-unknown-owner]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-owner]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-run]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-context]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-cutoff]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-changed-configuration]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-changed-sources]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-missing-member]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_historical_capture_ownership_is_not_reinterpreted[False]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_historical_capture_ownership_is_not_reinterpreted[True]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
         "deferred_outcome": "NOT_RUN"
       }
     ],

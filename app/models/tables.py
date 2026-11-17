@@ -352,6 +352,66 @@ class PriceBarRevision(Base):
     )
 
 
+class IBBarAdmissionReceipt(Base):
+    """Append-only acceptance of exact cached bar versions by one acquisition."""
+
+    __tablename__ = "ib_bar_admission_receipts"
+
+    receipt_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    fetch_item_id: Mapped[int] = mapped_column(
+        ForeignKey("ib_fetch_items.id", ondelete="RESTRICT"), nullable=False, unique=True
+    )
+    fetch_run_id: Mapped[int] = mapped_column(
+        ForeignKey("ib_fetch_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    upload_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("upload_runs.id", ondelete="RESTRICT")
+    )
+    pipeline_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="RESTRICT")
+    )
+    calculation_context_id: Mapped[int | None] = mapped_column(
+        ForeignKey("market_calculation_contexts.id", ondelete="RESTRICT")
+    )
+    acquisition_plan_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisition_plan_records.plan_id", ondelete="RESTRICT"), nullable=False
+    )
+    scope_id: Mapped[str] = mapped_column(
+        ForeignKey("work_scope_records.scope_id", ondelete="RESTRICT"), nullable=False
+    )
+    refresh_cycle_id: Mapped[str] = mapped_column(
+        ForeignKey("refresh_cycle_records.refresh_cycle_id", ondelete="RESTRICT"), nullable=False
+    )
+    ticker: Mapped[str] = mapped_column(Text, nullable=False)
+    what_to_show: Mapped[str] = mapped_column(Text, nullable=False)
+    timeframe: Mapped[str] = mapped_column(Text, nullable=False)
+    policy_version: Mapped[str] = mapped_column(Text, nullable=False)
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+    @property
+    def missing_sessions(self) -> tuple[date, ...]:
+        return tuple(date.fromisoformat(value) for value in self.payload_json["missing_sessions"])
+
+    @property
+    def request_scope(self) -> dict[str, Any]:
+        return dict(self.payload_json["request_scope"])
+
+    @property
+    def contract_identity(self) -> dict[str, Any]:
+        return dict(self.payload_json["contract_identity"])
+
+    __table_args__ = (
+        Index("idx_ib_bar_admission_context_key",
+              "calculation_context_id", "ticker", "what_to_show"),
+        Index("idx_ib_bar_admission_scope", "scope_id", "fetch_run_id"),
+        CheckConstraint(
+            "(pipeline_run_id IS NULL) = (calculation_context_id IS NULL)",
+            name="ck_ib_bar_admission_owner_context",
+        ),
+    )
+
+
 class PriceSeriesVersion(Base):
     __tablename__ = "price_series_versions"
 

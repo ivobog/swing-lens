@@ -1,0 +1,249 @@
+commit 6d6952feec93adb9dd62635e41d299e3749b4819
+Author:     Codex <codex@localhost>
+AuthorDate: Sun Nov 15 15:04:28 2026 +0100
+Commit:     Codex <codex@localhost>
+CommitDate: Sun Nov 15 15:04:28 2026 +0100
+
+    Isolate CERI workflow scheduling and failure containment by pipeline owner
+
+diff --git a/app/services/ceri/batched_workflow.py b/app/services/ceri/batched_workflow.py
+index 2eeced5..011ca0e 100644
+--- a/app/services/ceri/batched_workflow.py
++++ b/app/services/ceri/batched_workflow.py
+@@ -104,6 +104,7 @@ def build_ceri_batched_workflow_plan(
+     run_id: int,
+     tickers: Iterable[str],
+     config_hash: str,
++    workflow_key: str | None = None,
+     settings: Settings | None = None,
+     provider_datasets: Mapping[str, tuple[CeriDataset, ...]] = DEFAULT_PROVIDER_DATASETS,
+     provider_tickers: Mapping[str, Iterable[str]] | None = None,
+@@ -112,7 +113,7 @@ def build_ceri_batched_workflow_plan(
+     symbols = tuple(
+         sorted({str(ticker).strip().upper() for ticker in tickers if str(ticker).strip()})
+     )
+-    workflow_key = f"ceri:pipeline:{run_id}:{config_hash}"
++    workflow_key = workflow_key or f"ceri:pipeline:{run_id}:{config_hash}"
+     jobs: list[CeriBatchJobSpec] = []
+     provider_count = 0
+     normalization_count = 0
+@@ -356,10 +357,19 @@ def schedule_ceri_batched_workflow(
+                 },
+             )
+         provider_ticker_scopes["sec"] = sec_coverage_ticker_scope(readiness, coverage)
++    config_hash = load_ceri_config().config_hash
++    workflow_key = None
++    if pipeline is not None:
++        # The upload may be reused by multiple independent pipeline executions.
++        # A retained key keeps an already-dispatched legacy workflow resumable.
++        workflow_key = (pipeline.result_json or {}).get("ceri_provider_workflow_key")
++        if not workflow_key:
++            workflow_key = f"ceri:pipeline:owner:{pipeline.id}:{run_id}:{config_hash}"
+     plan = build_ceri_batched_workflow_plan(
+         run_id=run_id,
+         tickers=tickers,
+-        config_hash=load_ceri_config().config_hash,
++        config_hash=config_hash,
++        workflow_key=workflow_key,
+         settings=runtime_settings,
+         provider_datasets=provider_datasets,
+         provider_tickers=provider_ticker_scopes,
+diff --git a/app/services/ceri/pipeline_containment_service.py b/app/services/ceri/pipeline_containment_service.py
+index 117b2bd..4e901f8 100644
+--- a/app/services/ceri/pipeline_containment_service.py
++++ b/app/services/ceri/pipeline_containment_service.py
+@@ -2,7 +2,7 @@ from __future__ import annotations
+ 
+ from datetime import UTC, datetime
+ 
+-from sqlalchemy import or_, select
++from sqlalchemy import and_, or_, select
+ from sqlalchemy.orm import Session
+ 
+ from app.models.ceri_tables import CeriProcessingRun, CeriScoreSnapshot
+@@ -42,6 +42,12 @@ def reconcile_unsuccessful_pipeline_ceri(
+             pipeline.status, result
+         ):
+             return {"excluded": 0, "projections_repaired": 0, "processing_terminalized": 0}
++    sole_pipeline = not db.scalar(
++        select(PipelineRun.id).where(
++            PipelineRun.upload_run_id == pipeline.upload_run_id,
++            PipelineRun.id != pipeline.id,
++        ).limit(1)
++    )
+     snapshots = list(
+         db.scalars(
+             select(CeriScoreSnapshot)
+@@ -52,7 +58,8 @@ def reconcile_unsuccessful_pipeline_ceri(
+             .where(
+                 or_(
+                     MarketCalculationContext.pipeline_run_id == int(pipeline.id),
+-                    CeriScoreSnapshot.run_id == int(pipeline.upload_run_id),
++                    and_(sole_pipeline, MarketCalculationContext.pipeline_run_id.is_(None),
++                         CeriScoreSnapshot.run_id == int(pipeline.upload_run_id)),
+                 )
+             )
+             .order_by(CeriScoreSnapshot.id)
+@@ -78,7 +85,7 @@ def reconcile_unsuccessful_pipeline_ceri(
+         ],
+     )
+     repaired = _rebuild_ceri_projections(db, snapshots)
+-    terminalized = _terminalize_processing(db, pipeline)
++    terminalized = _terminalize_processing(db, pipeline, sole_pipeline)
+     return {
+         "excluded": excluded,
+         "projections_repaired": repaired,
+@@ -133,8 +140,8 @@ def _rebuild_ceri_projections(
+     return repaired
+ 
+ 
+-def _terminalize_processing(db: Session, pipeline: PipelineRun) -> int:
+-    workflow_prefix = f"ceri:pipeline:{pipeline.id}:"
++def _terminalize_processing(db: Session, pipeline: PipelineRun, sole_pipeline: bool) -> int:
++    workflow_prefix = f"ceri:pipeline:owner:{pipeline.id}:"
+     job_ids = set(
+         db.scalars(
+             select(BackgroundJob.id).where(
+@@ -153,8 +160,12 @@ def _terminalize_processing(db: Session, pipeline: PipelineRun) -> int:
+                 or_(
+                     CeriProcessingRun.background_job_id.in_(job_ids or {-1}),
+                     CeriProcessingRun.deterministic_request_key.startswith(workflow_prefix),
+-                    CeriProcessingRun.scope_json["run_id"].astext
+-                    == str(pipeline.upload_run_id),
++                    and_(
++                        sole_pipeline,
++                        CeriProcessingRun.background_job_id.is_(None),
++                        CeriProcessingRun.scope_json["run_id"].astext
++                        == str(pipeline.upload_run_id),
++                    ),
+                 ),
+             )
+         )
+diff --git a/app/services/pipeline_executor.py b/app/services/pipeline_executor.py
+index e407402..cc9b185 100644
+--- a/app/services/pipeline_executor.py
++++ b/app/services/pipeline_executor.py
+@@ -8,7 +8,7 @@ from datetime import UTC, datetime
+ from decimal import Decimal
+ from inspect import Parameter, signature
+ from time import perf_counter
+-from typing import Any
++from typing import TYPE_CHECKING, Any
+ 
+ from sqlalchemy import distinct, func, select
+ from sqlalchemy.orm import Session
+@@ -4280,12 +4280,16 @@ def _ceri_provider_ingest_enabled(dependencies: PipelineExecutionDependencies) -
+     )
+ 
+ 
++if TYPE_CHECKING:
++    from app.services.ceri.batched_workflow import CeriBatchedWorkflowPlan
++
++
+ def _schedule_ceri_provider_ingest(
+     db: Session,
+     run_id: int,
+     *,
+     market_cutoff: MarketCalculationCutoff | None = None,
+-) -> int:
++) -> int | CeriBatchedWorkflowPlan:
+     """Queue provider-specific ingestion jobs for the current SwingLens run."""
+     settings = get_settings()
+     # Pipeline-owned provider work must have one durable finalizer/capture tail.
+@@ -4297,7 +4301,7 @@ def _schedule_ceri_provider_ingest(
+         if market_cutoff is not None:
+             return schedule_ceri_batched_workflow(
+                 db, run_id, market_cutoff=market_cutoff
+-            ).provider_batches
++            )
+         return schedule_ceri_batched_workflow(db, run_id).provider_batches
+     if not getattr(settings, "ceri_legacy_pipeline_scheduling_enabled", True):
+         return 0
+diff --git a/tests/integration/test_ceri_batched_workflow_v2.py b/tests/integration/test_ceri_batched_workflow_v2.py
+index 9d95b21..91851f4 100644
+--- a/tests/integration/test_ceri_batched_workflow_v2.py
++++ b/tests/integration/test_ceri_batched_workflow_v2.py
+@@ -1950,3 +1950,61 @@ def _effect_counts(db: Session) -> tuple[int, int, int]:
+         int(db.scalar(select(func.count(CeriChangeEvent.id))) or 0),
+         int(db.scalar(select(func.count(CeriAlertEvent.id))) or 0),
+     )
++
++
++def test_repeated_upload_dispatch_is_owned_by_each_pipeline(
++    disposable_postgres_database, monkeypatch
++):
++    from app.services.ceri import batched_workflow
++    from app.services.ceri.enums import CeriDataset
++    from app.services.pipeline_executor import (
++        _ceri_provider_workflow_key,
++        _schedule_ceri_provider_ingest,
++    )
++
++    _upgrade(disposable_postgres_database)
++    engine = create_engine(disposable_postgres_database)
++    monkeypatch.setattr(
++        batched_workflow, "DEFAULT_PROVIDER_DATASETS", {"eodhd": (CeriDataset.ESTIMATES,)}
++    )
++    with Session(engine) as db:
++        upload = _seed_zero_history_run(db)
++        prior = set()
++        for label in ("first", "second"):
++            authority = _fixture_authority(db, run_id=upload, cycle_key=label)
++            pipeline = PipelineRun(upload_run_id=upload, status="RUNNING", result_json={})
++            bind_semantic_authority(pipeline, authority)
++            db.add(pipeline)
++            db.flush()
++            cutoff = create_pipeline_market_context(
++                db, pipeline, cutoff_at=datetime(2026, 8, 12, 11, tzinfo=UTC)
++            )
++            if label == "first":
++                from app.services.ceri.config import load_ceri_config
++
++                config_hash = load_ceri_config().config_hash
++                pipeline.result_json = {
++                    "ceri_provider_workflow_key": f"ceri:pipeline:{upload}:{config_hash}"
++                }
++            plan = _schedule_ceri_provider_ingest(db, upload, market_cutoff=cutoff)
++            key = _ceri_provider_workflow_key(upload, plan)
++            assert plan.provider_batches > 0
++            assert key == plan.workflow_key
++            jobs = list(db.scalars(select(BackgroundJob).where(BackgroundJob.workflow_key == key)))
++            ids = {job.id for job in jobs}
++            assert len(ids) == plan.initial_job_count and not (ids & prior)
++            assert all(
++                job.scope_id == authority.scope_id
++                and job.payload_json["pipeline_run_id"] == pipeline.id
++                for job in jobs
++            )
++            retry = _schedule_ceri_provider_ingest(db, upload, market_cutoff=cutoff)
++            assert retry.workflow_key == key
++            assert (
++                set(db.scalars(select(BackgroundJob.id).where(BackgroundJob.workflow_key == key)))
++                == ids
++            )
++            prior.update(ids)
++            pipeline.status = "COMPLETED"
++            db.commit()
++    engine.dispose()
+diff --git a/tests/integration/test_ceri_run_isolation_remediation.py b/tests/integration/test_ceri_run_isolation_remediation.py
+index 346fe41..8bc2340 100644
+--- a/tests/integration/test_ceri_run_isolation_remediation.py
++++ b/tests/integration/test_ceri_run_isolation_remediation.py
+@@ -289,6 +289,17 @@ def test_failed_pipeline_excludes_evidence_repairs_projection_and_processing(
+         )
+         db.commit()
+ 
++        # A second pipeline failing on dispatch owns neither the first context
++        # nor its legacy upload-only processing record.
++        savepoint = db.begin_nested()
++        context.pipeline_run_id = pipeline.id
++        sibling = PipelineRun(upload_run_id=upload.id, status="FAILED")
++        db.add(sibling)
++        db.flush()
++        assert reconcile_unsuccessful_pipeline_ceri(db, sibling) == {
++            "excluded": 0, "projections_repaired": 0, "processing_terminalized": 0,
++        }
++        savepoint.rollback()
+         result = reconcile_unsuccessful_pipeline_ceri(db, pipeline)
+         db.commit()
+ 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import BigInteger, and_, cast, exists, or_, select
+from sqlalchemy import BigInteger, and_, case, cast, exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundJob, PipelineDependency, PipelineRun
@@ -70,6 +70,16 @@ def revoke_pipeline_execution_authority(
     pipeline.execution_authority_changed_at = datetime.now(UTC)
 
 
+def payload_pipeline_id_expression() -> Any:
+    """Parse untrusted JSON IDs without allowing a cast to abort queue queries."""
+    value = BackgroundJob.payload_json["pipeline_run_id"].as_string()
+    valid = and_(
+        value.op("~")(r"^[1-9][0-9]{0,18}$"),
+        or_(func.length(value) < 19, value <= "9223372036854775807"),
+    )
+    return cast(case((valid, value), else_=None), BigInteger)
+
+
 def job_execution_authority_predicate() -> Any:
     """Return the fail-closed durable execution predicate for queue work.
 
@@ -81,9 +91,7 @@ def job_execution_authority_predicate() -> Any:
     payload_has_pipeline = BackgroundJob.payload_json.has_key(  # type: ignore[attr-defined]
         "pipeline_run_id"
     )
-    payload_pipeline_id = cast(
-        BackgroundJob.payload_json["pipeline_run_id"].as_string(), BigInteger
-    )
+    payload_pipeline_id = payload_pipeline_id_expression()
     payload_authorized = exists(
         select(PipelineRun.id).where(
             PipelineRun.id == payload_pipeline_id,

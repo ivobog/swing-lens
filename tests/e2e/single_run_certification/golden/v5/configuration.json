@@ -1,0 +1,3733 @@
+{
+  "ceri.yaml": {
+    "alerts": {
+      "acknowledgement_required": false,
+      "dedup_scope": "event_revision",
+      "default_cooldown_sessions": 5,
+      "enabled": true,
+      "rules": {
+        "DATA_STALE": {
+          "cooldown_sessions": 5,
+          "enabled": true,
+          "severity": "RISK",
+          "source_change_type": "DATA_STALE"
+        },
+        "NEW_BINARY_EVENT": {
+          "cooldown_sessions": 1,
+          "enabled": true,
+          "severity": "RISK",
+          "source_change_type": "NEW_BINARY_EVENT"
+        },
+        "OPPORTUNITY_UPGRADED": {
+          "cooldown_sessions": 5,
+          "enabled": true,
+          "severity": "NOTABLE",
+          "source_change_type": "OPPORTUNITY_UPGRADED"
+        },
+        "RISK_ESCALATED": {
+          "cooldown_sessions": 1,
+          "enabled": true,
+          "severity": "RISK",
+          "source_change_type": "RISK_ESCALATED"
+        }
+      }
+    },
+    "backfill": {
+      "checkpoint_policy": "provider_page_and_company_session_range",
+      "company_batch_size": 100,
+      "max_concurrent_jobs": 1,
+      "session_batch_size": 30
+    },
+    "change_thresholds": {
+      "acceleration_delta": 0.01,
+      "opportunity_upgrade_threshold": 7.5,
+      "revision_pct_points": 2.0,
+      "risk_escalation_delta": 2.0,
+      "score_delta": 1.0
+    },
+    "confidence": {
+      "critical_provenance_cap": "Low",
+      "critical_provenance_warnings": [
+        "current_snapshot_unavailable",
+        "baseline_unavailable",
+        "missing_timestamp",
+        "missing_observation_timestamp"
+      ],
+      "high_min": 8.0,
+      "low_min": 3.5,
+      "normal_min": 6.0,
+      "weights": {
+        "analyst_sample": 0.15,
+        "conflict_free_score": 0.1,
+        "estimate_coverage": 0.2,
+        "freshness": 0.2,
+        "source_quality": 0.25,
+        "timestamp_quality": 0.1
+      },
+      "zero_core_coverage_label": "Insufficient"
+    },
+    "currency_conversion": {
+      "allowed_sources": [
+        "provider_reported",
+        "verified_company_currency",
+        "filing_currency",
+        "ecb_reference",
+        "manual_verified"
+      ],
+      "enabled": true,
+      "require_verified_basis": true
+    },
+    "datasets": {
+      "catalysts": {
+        "enabled": true,
+        "export_policy": "exportable",
+        "max_stale_days": 2
+      },
+      "earnings": {
+        "enabled": true,
+        "export_policy": "exportable",
+        "max_stale_days": 30
+      },
+      "estimates": {
+        "enabled": true,
+        "export_policy": "exportable",
+        "max_stale_days": 7
+      },
+      "guidance": {
+        "enabled": true,
+        "export_policy": "exportable",
+        "max_stale_days": 14
+      }
+    },
+    "engine": {
+      "calculation_version": "ceri-1.3.0",
+      "config_version": "2026-08-26-freshness-semantics-r1",
+      "daily_cutoff_time": "16:15",
+      "effective_session_policy": "AFTER_HOURS_NEXT_COMPLETED_US_SESSION",
+      "enabled": false,
+      "timezone": "America/New_York"
+    },
+    "event_risk": {
+      "corporate_action_base": 3.0,
+      "earnings_block_trading_days": 2,
+      "earnings_high_risk_trading_days": 5,
+      "financing_gap_base": 2.5,
+      "legal_binary_base": 3.0,
+      "regulatory_binary_base": 4.0,
+      "secondary_penalty_cap": 2.0,
+      "staleness_penalty": 1.0,
+      "unknown_date_penalty": 1.0
+    },
+    "exports": {
+      "default_view_fields": {
+        "data_confidence": "exportable",
+        "event_risk_score": "exportable",
+        "evidence_hash": "exportable",
+        "opportunity_score": "exportable",
+        "raw_payload": "restricted",
+        "source_url": "restricted",
+        "ticker": "exportable",
+        "warnings": "exportable"
+      },
+      "purge_policy": {
+        "audit_required": true,
+        "confirmation_required": true,
+        "licensed_data_requires_preview": true
+      }
+    },
+    "metrics": {
+      "optional": [
+        "EBITDA",
+        "MARGIN",
+        "FCF"
+      ],
+      "period_types": [
+        "CURRENT_QUARTER",
+        "NEXT_QUARTER",
+        "CURRENT_FISCAL_YEAR",
+        "NEXT_FISCAL_YEAR"
+      ],
+      "required": [
+        "EPS_DILUTED",
+        "REVENUE"
+      ]
+    },
+    "missing_values": {
+      "forbid_zero_fill_defaults": true,
+      "preserve_nulls": true,
+      "provider_zero_distinct_from_missing": true
+    },
+    "opportunity_weights": {
+      "catalysts": 0.15,
+      "guidance": 0.15,
+      "price_response": 0.05,
+      "revision_acceleration": 0.1,
+      "revision_breadth": 0.15,
+      "revision_magnitude": 0.25,
+      "surprise_trend": 0.15
+    },
+    "posture": {
+      "alignment_flags": [
+        "fundamentals",
+        "technicals",
+        "sector",
+        "regime",
+        "lifecycle",
+        "earnings_clearance"
+      ],
+      "labels": [
+        "Positive",
+        "Improving",
+        "Mixed",
+        "Deteriorating",
+        "Binary Risk",
+        "Unrated"
+      ]
+    },
+    "price_response": {
+      "benchmark": "SPY",
+      "positive_relative_return_threshold": 0.01,
+      "strong_relative_return_threshold": 0.03,
+      "trailing_volume_sessions": 20,
+      "volume_confirmation_threshold": 1.25,
+      "windows": [
+        1,
+        3
+      ]
+    },
+    "providers": {
+      "capabilities": {
+        "eodhd": [
+          "health",
+          "identity",
+          "estimates",
+          "earnings",
+          "catalysts"
+        ],
+        "manual": [
+          "health",
+          "identity",
+          "estimates",
+          "earnings",
+          "guidance",
+          "catalysts"
+        ],
+        "primary": [
+          "health",
+          "identity",
+          "estimates",
+          "earnings",
+          "guidance",
+          "catalysts"
+        ],
+        "sec": [
+          "health",
+          "identity",
+          "guidance",
+          "catalysts"
+        ]
+      },
+      "conflict_resolution": "preserve_all_observations",
+      "default_source_policy": "provider_priority",
+      "priority": [
+        "manual",
+        "primary",
+        "eodhd",
+        "sec"
+      ],
+      "retention_metadata_required": true,
+      "terms_version_required": true
+    },
+    "retention": {
+      "provider_license_purge_enabled": false,
+      "provider_terms_version": "manual-fixture-1.0",
+      "retain_source_evidence_indefinitely": true,
+      "run_deletion_policy": "SET_NULL_RETAIN_IMMUTABLE_EVIDENCE"
+    },
+    "revision": {
+      "baseline_tolerance_days": 3,
+      "minimum_analyst_count": 3,
+      "minimum_component_coverage_pct": 60,
+      "near_zero_threshold": 0.01,
+      "pct_change_unit": "PERCENTAGE_POINTS",
+      "period_weights": {
+        "CURRENT_FISCAL_YEAR": 0.2,
+        "CURRENT_QUARTER": 0.35,
+        "NEXT_FISCAL_YEAR": 0.15,
+        "NEXT_QUARTER": 0.3
+      },
+      "windows_days": [
+        7,
+        30,
+        90
+      ]
+    },
+    "taxonomy": {
+      "enabled_categories": [
+        "EARNINGS",
+        "GUIDANCE",
+        "PRODUCT",
+        "CONTRACT",
+        "REGULATORY",
+        "LEGAL",
+        "CAPITAL_ALLOCATION",
+        "FINANCING",
+        "INSIDER",
+        "INDEX",
+        "ANALYST_ACTION",
+        "CORPORATE_ACTION"
+      ]
+    }
+  },
+  "ceri_catalyst_taxonomy.yaml": {
+    "categories": [
+      {
+        "binary_risk": true,
+        "examples": [
+          "report_date",
+          "preliminary_results",
+          "restatement",
+          "earnings_call"
+        ],
+        "id": "EARNINGS",
+        "label": "Earnings"
+      },
+      {
+        "binary_risk": false,
+        "examples": [
+          "raised",
+          "lowered",
+          "initiated",
+          "maintained",
+          "narrowed",
+          "widened",
+          "withdrawn"
+        ],
+        "id": "GUIDANCE",
+        "label": "Guidance"
+      },
+      {
+        "binary_risk": false,
+        "examples": [
+          "launch",
+          "approval",
+          "recall",
+          "milestone",
+          "discontinuation"
+        ],
+        "id": "PRODUCT",
+        "label": "Product"
+      },
+      {
+        "binary_risk": false,
+        "examples": [
+          "award",
+          "renewal",
+          "expansion",
+          "loss",
+          "cancellation"
+        ],
+        "id": "CONTRACT",
+        "label": "Contract"
+      },
+      {
+        "binary_risk": true,
+        "examples": [
+          "submission",
+          "approval",
+          "rejection",
+          "review_date",
+          "investigation"
+        ],
+        "id": "REGULATORY",
+        "label": "Regulatory"
+      },
+      {
+        "binary_risk": true,
+        "examples": [
+          "ruling",
+          "settlement",
+          "lawsuit",
+          "injunction",
+          "appeal"
+        ],
+        "id": "LEGAL",
+        "label": "Legal"
+      },
+      {
+        "binary_risk": false,
+        "examples": [
+          "buyback",
+          "dividend_change",
+          "special_dividend",
+          "capex_program"
+        ],
+        "id": "CAPITAL_ALLOCATION",
+        "label": "Capital allocation"
+      },
+      {
+        "binary_risk": true,
+        "examples": [
+          "debt_issue",
+          "refinance",
+          "equity_offering",
+          "covenant_event",
+          "credit_action"
+        ],
+        "id": "FINANCING",
+        "label": "Financing"
+      },
+      {
+        "binary_risk": false,
+        "examples": [
+          "open_market_purchase",
+          "open_market_sale",
+          "ownership_change",
+          "10b5_1_disclosure"
+        ],
+        "id": "INSIDER",
+        "label": "Insider"
+      },
+      {
+        "binary_risk": false,
+        "examples": [
+          "addition",
+          "deletion",
+          "rebalance",
+          "eligibility_change"
+        ],
+        "id": "INDEX",
+        "label": "Index"
+      },
+      {
+        "binary_risk": false,
+        "examples": [
+          "upgrade",
+          "downgrade",
+          "initiation",
+          "target_revision",
+          "estimate_revision_cluster"
+        ],
+        "id": "ANALYST_ACTION",
+        "label": "Analyst action"
+      },
+      {
+        "binary_risk": true,
+        "examples": [
+          "merger",
+          "acquisition",
+          "spin_off",
+          "restructuring",
+          "bankruptcy",
+          "strategic_review"
+        ],
+        "id": "CORPORATE_ACTION",
+        "label": "Corporate action"
+      }
+    ],
+    "status_transitions": {
+      "ANNOUNCED": [
+        "COMPLETED",
+        "DELAYED",
+        "CANCELLED",
+        "OUTCOME_KNOWN"
+      ],
+      "CANCELLED": [],
+      "COMPLETED": [
+        "OUTCOME_KNOWN"
+      ],
+      "DELAYED": [
+        "SCHEDULED",
+        "ANNOUNCED",
+        "CANCELLED"
+      ],
+      "OUTCOME_KNOWN": [],
+      "SCHEDULED": [
+        "ANNOUNCED",
+        "DELAYED",
+        "CANCELLED",
+        "OUTCOME_KNOWN"
+      ]
+    },
+    "version": "2026-07-31"
+  },
+  "column_aliases.yaml": {
+    "analyst_rating": [
+      "Analyst rating"
+    ],
+    "asset_turnover_annual": [
+      "Asset turnover, Annual"
+    ],
+    "asset_turnover_ttm": [
+      "Asset turnover, Trailing 12 months"
+    ],
+    "beta_1y": [
+      "Beta, 1 year"
+    ],
+    "beta_3y": [
+      "Beta, 3 years"
+    ],
+    "buyback_yield": [
+      "Buyback yield %"
+    ],
+    "capex_estimate_ntm": [
+      "Capital expenditures estimate, Next 12 months"
+    ],
+    "capex_estimate_ntm_currency": [
+      "Capital expenditures estimate, Next 12 months - Currency"
+    ],
+    "capex_growth_quarterly_yoy": [
+      "Capital expenditures growth %, Quarterly YoY"
+    ],
+    "capex_growth_ttm_yoy": [
+      "Capital expenditures growth %, TTM YoY"
+    ],
+    "capex_per_share_ttm": [
+      "Capital expenditures per share, Trailing 12 months"
+    ],
+    "capex_per_share_ttm_currency": [
+      "Capital expenditures per share, Trailing 12 months - Currency"
+    ],
+    "capex_ttm": [
+      "Capital expenditures, Trailing 12 months"
+    ],
+    "capex_ttm_currency": [
+      "Capital expenditures, Trailing 12 months - Currency"
+    ],
+    "cash_short_term_investments_annual": [
+      "Cash and short-term investments, Annual"
+    ],
+    "cash_short_term_investments_annual_currency": [
+      "Cash and short-term investments, Annual - Currency"
+    ],
+    "cash_short_term_investments_estimate_annual": [
+      "Cash and short term investments estimate, Annual"
+    ],
+    "cash_short_term_investments_estimate_annual_currency": [
+      "Cash and short term investments estimate, Annual - Currency"
+    ],
+    "company_name": [
+      "Description",
+      "Company",
+      "Company Name"
+    ],
+    "current_ratio": [
+      "Current ratio, Quarterly"
+    ],
+    "debt_to_assets": [
+      "Debt to assets ratio, Annual"
+    ],
+    "debt_to_ebitda_annual": [
+      "Debt to EBITDA ratio, Annual"
+    ],
+    "debt_to_equity": [
+      "Debt to equity ratio, Quarterly"
+    ],
+    "dividend_payout_ratio_ttm": [
+      "Dividend payout ratio %, Trailing 12 months"
+    ],
+    "dividend_yield_ttm": [
+      "Dividend yield %, Trailing 12 months"
+    ],
+    "dollar_volume_10d": [
+      "Price \u00d7 average volume, 10 days",
+      "Price x average volume, 10 days"
+    ],
+    "dollar_volume_10d_currency": [
+      "Price \u00d7 average volume, 10 days - Currency",
+      "Price x average volume, 10 days - Currency"
+    ],
+    "dollar_volume_30d": [
+      "Price \u00d7 average volume, 30 days",
+      "Price x average volume, 30 days"
+    ],
+    "dollar_volume_30d_currency": [
+      "Price \u00d7 average volume, 30 days - Currency",
+      "Price x average volume, 30 days - Currency"
+    ],
+    "dollar_volume_60d": [
+      "Price \u00d7 average volume, 60 days",
+      "Price x average volume, 60 days"
+    ],
+    "dollar_volume_60d_currency": [
+      "Price \u00d7 average volume, 60 days - Currency",
+      "Price x average volume, 60 days - Currency"
+    ],
+    "earnings_yield_ttm": [
+      "Earnings yield %, Trailing 12 months"
+    ],
+    "ebit_estimate_ntm": [
+      "EBIT estimate, Next 12 months"
+    ],
+    "ebit_estimate_ntm_currency": [
+      "EBIT estimate, Next 12 months - Currency"
+    ],
+    "ebit_per_share_ttm": [
+      "EBIT per share, Trailing 12 months"
+    ],
+    "ebit_per_share_ttm_currency": [
+      "EBIT per share, Trailing 12 months - Currency"
+    ],
+    "ebitda_growth_ttm_yoy": [
+      "EBITDA growth %, TTM YoY"
+    ],
+    "ebitda_interest_coverage_ttm": [
+      "EBITDA interest coverage, Trailing 12 months"
+    ],
+    "ebitda_margin_ttm": [
+      "EBITDA margin %, Trailing 12 months"
+    ],
+    "eps_estimate_annual": [
+      "Earnings per share estimate, Annual"
+    ],
+    "eps_estimate_annual_currency": [
+      "Earnings per share estimate, Annual - Currency"
+    ],
+    "eps_estimate_quarterly": [
+      "Earnings per share estimate, Quarterly"
+    ],
+    "eps_estimate_quarterly_currency": [
+      "Earnings per share estimate, Quarterly - Currency"
+    ],
+    "eps_growth_quarterly_yoy": [
+      "Earnings per share diluted growth %, Quarterly YoY"
+    ],
+    "eps_growth_ttm_yoy": [
+      "Earnings per share diluted growth %, TTM YoY"
+    ],
+    "ev_ebitda": [
+      "Enterprise value to EBITDA ratio, Trailing 12 months"
+    ],
+    "ev_fcf": [
+      "Enterprise value to free cash flow, Trailing 12 months"
+    ],
+    "ev_revenue": [
+      "Enterprise value to revenue ratio, Trailing 12 months"
+    ],
+    "ev_revenue_duplicate": [
+      "Enterprise value to revenue ratio, Trailing 12 months.1"
+    ],
+    "fcf_growth_ttm_yoy": [
+      "Free cash flow growth %, TTM YoY"
+    ],
+    "fcf_margin_ttm": [
+      "Free cash flow margin %, Trailing 12 months"
+    ],
+    "fcf_ttm": [
+      "Free cash flow, Trailing 12 months"
+    ],
+    "fcf_ttm_currency": [
+      "Free cash flow, Trailing 12 months - Currency"
+    ],
+    "forward_pe": [
+      "Forward non-GAAP price to earnings, Annual"
+    ],
+    "free_float": [
+      "Free float"
+    ],
+    "gross_margin_annual": [
+      "Gross margin %, Annual"
+    ],
+    "gross_margin_ttm": [
+      "Gross margin %, Trailing 12 months"
+    ],
+    "gross_profit_growth_ttm_yoy": [
+      "Gross profit growth %, TTM YoY"
+    ],
+    "market_cap": [
+      "Market capitalization",
+      "Market Cap",
+      "Market Capitalization"
+    ],
+    "market_cap_currency": [
+      "Market capitalization - Currency"
+    ],
+    "net_debt_to_ebitda": [
+      "Net debt to EBITDA ratio, Trailing 12 months"
+    ],
+    "net_income_estimate_ntm": [
+      "Net income estimate, Next 12 months"
+    ],
+    "net_income_estimate_ntm_currency": [
+      "Net income estimate, Next 12 months - Currency"
+    ],
+    "net_income_growth_ttm_yoy": [
+      "Net income growth %, TTM YoY"
+    ],
+    "net_income_ttm": [
+      "Net income, Trailing 12 months"
+    ],
+    "net_income_ttm_currency": [
+      "Net income, Trailing 12 months - Currency"
+    ],
+    "net_margin_annual": [
+      "Net margin %, Annual"
+    ],
+    "net_margin_ttm": [
+      "Net margin %, Trailing 12 months"
+    ],
+    "number_of_shareholders_annual": [
+      "Number of shareholders, Annual"
+    ],
+    "operating_cash_flow_per_share_ttm": [
+      "Operating cash flow per share, Trailing 12 months"
+    ],
+    "operating_cash_flow_per_share_ttm_currency": [
+      "Operating cash flow per share, Trailing 12 months - Currency"
+    ],
+    "operating_margin_annual": [
+      "Operating margin %, Annual"
+    ],
+    "operating_margin_ttm": [
+      "Operating margin %, Trailing 12 months"
+    ],
+    "pe_ratio": [
+      "Price to earnings ratio",
+      "P/E"
+    ],
+    "peg_ratio": [
+      "Price to earning to growth, Trailing 12 months"
+    ],
+    "performance_1m_pct": [
+      "Performance %, 1 month"
+    ],
+    "performance_1w_pct": [
+      "Performance %, 1 week"
+    ],
+    "performance_1y_pct": [
+      "Performance %, 1 year"
+    ],
+    "performance_3m_pct": [
+      "Performance %, 3 months"
+    ],
+    "pfcf": [
+      "Price to free cash flow ratio",
+      "P/FCF"
+    ],
+    "price": [
+      "Price"
+    ],
+    "price_change_1d_pct": [
+      "Price change %, 1 day"
+    ],
+    "price_currency": [
+      "Price - Currency"
+    ],
+    "ps_ratio": [
+      "Price to sales ratio"
+    ],
+    "quick_ratio_annual": [
+      "Quick ratio, Annual"
+    ],
+    "quick_ratio_quarterly": [
+      "Quick ratio, Quarterly"
+    ],
+    "relative_volume_1d": [
+      "Relative volume, 1 day"
+    ],
+    "return_on_total_capital_ttm": [
+      "Return on total capital %, Trailing 12 months"
+    ],
+    "revenue_estimate_annual": [
+      "Revenue estimate, Annual"
+    ],
+    "revenue_estimate_annual_currency": [
+      "Revenue estimate, Annual - Currency"
+    ],
+    "revenue_growth_5y_cagr": [
+      "Revenue growth %, 5 year CAGR"
+    ],
+    "revenue_growth_quarterly_yoy": [
+      "Revenue growth %, Quarterly YoY"
+    ],
+    "revenue_growth_ttm_yoy": [
+      "Revenue growth %, TTM YoY"
+    ],
+    "roa_annual": [
+      "Return on assets %, Annual"
+    ],
+    "roa_ttm": [
+      "Return on assets %, Trailing 12 months"
+    ],
+    "roce_ttm": [
+      "Return on capital employed %, Trailing 12 months"
+    ],
+    "roe_ttm": [
+      "Return on equity %, Trailing 12 months"
+    ],
+    "roic_annual": [
+      "Return on invested capital %, Annual"
+    ],
+    "roic_ttm": [
+      "Return on invested capital %, Trailing 12 months"
+    ],
+    "sector": [
+      "Sector"
+    ],
+    "sloan_ratio_ttm": [
+      "Sloan ratio %, Trailing 12 months"
+    ],
+    "ticker": [
+      "Symbol",
+      "Ticker",
+      "Ticker Symbol"
+    ],
+    "total_assets_annual": [
+      "Total assets, Annual"
+    ],
+    "total_assets_annual_currency": [
+      "Total assets, Annual - Currency"
+    ],
+    "total_assets_estimate_annual": [
+      "Total assets estimate, Annual"
+    ],
+    "total_assets_estimate_annual_currency": [
+      "Total assets estimate, Annual - Currency"
+    ],
+    "total_assets_growth_annual_yoy": [
+      "Total assets growth %, Annual YoY"
+    ],
+    "total_common_shares_outstanding": [
+      "Total common shares outstanding"
+    ],
+    "total_debt_per_share_annual": [
+      "Total debt per share, Annual"
+    ],
+    "total_debt_per_share_annual_currency": [
+      "Total debt per share, Annual - Currency"
+    ],
+    "total_debt_to_capital_annual": [
+      "Total debt to capital, Annual"
+    ],
+    "total_liabilities_annual": [
+      "Total liabilities, Annual"
+    ],
+    "total_liabilities_annual_currency": [
+      "Total liabilities, Annual - Currency"
+    ],
+    "total_revenue_ttm": [
+      "Total revenue, Trailing 12 months"
+    ],
+    "total_revenue_ttm_currency": [
+      "Total revenue, Trailing 12 months - Currency"
+    ],
+    "tradingview_atr_pct_14d": [
+      "Average true range %, 14, 1 day"
+    ],
+    "tradingview_momentum_10d": [
+      "Momentum, 10, 1 day"
+    ],
+    "upcoming_earnings_date": [
+      "Upcoming earnings date",
+      "Earnings date",
+      "Next earnings date",
+      "Earnings",
+      "upcoming_earnings_date",
+      "earnings_date",
+      "next_earnings_date"
+    ],
+    "volume_change_1d_pct": [
+      "Volume change %, 1 day"
+    ],
+    "working_capital_per_share_annual": [
+      "Working capital per share, Annual"
+    ],
+    "working_capital_per_share_annual_currency": [
+      "Working capital per share, Annual - Currency"
+    ],
+    "working_capital_per_share_quarterly": [
+      "Working capital per share, Quarterly"
+    ],
+    "working_capital_per_share_quarterly_currency": [
+      "Working capital per share, Quarterly - Currency"
+    ]
+  },
+  "fundamentals_v2.yaml": {
+    "components": {
+      "balance_sheet_quality_score": {
+        "fields": [
+          "total_assets_annual",
+          "total_liabilities_annual",
+          "working_capital_per_share_annual",
+          "working_capital_per_share_quarterly",
+          "quick_ratio_quarterly",
+          "quick_ratio_annual",
+          "cash_short_term_investments_annual",
+          "current_ratio",
+          "net_debt_to_ebitda",
+          "debt_to_ebitda_annual",
+          "debt_to_equity",
+          "debt_to_assets",
+          "total_debt_to_capital_annual",
+          "ebitda_interest_coverage_ttm"
+        ]
+      },
+      "capital_efficiency_score": {
+        "fields": [
+          "roic_ttm",
+          "roic_annual",
+          "return_on_total_capital_ttm",
+          "roa_ttm",
+          "roa_annual",
+          "asset_turnover_ttm",
+          "asset_turnover_annual",
+          "total_assets_growth_annual_yoy"
+        ]
+      },
+      "earnings_quality_score": {
+        "fields": [
+          "sloan_ratio_ttm",
+          "net_income_ttm",
+          "fcf_ttm",
+          "operating_cash_flow_per_share_ttm"
+        ]
+      },
+      "fcf_quality_score": {
+        "fields": [
+          "fcf_ttm",
+          "fcf_margin_ttm",
+          "fcf_growth_ttm_yoy",
+          "pfcf",
+          "ev_fcf",
+          "operating_cash_flow_per_share_ttm",
+          "capex_ttm",
+          "capex_growth_ttm_yoy"
+        ]
+      },
+      "forward_quality_score": {
+        "fields": [
+          "eps_estimate_annual",
+          "eps_estimate_quarterly",
+          "revenue_estimate_annual",
+          "net_income_estimate_ntm",
+          "ebit_estimate_ntm",
+          "cash_short_term_investments_estimate_annual",
+          "capex_estimate_ntm",
+          "analyst_rating"
+        ]
+      },
+      "growth_quality_score": {
+        "fields": [
+          "revenue_growth_quarterly_yoy",
+          "revenue_growth_ttm_yoy",
+          "revenue_growth_5y_cagr",
+          "eps_growth_quarterly_yoy",
+          "eps_growth_ttm_yoy",
+          "ebitda_growth_ttm_yoy",
+          "fcf_growth_ttm_yoy",
+          "gross_profit_growth_ttm_yoy",
+          "net_income_growth_ttm_yoy",
+          "total_revenue_ttm"
+        ]
+      },
+      "liquidity_risk_score": {
+        "fields": [
+          "dollar_volume_10d",
+          "dollar_volume_30d",
+          "dollar_volume_60d",
+          "free_float",
+          "relative_volume_1d",
+          "volume_change_1d_pct",
+          "price_change_1d_pct",
+          "beta_1y",
+          "beta_3y",
+          "tradingview_atr_pct_14d"
+        ]
+      },
+      "profitability_quality_score": {
+        "fields": [
+          "gross_margin_ttm",
+          "gross_margin_annual",
+          "ebitda_margin_ttm",
+          "operating_margin_ttm",
+          "operating_margin_annual",
+          "net_margin_ttm",
+          "net_margin_annual",
+          "roe_ttm",
+          "roa_ttm",
+          "roa_annual",
+          "roic_ttm",
+          "roce_ttm",
+          "return_on_total_capital_ttm"
+        ]
+      },
+      "shareholder_quality_score": {
+        "fields": [
+          "buyback_yield",
+          "dividend_yield_ttm",
+          "dividend_payout_ratio_ttm",
+          "total_common_shares_outstanding"
+        ]
+      },
+      "valuation_quality_score": {
+        "fields": [
+          "pe_ratio",
+          "forward_pe",
+          "earnings_yield_ttm",
+          "ps_ratio",
+          "ev_revenue",
+          "ev_ebitda",
+          "pfcf",
+          "ev_fcf",
+          "peg_ratio"
+        ]
+      }
+    },
+    "coverage_only_fields": [
+      "market_cap",
+      "capex_per_share_ttm",
+      "capex_growth_quarterly_yoy",
+      "total_assets_estimate_annual",
+      "ebit_per_share_ttm",
+      "number_of_shareholders_annual"
+    ],
+    "field_priorities": {
+      "critical": [
+        "market_cap",
+        "fcf_ttm",
+        "net_income_ttm",
+        "sloan_ratio_ttm",
+        "roic_ttm",
+        "roa_ttm",
+        "total_assets_annual",
+        "total_liabilities_annual",
+        "revenue_growth_ttm_yoy",
+        "operating_margin_ttm"
+      ],
+      "high": [
+        "eps_estimate_annual",
+        "revenue_estimate_annual",
+        "return_on_total_capital_ttm",
+        "roic_annual",
+        "roa_annual",
+        "operating_margin_annual",
+        "net_margin_annual",
+        "asset_turnover_ttm",
+        "asset_turnover_annual",
+        "capex_ttm",
+        "capex_growth_ttm_yoy",
+        "net_income_estimate_ntm",
+        "net_income_growth_ttm_yoy",
+        "total_assets_growth_annual_yoy",
+        "working_capital_per_share_annual",
+        "working_capital_per_share_quarterly",
+        "earnings_yield_ttm",
+        "ebit_estimate_ntm",
+        "total_revenue_ttm",
+        "fcf_margin_ttm",
+        "current_ratio",
+        "quick_ratio_quarterly",
+        "pe_ratio",
+        "net_debt_to_ebitda"
+      ],
+      "low": [
+        "capex_estimate_ntm",
+        "quick_ratio_annual",
+        "number_of_shareholders_annual",
+        "analyst_rating"
+      ],
+      "medium": [
+        "gross_profit_growth_ttm_yoy",
+        "debt_to_ebitda_annual",
+        "total_common_shares_outstanding",
+        "dollar_volume_10d",
+        "dollar_volume_60d",
+        "free_float",
+        "gross_margin_annual",
+        "capex_per_share_ttm",
+        "capex_growth_quarterly_yoy",
+        "total_assets_estimate_annual",
+        "ebit_per_share_ttm",
+        "cash_short_term_investments_annual",
+        "cash_short_term_investments_estimate_annual",
+        "dividend_yield_ttm",
+        "dividend_payout_ratio_ttm",
+        "eps_estimate_quarterly"
+      ]
+    },
+    "missing_data": {
+      "critical_field_penalty": 0.35,
+      "high_field_penalty": 0.2,
+      "low_field_penalty": 0.05,
+      "max_penalty": 2.5,
+      "medium_field_penalty": 0.1,
+      "sparse_data_coverage_threshold": 0.65
+    },
+    "model_version": "fundamentals_v2.1",
+    "thresholds": {
+      "atr_pct_high": 12,
+      "beta_high": 2.2,
+      "capex_growth_high": 40,
+      "current_ratio_weak": 1.0,
+      "debt_to_ebitda_warning": 4.0,
+      "dividend_payout_safe_max": 65,
+      "dividend_payout_warning_min": 90,
+      "dollar_volume_good": 25000000,
+      "dollar_volume_weak": 2000000,
+      "fcf_to_net_income_good": 0.7,
+      "liabilities_to_assets_good_max": 0.45,
+      "liabilities_to_assets_warning_min": 0.7,
+      "net_debt_to_ebitda_warning": 4.0,
+      "quick_ratio_good": 1.0,
+      "quick_ratio_weak": 0.8,
+      "roa_excellent": 15,
+      "roa_good": 8,
+      "roic_excellent": 20,
+      "roic_good": 10,
+      "sloan_ratio_danger_min": 20,
+      "sloan_ratio_good_max": 5,
+      "sloan_ratio_warning_min": 10,
+      "total_assets_growth_high": 25
+    },
+    "weights": {
+      "balance_sheet_quality_score": 0.12,
+      "capital_efficiency_score": 0.12,
+      "earnings_quality_score": 0.12,
+      "fcf_quality_score": 0.12,
+      "forward_quality_score": 0.08,
+      "growth_quality_score": 0.13,
+      "liquidity_risk_score": 0.03,
+      "profitability_quality_score": 0.13,
+      "shareholder_quality_score": 0.05,
+      "valuation_quality_score": 0.1
+    }
+  },
+  "ib_market_intelligence.yaml": {
+    "engine": {
+      "calculation_version": "ibmi-1.0.2",
+      "config_version": "2026-11-02-freshness-and-certified-score-precision",
+      "enabled": true,
+      "source_version": "ibkr-tws-flex-v1"
+    },
+    "flex": {
+      "enabled": true,
+      "import_activity_daily": true,
+      "import_trade_confirmations": true,
+      "mask_account_id": true,
+      "matching_policy_version": "latest-completed-before-entry-v1",
+      "research_lookback_sessions": 5
+    },
+    "freshness": {
+      "histogram_max_age_days": 5,
+      "historical_max_age_days": 5,
+      "live_max_age_minutes": 30
+    },
+    "histogram": {
+      "enabled": true,
+      "high_activity_fraction": 0.7,
+      "low_activity_percentile": 0.2,
+      "period": "20 days",
+      "shortlist_only": true,
+      "use_rth": true
+    },
+    "liquidity": {
+      "enabled": true,
+      "lookback_sessions": 20,
+      "minimum_dollar_volume": 1000000,
+      "percentile_window_sessions": 60,
+      "short_window_sessions": 5,
+      "spread_grade_pct": {
+        "acceptable_max": 0.5,
+        "excellent_max": 0.1,
+        "good_max": 0.25,
+        "poor_max": 1.0
+      },
+      "use_rth": true
+    },
+    "options_activity": {
+      "abnormal_activity_multiple": 2.0,
+      "call_heavy_ratio_max": 0.7,
+      "enabled": true,
+      "generic_ticks": [
+        100,
+        101,
+        105
+      ],
+      "put_heavy_ratio_min": 1.3,
+      "shortlist_only": true
+    },
+    "request_budget": {
+      "bid_ask_weight": 2,
+      "default_weight": 1,
+      "historical_chunk_days": 60,
+      "historical_min_spacing_seconds": 3.0,
+      "historical_requests_per_minute": 15,
+      "live_snapshot_concurrency": 10,
+      "market_data_line_cap": 100,
+      "request_max_attempts": 3,
+      "retry_initial_seconds": 1.0,
+      "retry_max_seconds": 30.0,
+      "shortlist_limit": 25,
+      "tws_min_spacing_seconds": 0.25
+    },
+    "scanner": {
+      "enabled": true,
+      "max_active_scans": 10,
+      "max_results": 50,
+      "presets": [
+        {
+          "filters": [
+            {
+              "tag": "priceAbove",
+              "value": "5"
+            },
+            {
+              "tag": "volumeAbove",
+              "value": "500000"
+            }
+          ],
+          "instrument": "STK",
+          "location": "STK.US.MAJOR",
+          "max_results": 50,
+          "name": "HOT_VOLUME_US",
+          "scan_code": "HOT_BY_VOLUME",
+          "version": "1"
+        },
+        {
+          "filters": [
+            {
+              "tag": "priceAbove",
+              "value": "5"
+            }
+          ],
+          "instrument": "STK",
+          "location": "STK.US.MAJOR",
+          "max_results": 50,
+          "name": "TOP_GAINERS_US",
+          "scan_code": "TOP_PERC_GAIN",
+          "version": "1"
+        },
+        {
+          "filters": [],
+          "instrument": "STK",
+          "location": "STK.US.MAJOR",
+          "max_results": 50,
+          "name": "MOST_ACTIVE_US",
+          "scan_code": "MOST_ACTIVE",
+          "version": "1"
+        },
+        {
+          "filters": [
+            {
+              "tag": "priceAbove",
+              "value": "5"
+            }
+          ],
+          "instrument": "STK",
+          "location": "STK.US.MAJOR",
+          "max_results": 50,
+          "name": "OPTIONS_VOLUME_US",
+          "scan_code": "HOT_BY_OPT_VOLUME",
+          "version": "1"
+        }
+      ]
+    },
+    "short_pressure": {
+      "enabled": true,
+      "extreme_fee_rate_pct": 25,
+      "fee_rate_lookback_sessions": 60,
+      "high_fee_rate_pct": 10,
+      "live_shortable_shares": true,
+      "low_availability_shares": 100000,
+      "very_low_availability_shares": 25000
+    },
+    "volatility": {
+      "ceri_risk_max_contribution": 1.5,
+      "enabled": true,
+      "iv_expansion_window": 20,
+      "iv_hv_extreme_ratio": 2.0,
+      "iv_hv_high_ratio": 1.5,
+      "lookback_sessions": 252
+    }
+  },
+  "market_regime_command_center.yaml": {
+    "engine": {
+      "config_version": "2026-07-28",
+      "enabled": true,
+      "version": "mrcc-1.0.0"
+    },
+    "freshness": {
+      "max_stale_trading_days": 3,
+      "stale_data_risk_state": "Gray"
+    },
+    "market_regime_v4": {
+      "allow_unknown_market_low_confidence": true,
+      "enabled": true,
+      "use_qqq": true,
+      "use_spy": true
+    },
+    "policies": {
+      "Bear rally": {
+        "allowed_profiles": [
+          "defensive_quality",
+          "clean_compounder_pullback"
+        ],
+        "allowed_setups": [
+          "RS leader pullback",
+          "Volatility contraction setup"
+        ],
+        "blocked_profiles": [
+          "momentum_swing",
+          "early_rocket"
+        ],
+        "blocked_setups": [
+          "Fresh breakout",
+          "Momentum continuation",
+          "Extended momentum",
+          "Overheated momentum",
+          "Failed breakout",
+          "Distribution risk",
+          "Blowoff top",
+          "Climax reversal risk"
+        ],
+        "minimum_score_adjustment": 1.0,
+        "position_size_multiplier": 0.25,
+        "preferred_profiles": [
+          "defensive_quality"
+        ],
+        "reduced_profiles": [
+          "quality_momentum"
+        ],
+        "summary": "Bear rally. Treat strength suspiciously and use tiny size only."
+      },
+      "Bull pullback": {
+        "allowed_profiles": [
+          "momentum_swing",
+          "quality_momentum",
+          "clean_compounder_pullback",
+          "defensive_quality"
+        ],
+        "allowed_setups": [
+          "Prime clean pullback",
+          "Clean bull pullback",
+          "Volatility contraction setup",
+          "RS leader pullback"
+        ],
+        "blocked_profiles": [],
+        "blocked_setups": [
+          "Overheated momentum",
+          "Failed breakout",
+          "Distribution risk",
+          "Blowoff top",
+          "Climax reversal risk"
+        ],
+        "minimum_score_adjustment": 0.4,
+        "position_size_multiplier": 0.75,
+        "preferred_profiles": [
+          "quality_momentum",
+          "clean_compounder_pullback"
+        ],
+        "reduced_profiles": [
+          "early_rocket"
+        ],
+        "summary": "Market pullback. Prefer high-quality pullbacks and reduce breakout aggression."
+      },
+      "Bull trend": {
+        "allowed_profiles": [
+          "momentum_swing",
+          "quality_momentum",
+          "early_rocket",
+          "clean_compounder_pullback",
+          "defensive_quality"
+        ],
+        "allowed_setups": [
+          "Prime clean pullback",
+          "Clean bull pullback",
+          "Fresh breakout",
+          "Tight base breakout",
+          "Volatility contraction setup",
+          "RS leader pullback",
+          "Momentum continuation"
+        ],
+        "blocked_profiles": [],
+        "blocked_setups": [
+          "Failed breakout",
+          "Distribution risk",
+          "Blowoff top",
+          "Climax reversal risk"
+        ],
+        "minimum_score_adjustment": 0.0,
+        "position_size_multiplier": 1.0,
+        "preferred_profiles": [
+          "momentum_swing",
+          "quality_momentum"
+        ],
+        "reduced_profiles": [],
+        "summary": "Risk-on. Normal long swing conditions."
+      },
+      "Choppy": {
+        "allowed_profiles": [
+          "quality_momentum",
+          "clean_compounder_pullback",
+          "defensive_quality"
+        ],
+        "allowed_setups": [
+          "Volatility contraction setup",
+          "Clean bull pullback",
+          "Tight base breakout"
+        ],
+        "blocked_profiles": [
+          "early_rocket"
+        ],
+        "blocked_setups": [
+          "Fresh breakout",
+          "Extended momentum",
+          "Overheated momentum",
+          "Failed breakout",
+          "Distribution risk",
+          "Blowoff top",
+          "Climax reversal risk"
+        ],
+        "minimum_score_adjustment": 0.7,
+        "position_size_multiplier": 0.5,
+        "preferred_profiles": [
+          "defensive_quality",
+          "clean_compounder_pullback"
+        ],
+        "reduced_profiles": [
+          "momentum_swing"
+        ],
+        "summary": "Choppy market. Tight bases and quality pullbacks only."
+      },
+      "Correction": {
+        "allowed_profiles": [
+          "defensive_quality"
+        ],
+        "allowed_setups": [],
+        "blocked_profiles": [
+          "momentum_swing",
+          "quality_momentum",
+          "early_rocket",
+          "clean_compounder_pullback"
+        ],
+        "blocked_setups": [
+          "Fresh breakout",
+          "Tight base breakout",
+          "Momentum continuation",
+          "Extended momentum",
+          "Overheated momentum",
+          "Failed breakout",
+          "Distribution risk",
+          "Blowoff top",
+          "Climax reversal risk"
+        ],
+        "minimum_score_adjustment": 2.0,
+        "position_size_multiplier": 0.1,
+        "preferred_profiles": [
+          "defensive_quality"
+        ],
+        "reduced_profiles": [],
+        "summary": "Correction. New long entries are watch-only or blocked."
+      },
+      "Crash risk": {
+        "allowed_profiles": [],
+        "allowed_setups": [],
+        "blocked_profiles": [
+          "momentum_swing",
+          "quality_momentum",
+          "early_rocket",
+          "clean_compounder_pullback",
+          "defensive_quality"
+        ],
+        "blocked_setups": [
+          "*"
+        ],
+        "minimum_score_adjustment": 99.0,
+        "position_size_multiplier": 0.0,
+        "preferred_profiles": [],
+        "reduced_profiles": [],
+        "summary": "Crash risk. Block new long entries."
+      },
+      "Distribution": {
+        "allowed_profiles": [
+          "defensive_quality"
+        ],
+        "allowed_setups": [],
+        "blocked_profiles": [
+          "momentum_swing",
+          "quality_momentum",
+          "early_rocket"
+        ],
+        "blocked_setups": [
+          "Fresh breakout",
+          "Momentum continuation",
+          "Extended momentum",
+          "Overheated momentum",
+          "Failed breakout",
+          "Distribution risk",
+          "Blowoff top",
+          "Climax reversal risk"
+        ],
+        "minimum_score_adjustment": 1.5,
+        "position_size_multiplier": 0.25,
+        "preferred_profiles": [
+          "defensive_quality"
+        ],
+        "reduced_profiles": [
+          "clean_compounder_pullback"
+        ],
+        "summary": "Distribution warning. Avoid most new long entries."
+      },
+      "Risk-on breakout": {
+        "allowed_profiles": [
+          "momentum_swing",
+          "quality_momentum",
+          "early_rocket",
+          "clean_compounder_pullback",
+          "defensive_quality"
+        ],
+        "allowed_setups": [
+          "Fresh breakout",
+          "Tight base breakout",
+          "Volatility contraction setup",
+          "Clean bull pullback"
+        ],
+        "blocked_profiles": [],
+        "blocked_setups": [
+          "Overheated momentum",
+          "Late-stage extension",
+          "Failed breakout",
+          "Blowoff top",
+          "Climax reversal risk"
+        ],
+        "minimum_score_adjustment": 0.2,
+        "position_size_multiplier": 0.85,
+        "preferred_profiles": [
+          "momentum_swing",
+          "early_rocket",
+          "quality_momentum"
+        ],
+        "reduced_profiles": [],
+        "summary": "Risk-on breakout. Breakouts allowed, but avoid chase conditions."
+      },
+      "Unknown": {
+        "allowed_profiles": [
+          "defensive_quality"
+        ],
+        "allowed_setups": [],
+        "blocked_profiles": [
+          "early_rocket"
+        ],
+        "blocked_setups": [
+          "Fresh breakout",
+          "Momentum continuation"
+        ],
+        "minimum_score_adjustment": 1.0,
+        "position_size_multiplier": 0.25,
+        "preferred_profiles": [
+          "defensive_quality"
+        ],
+        "reduced_profiles": [],
+        "summary": "Market data confidence is low. Reduce risk."
+      }
+    },
+    "risk_state_mapping": {
+      "Bear rally": "Orange",
+      "Bull pullback": "Yellow",
+      "Bull trend": "Green",
+      "Choppy": "Yellow",
+      "Correction": "Red",
+      "Crash risk": "Red",
+      "Distribution": "Orange",
+      "Risk-on breakout": "Green",
+      "Unknown": "Gray"
+    },
+    "symbols": {
+      "optional_symbols": {
+        "bonds": "TLT",
+        "small_caps": "IWM",
+        "volatility_proxy": "VIXY"
+      },
+      "primary_market": "SPY",
+      "risk_proxy": "QQQ",
+      "use_risk_proxy": true
+    }
+  },
+  "market_sector_intelligence.yaml": {
+    "benchmark_symbol": "SPY",
+    "enabled": true,
+    "rotation_engine": {
+      "algorithm_version": "market-rotation-v1",
+      "benchmark_symbol": "SPY",
+      "max_history_limit": 100,
+      "primary_rank_metric": "rs_63_pct",
+      "session_offsets": [
+        0,
+        5,
+        21,
+        42,
+        63
+      ],
+      "timeframe": "1 day"
+    },
+    "standard_market_labels": {
+      "Basic Materials": "Materials",
+      "Consumer Cyclical": "Consumer Discretionary",
+      "Consumer Defensive": "Consumer Staples",
+      "Financial Services": "Financials",
+      "Healthcare": "Health Care"
+    },
+    "timeframe": "1 day",
+    "version": "1.0.0"
+  },
+  "pine_defaults.yaml": {
+    "engine": {
+      "pine_version": "3.2.0",
+      "python_port_version": "3.2.0-port.1"
+    },
+    "htf": {
+      "blendHtfIntoTrendScore": true,
+      "htfFastLen": 10,
+      "htfMidLen": 30,
+      "htfMinScore": 5.5,
+      "htfRocLookback": 13,
+      "htfSlopeLookback": 4,
+      "htfSlowLen": 40,
+      "htfTimeframe": "W",
+      "useConfirmedHtf": true,
+      "useHtfTrendFilter": true
+    },
+    "market_rs": {
+      "benchmarkSymbol": "SPY",
+      "marketDistributionMax": 4,
+      "marketMinScore": 5.5,
+      "marketRiskOffPenalty": 2.0,
+      "marketSymbol": "SPY",
+      "rocLongLen": 126,
+      "rocMediumLen": 63,
+      "rocShortLen": 21,
+      "rsMinScore": 5.5,
+      "rsNewHighLookback": 21,
+      "rsSmaLen": 50,
+      "sectorMinScore": 5.0,
+      "sectorSymbol": "QQQ",
+      "useMarketFilter": true,
+      "useRelativeStrengthFilter": true,
+      "useSectorBenchmark": true
+    },
+    "momentum": {
+      "atrLen": 14,
+      "distributionLookback": 10,
+      "greenRedVolLookback": 10,
+      "obvSlopeLookback": 10,
+      "obvSmaLen": 20,
+      "recentRedVolLookback": 5,
+      "rsiLen": 14,
+      "volLen": 20
+    },
+    "pullback_breakout": {
+      "breakoutLookback": 40,
+      "breakoutVolRatio": 1.2,
+      "failureVolRatio": 1.1,
+      "maTouchPct": 4.0,
+      "maxPullbackPct": 18.0,
+      "minPullbackPct": 3.0,
+      "pullbackLookback": 20
+    },
+    "risk": {
+      "atrDangerPct": 10.0,
+      "atrWarnPct": 6.0,
+      "extensionDangerPct": 15.0,
+      "extensionWarnPct": 8.0,
+      "failedBreakoutBars": 8,
+      "gapExhaustionPct": 4.0,
+      "gapExhaustionVolRatio": 1.3,
+      "heavyRedVolRatio": 1.5,
+      "minAvgVolume": 300000,
+      "minNotionalVolume": 10000000,
+      "nearResistancePct": 3.0,
+      "notionalVolumeLookback": 20,
+      "useLiquidityWarning": true,
+      "useNotionalLiquidityFilter": true
+    },
+    "scoring": {
+      "scoringMode": "Balanced"
+    },
+    "stop_target": {
+      "atrStopMultiple": 1.5,
+      "atrTargetMultiple": 1.5,
+      "minRewardRisk": 2.0,
+      "smaStopAtrBuffer": 0.5,
+      "stopMode": "Structure + ATR",
+      "structureAtrBuffer": 0.3,
+      "targetMode": "ATR Target",
+      "targetRewardMultiple": 2.0,
+      "useModeRewardRisk": true,
+      "useRewardRiskFilter": true
+    },
+    "trend": {
+      "adxLen": 14,
+      "adxSmoothing": 14,
+      "emaFastLen": 10,
+      "emaPullbackLen": 20,
+      "highLow52Len": 252,
+      "midSlopeLookback": 10,
+      "minAdxTrend": 18.0,
+      "pivotLeftBars": 3,
+      "pivotRightBars": 3,
+      "slowSlopeLookback": 20,
+      "smaMidLen": 50,
+      "smaSlowLen": 200,
+      "smaTrendLen": 150,
+      "structureLookback": 20
+    }
+  },
+  "ranking_profiles.yaml": {
+    "profiles": {
+      "clean_compounder_pullback": {
+        "description": "Fundamental-led ranking for high-quality businesses with clean entries.",
+        "enabled": true,
+        "gates": {
+          "danger_blocks_candidate": true,
+          "earnings_block": true,
+          "fundamental_floor": {
+            "enabled": true,
+            "max_decision": "Watchlist",
+            "min_score": 5.5
+          }
+        },
+        "label": "Clean Compounder Pullback",
+        "missing_data_policy": {
+          "penalty": 1.2,
+          "rescale_available": true
+        },
+        "penalties": {
+          "danger_classification": 3.0,
+          "growth_trap_risk": 2.0,
+          "missing_data": 1.2,
+          "quality_risk": 2.0,
+          "value_trap_risk": 2.0
+        },
+        "technical_components": {
+          "momentum_health": 0.15,
+          "pullback_health": 0.3,
+          "relative_strength": 0.1,
+          "risk_control": 0.2,
+          "trend_quality": 0.25
+        },
+        "thresholds": {
+          "candidate_min_score": 6.9,
+          "strong_candidate_min_score": 8.0,
+          "watch_min_score": 5.7
+        },
+        "tradeability_overlay": {
+          "enabled": false,
+          "maximum_penalty": 0.0,
+          "poor_penalty": 0.0,
+          "very_poor_penalty": 0.0
+        },
+        "weights": {
+          "fundamental": 0.65,
+          "technical": 0.35
+        }
+      },
+      "defensive_quality": {
+        "description": "Risk-first ranking for avoiding technical and fundamental traps.",
+        "enabled": true,
+        "gates": {
+          "danger_blocks_candidate": true,
+          "earnings_block": true,
+          "liquidity_caps_candidate": true
+        },
+        "label": "Defensive Quality",
+        "missing_data_policy": {
+          "penalty": 1.5,
+          "rescale_available": true
+        },
+        "penalties": {
+          "climax_risk": 3.0,
+          "danger_classification": 4.0,
+          "earnings_high_risk": 2.5,
+          "growth_trap_risk": 2.0,
+          "liquidity_warning": 2.0,
+          "missing_data": 1.5,
+          "overheated_momentum": 2.5,
+          "quality_risk": 2.0,
+          "value_trap_risk": 2.5
+        },
+        "technical_components": {
+          "market_regime_alignment": 0.15,
+          "momentum_health": 0.15,
+          "risk_control": 0.35,
+          "setup_quality": 0.15,
+          "trend_quality": 0.2
+        },
+        "thresholds": {
+          "candidate_min_score": 7.0,
+          "strong_candidate_min_score": 8.2,
+          "watch_min_score": 5.8
+        },
+        "tradeability_overlay": {
+          "enabled": true,
+          "maximum_penalty": 1.5,
+          "minimum_dollar_volume": 10000000,
+          "poor_penalty": 0.75,
+          "very_poor_penalty": 1.5
+        },
+        "weights": {
+          "fundamental": 0.6,
+          "technical": 0.4
+        }
+      },
+      "early_rocket": {
+        "description": "Aggressive ranking for emerging technical leaders.",
+        "enabled": true,
+        "gates": {
+          "danger_blocks_candidate": true,
+          "earnings_block": true,
+          "fundamental_floor": {
+            "enabled": true,
+            "max_decision": "Speculative watch",
+            "min_score": 2.5
+          }
+        },
+        "label": "Early Rocket",
+        "missing_data_policy": {
+          "penalty": 0.8,
+          "rescale_available": true
+        },
+        "penalties": {
+          "climax_risk": 3.0,
+          "extreme_dilution": 2.0,
+          "failed_breakout": 4.0,
+          "heavy_distribution": 2.5,
+          "missing_data": 0.8,
+          "quality_risk": 1.2
+        },
+        "technical_components": {
+          "breakout_quality": 0.15,
+          "momentum_strength": 0.35,
+          "relative_strength_acceleration": 0.1,
+          "risk_control": 0.1,
+          "trend_repair": 0.2,
+          "volume_expansion": 0.1
+        },
+        "thresholds": {
+          "candidate_min_score": 7.0,
+          "strong_candidate_min_score": 8.2,
+          "watch_min_score": 5.8
+        },
+        "tradeability_overlay": {
+          "enabled": true,
+          "maximum_penalty": 0.8,
+          "minimum_dollar_volume": 3000000,
+          "poor_penalty": 0.4,
+          "very_poor_penalty": 0.8
+        },
+        "weights": {
+          "fundamental": 0.3,
+          "technical": 0.7
+        }
+      },
+      "momentum_swing": {
+        "description": "Technical-led swing ranking with fundamental confirmation.",
+        "enabled": true,
+        "gates": {
+          "danger_blocks_candidate": true,
+          "earnings_block": true,
+          "fundamental_floor": {
+            "enabled": true,
+            "max_decision": "Speculative watch",
+            "min_score": 3.0
+          }
+        },
+        "label": "Momentum Swing",
+        "missing_data_policy": {
+          "penalty": 1.0,
+          "rescale_available": true
+        },
+        "penalties": {
+          "danger_classification": 3.0,
+          "earnings_blocked": 3.0,
+          "earnings_high_risk": 2.0,
+          "earnings_medium_risk": 1.0,
+          "growth_trap_risk": 1.5,
+          "liquidity_warning": 1.0,
+          "missing_data": 1.0,
+          "overheated_momentum": 1.5,
+          "quality_risk": 1.5,
+          "value_trap_risk": 1.5
+        },
+        "technical_components": {
+          "breakout_or_vcp_quality": 0.1,
+          "momentum_health": 0.25,
+          "momentum_strength": 0.3,
+          "risk_control": 0.1,
+          "setup_quality": 0.1,
+          "trend_quality": 0.15
+        },
+        "thresholds": {
+          "candidate_min_score": 6.8,
+          "strong_candidate_min_score": 8.0,
+          "watch_min_score": 5.5
+        },
+        "tradeability_overlay": {
+          "enabled": true,
+          "maximum_penalty": 1.0,
+          "minimum_dollar_volume": 5000000,
+          "poor_penalty": 0.5,
+          "very_poor_penalty": 1.0
+        },
+        "weights": {
+          "fundamental": 0.45,
+          "technical": 0.55
+        }
+      },
+      "quality_momentum": {
+        "description": "Balanced ranking for strong charts and strong businesses.",
+        "enabled": true,
+        "gates": {
+          "danger_blocks_candidate": true,
+          "earnings_block": true
+        },
+        "label": "Quality Momentum",
+        "missing_data_policy": {
+          "penalty": 1.0,
+          "rescale_available": true
+        },
+        "penalties": {
+          "danger_classification": 3.0,
+          "growth_trap_risk": 2.0,
+          "missing_data": 1.0,
+          "overheated_momentum": 1.5,
+          "quality_risk": 2.0,
+          "value_trap_risk": 2.0
+        },
+        "technical_components": {
+          "momentum_health": 0.25,
+          "momentum_strength": 0.25,
+          "risk_control": 0.15,
+          "setup_quality": 0.15,
+          "trend_quality": 0.2
+        },
+        "thresholds": {
+          "candidate_min_score": 6.8,
+          "strong_candidate_min_score": 8.0,
+          "watch_min_score": 5.5
+        },
+        "tradeability_overlay": {
+          "enabled": false,
+          "maximum_penalty": 0.0,
+          "poor_penalty": 0.0,
+          "very_poor_penalty": 0.0
+        },
+        "weights": {
+          "fundamental": 0.55,
+          "technical": 0.45
+        }
+      }
+    }
+  },
+  "scoring_weights.yaml": {
+    "combined_score": {
+      "dual_score": 0.45,
+      "fundamental_score": 0.55
+    },
+    "earnings_risk_gate": {
+      "apply_to_combined_score": true,
+      "block_if_within_days": 2,
+      "block_new_entries": true,
+      "enabled": true,
+      "high_risk_if_within_days": 5,
+      "medium_risk_if_within_days": 10,
+      "missing_date_policy": "warn",
+      "penalties": {
+        "blocked": 3.0,
+        "clear": 0.0,
+        "high": 2.0,
+        "medium": 1.0,
+        "unknown": 0.3
+      }
+    },
+    "fundamental_components": {
+      "balance_sheet_score": 0.14,
+      "dilution_score": 0.06,
+      "fcf_score": 0.16,
+      "growth_score": 0.18,
+      "momentum_score": 0.1,
+      "profitability_score": 0.18,
+      "risk_score": 0.06,
+      "valuation_score": 0.12
+    },
+    "labels": {
+      "candidate_min_score": 6.8,
+      "strong_candidate_min_score": 8.0,
+      "watch_min_score": 5.5
+    },
+    "penalties": {
+      "danger_classification": 3.0,
+      "growth_trap_risk": 1.5,
+      "liquidity_warning": 1.0,
+      "missing_data": 1.0,
+      "overheated_momentum": 1.5,
+      "quality_risk": 1.5,
+      "value_trap_risk": 2.0
+    }
+  },
+  "sector_rotation.yaml": {
+    "combined_score": {
+      "missing_etf_policy": "use_universe_only",
+      "weights": {
+        "etf": 0.45,
+        "universe": 0.55
+      }
+    },
+    "defaults": {
+      "default_ranking_profile": "momentum_swing",
+      "min_tickers_for_high_confidence": 10,
+      "min_tickers_for_normal_confidence": 5,
+      "top_candidate_cutoffs": [
+        10,
+        25,
+        50
+      ],
+      "unknown_sector_label": "Unknown"
+    },
+    "etf_score": {
+      "benchmark_ticker": "SPY",
+      "enabled": false,
+      "weights": {
+        "breakout": 0.1,
+        "momentum": 0.2,
+        "relative_strength": 0.3,
+        "risk_control": 0.15,
+        "trend": 0.25
+      }
+    },
+    "permissions": {
+      "market_buckets": {
+        "choppy": {
+          "Crowded risk": "watch_only",
+          "Fading": "avoid_new_longs",
+          "Improving": "watch_only",
+          "Insufficient data": "watch_only",
+          "Lagging": "avoid_new_longs",
+          "Leading": "reduced_size",
+          "Neutral": "watch_only",
+          "Risk-off": "avoid_new_longs"
+        },
+        "risk_off": {
+          "Crowded risk": "avoid_new_longs",
+          "Fading": "avoid_new_longs",
+          "Improving": "watch_only",
+          "Insufficient data": "avoid_new_longs",
+          "Lagging": "avoid_new_longs",
+          "Leading": "watch_only",
+          "Neutral": "avoid_new_longs",
+          "Risk-off": "avoid_new_longs"
+        },
+        "supportive": {
+          "Crowded risk": "reduced_size",
+          "Fading": "watch_only",
+          "Improving": "reduced_size",
+          "Insufficient data": "watch_only",
+          "Lagging": "avoid_new_longs",
+          "Leading": "full_allowed",
+          "Neutral": "watch_only",
+          "Risk-off": "avoid_new_longs"
+        },
+        "unknown": {
+          "Crowded risk": "watch_only",
+          "Fading": "watch_only",
+          "Improving": "watch_only",
+          "Insufficient data": "watch_only",
+          "Lagging": "avoid_new_longs",
+          "Leading": "reduced_size",
+          "Neutral": "watch_only",
+          "Risk-off": "avoid_new_longs"
+        }
+      },
+      "position_size_multipliers": {
+        "avoid_new_longs": 0.0,
+        "full_allowed": 1.0,
+        "reduced_size": 0.5,
+        "watch_only": 0.25
+      }
+    },
+    "rotation_states": {
+      "crowded_top25_share_min": 0.35,
+      "danger_share_risk_off_min": 0.3,
+      "improving_min_score": 6.0,
+      "lagging_max_score": 4.5,
+      "leading_min_score": 7.5,
+      "score_change_fading_min": -0.75,
+      "score_change_improving_min": 0.75
+    },
+    "sector_etf_proxies": {
+      "Basic Materials": "XLB",
+      "Communication Services": "XLC",
+      "Consumer Cyclical": "XLY",
+      "Consumer Defensive": "XLP",
+      "Energy": "XLE",
+      "Financial Services": "XLF",
+      "Healthcare": "XLV",
+      "Industrials": "XLI",
+      "Real Estate": "XLRE",
+      "Technology": "XLK",
+      "Utilities": "XLU"
+    },
+    "sector_taxonomy": {
+      "aliases": {
+        "Consumer Discretionary": "Consumer Cyclical",
+        "Consumer Staples": "Consumer Defensive",
+        "Electronic Technology": "Technology",
+        "Financials": "Financial Services",
+        "Health Care": "Healthcare",
+        "Information Technology": "Technology",
+        "Materials": "Basic Materials",
+        "Real Estate Services": "Real Estate",
+        "Technology Services": "Technology"
+      },
+      "canonical": [
+        "Technology",
+        "Communication Services",
+        "Consumer Cyclical",
+        "Consumer Defensive",
+        "Financial Services",
+        "Healthcare",
+        "Industrials",
+        "Energy",
+        "Basic Materials",
+        "Real Estate",
+        "Utilities",
+        "Government / Other",
+        "Miscellaneous / Other",
+        "ETF / Fund",
+        "Unknown"
+      ],
+      "mapping_statuses": [
+        "mapped",
+        "canonical",
+        "missing",
+        "unmapped"
+      ],
+      "preserve_raw_sector": true,
+      "source": "tradingview",
+      "tradingview_map": {
+        "Commercial services": "Industrials",
+        "Communications": "Communication Services",
+        "Consumer durables": "Consumer Cyclical",
+        "Consumer non-durables": "Consumer Defensive",
+        "Consumer services": "Consumer Cyclical",
+        "Distribution services": "Industrials",
+        "Electronic technology": "Technology",
+        "Energy minerals": "Energy",
+        "Finance": "Financial Services",
+        "Government": "Government / Other",
+        "Health services": "Healthcare",
+        "Health technology": "Healthcare",
+        "Industrial services": "Industrials",
+        "Miscellaneous": "Miscellaneous / Other",
+        "Non-energy minerals": "Basic Materials",
+        "Process industries": "Basic Materials",
+        "Producer manufacturing": "Industrials",
+        "Retail trade": "Consumer Cyclical",
+        "Technology services": "Technology",
+        "Transportation": "Industrials",
+        "Utilities": "Utilities"
+      },
+      "unknown_sector_label": "Unknown"
+    },
+    "universe_score": {
+      "setup_labels": {
+        "buyable": [
+          "Prime clean pullback",
+          "Clean bull pullback",
+          "Fresh breakout",
+          "Tight base breakout",
+          "RS leader pullback"
+        ],
+        "danger": [
+          "Distribution risk",
+          "Failed breakout",
+          "Blowoff top",
+          "Climax reversal risk",
+          "Late-stage extension",
+          "No trade"
+        ],
+        "watch": [
+          "Volatility contraction setup",
+          "Momentum continuation",
+          "Trend repair"
+        ]
+      },
+      "warning_flags": {
+        "caution": [
+          "market_risk_off",
+          "liquidity_warning",
+          "low_technical_confidence",
+          "stage_3_distribution"
+        ],
+        "danger": [
+          "failed_breakout",
+          "distribution_risk",
+          "blowoff_top",
+          "box_failure",
+          "climax_reversal_risk",
+          "stage_4_downtrend"
+        ]
+      },
+      "weights": {
+        "average_profile_score": 0.2,
+        "average_technical_score": 0.25,
+        "risk_control": 0.15,
+        "setup_density": 0.2,
+        "top_candidate_share": 0.2
+      }
+    },
+    "version": "1.0.0"
+  },
+  "setup_lifecycle.yaml": {
+    "actionability": {
+      "earnings_block_window_sessions": 2,
+      "low_confidence_blocks_when_required_missing": true,
+      "minimum_actionable_confidence": 70,
+      "reconstructed_origin_excluded_from_live_alerts": true
+    },
+    "alerts": {
+      "built_in_rules_enabled": true,
+      "default_cooldown_sessions": 5,
+      "minimum_confidence": 70,
+      "reconstructed_origin_excluded": true,
+      "rules": {
+        "DATA_DEGRADED": {
+          "cooldown_sessions": 5,
+          "enabled": true,
+          "minimum_confidence": 0,
+          "severity": "RISK",
+          "signal_keys": [
+            "data_quality",
+            "required_feature_coverage",
+            "freshness_status"
+          ],
+          "source": "signal_change"
+        },
+        "GATE_BLOCKED": {
+          "cooldown_sessions": 5,
+          "enabled": true,
+          "minimum_confidence": 0,
+          "severity": "RISK",
+          "source": "actionability_change",
+          "to_actionability": "BLOCKED"
+        },
+        "NEW_CONFIRMATION": {
+          "cooldown_sessions": 5,
+          "enabled": true,
+          "minimum_confidence": 70,
+          "severity": "ACTIONABLE",
+          "source": "lifecycle_transition",
+          "to_state": "CONFIRMED"
+        },
+        "NEW_EXTENSION": {
+          "cooldown_sessions": 5,
+          "enabled": true,
+          "minimum_confidence": 50,
+          "severity": "RISK",
+          "source": "lifecycle_transition",
+          "to_state": "EXTENDED"
+        },
+        "NEW_FAILURE": {
+          "cooldown_sessions": 1,
+          "enabled": true,
+          "minimum_confidence": 0,
+          "severity": "RISK",
+          "source": "lifecycle_transition",
+          "to_state": "FAILED"
+        },
+        "NEW_READY": {
+          "cooldown_sessions": 5,
+          "enabled": true,
+          "minimum_confidence": 70,
+          "severity": "ACTIONABLE",
+          "source": "lifecycle_transition",
+          "to_state": "READY"
+        },
+        "NEW_TRIGGER": {
+          "cooldown_sessions": 5,
+          "enabled": true,
+          "minimum_confidence": 70,
+          "severity": "ACTIONABLE",
+          "source": "lifecycle_transition",
+          "to_state": "TRIGGERED"
+        },
+        "SCORE_ACCELERATION": {
+          "cooldown_sessions": 5,
+          "enabled": true,
+          "minimum_confidence": 70,
+          "minimum_normalized_delta": 0.5,
+          "severity": "NOTABLE",
+          "signal_keys": [
+            "technical_score",
+            "setup_score"
+          ],
+          "source": "signal_change",
+          "tracking_thresholds": {
+            "setup_score": 5.5,
+            "technical_score": 7.0
+          },
+          "velocity_window": 3
+        },
+        "SECTOR_ACCELERATION": {
+          "cooldown_sessions": 5,
+          "enabled": true,
+          "minimum_confidence": 70,
+          "minimum_rank_improvement": 3,
+          "minimum_sector_confidence": "NORMAL",
+          "severity": "NOTABLE",
+          "signal_key": "sector_rank",
+          "source": "signal_change"
+        }
+      }
+    },
+    "api": {
+      "capture_evaluation_target_seconds": 60,
+      "default_page_size": 50,
+      "error_codes": [
+        "INVALID_STATE",
+        "INVALID_DATE",
+        "INVALID_THRESHOLD",
+        "INVALID_SORT",
+        "INVALID_CURSOR",
+        "INVALID_CONFIGURATION",
+        "TICKER_NOT_FOUND",
+        "EPISODE_NOT_FOUND",
+        "EVALUATION_NOT_FOUND",
+        "ALERT_NOT_FOUND",
+        "RUN_LIFECYCLE_NOT_FOUND"
+      ],
+      "max_page_size": 500,
+      "p95_target_ms": 500,
+      "performance_fixture_min_snapshots": 100000
+    },
+    "canonicalization": {
+      "precedence": [
+        "completed_daily_bar",
+        "successful_source_pipeline",
+        "required_feature_coverage",
+        "context_completeness",
+        "latest_calculated_at",
+        "highest_snapshot_id"
+      ],
+      "prefer_market_regime": true,
+      "prefer_sector_rotation": true,
+      "required_context": [
+        "technical"
+      ]
+    },
+    "confidence": {
+      "agreement_weights": {
+        "classification": 0.25,
+        "contraction": 0.25,
+        "relative_strength": 0.25,
+        "trend": 0.25
+      },
+      "freshness_and_lineage_weights": {
+        "freshness": 0.333333,
+        "lineage_integrity": 0.333334,
+        "source_run_success": 0.333333
+      },
+      "high_min": 85,
+      "low_min": 50,
+      "normal_min": 70,
+      "weights": {
+        "context_completeness": 0.1,
+        "freshness_and_lineage": 0.15,
+        "persistence": 0.2,
+        "required_feature_coverage": 0.3,
+        "signal_agreement": 0.25
+      }
+    },
+    "data_quality_labels": {
+      "HIGH": {
+        "allows_inferred_required_feature": false,
+        "context_required": true,
+        "fresh_completed_bar_required": true,
+        "required_feature_coverage_min": 1.0
+      },
+      "INSUFFICIENT": {
+        "hard_required_absent": true,
+        "stale_beyond_hard_limit": true
+      },
+      "LOW": {
+        "allows_inferred_required_feature": true,
+        "allows_missing_context": true,
+        "allows_near_stale_data": true,
+        "required_feature_coverage_min": 0.5
+      },
+      "NORMAL": {
+        "fresh_completed_bar_required": true,
+        "optional_omissions_allowed": true,
+        "required_feature_coverage_min": 0.9
+      }
+    },
+    "engine": {
+      "config_version": "2026-08-14-velocity-trigger-distance",
+      "diagnostic_high_cross_enabled": true,
+      "enabled": false,
+      "origin_mode": "forward_only",
+      "schema_version": "slse-snapshot-1.0.0",
+      "timeframe": "1d",
+      "trigger_authority": "COMPLETED_DAILY_CLOSE",
+      "version": "slse-1.3.0"
+    },
+    "episodes": {
+      "default_max_age_sessions": 40,
+      "failed_rearm_cooldown_sessions": 10,
+      "history_window_sessions": 10,
+      "observation_gap_sessions": 3,
+      "one_active_per_family": true
+    },
+    "families": {
+      "breakout": {
+        "confirmed_hold_sessions": 2,
+        "contraction_sessions_min": 2,
+        "enabled": true,
+        "extended_atr_from_trigger": 2.5,
+        "failed_rearm_cooldown_sessions": 10,
+        "max_age_sessions": 40,
+        "observation_gap_sessions": 3,
+        "ready_pivot_distance_enter_pct": 2.0,
+        "ready_pivot_distance_exit_pct": 3.0,
+        "ready_score_min": 7.5,
+        "tracking_score_min": 5.5
+      },
+      "continuation": {
+        "enabled": true,
+        "extended_atr_from_trigger": 2.5,
+        "failed_rearm_cooldown_sessions": 8,
+        "max_age_sessions": 20,
+        "observation_gap_sessions": 2,
+        "ready_score_min": 7.5,
+        "tight_range_percentile_max": 40,
+        "tight_range_sessions_min": 2,
+        "tracking_score_min": 5.5
+      },
+      "generic": {
+        "enabled": true,
+        "failed_rearm_cooldown_sessions": 8,
+        "max_age_sessions": 20,
+        "observation_gap_sessions": 2,
+        "ready_score_min": 7.0,
+        "tracking_score_min": 5.0
+      },
+      "generic_fallback": {
+        "enabled": true,
+        "min_supported_family_confidence_to_block_generic": 50,
+        "prevent_shadowing_supported_family": true
+      },
+      "precedence": [
+        "BREAKOUT",
+        "PULLBACK",
+        "VCP",
+        "CONTINUATION",
+        "GENERIC"
+      ],
+      "pullback": {
+        "confirmed_hold_sessions": 2,
+        "declining_volume_sessions": 2,
+        "enabled": true,
+        "failed_rearm_cooldown_sessions": 10,
+        "max_age_sessions": 30,
+        "observation_gap_sessions": 3,
+        "ready_score_min": 7.5,
+        "support_distance_atr": 1.0,
+        "tracking_score_min": 5.5
+      },
+      "vcp": {
+        "contraction_count_min": 2,
+        "dry_up_percentile_max": 35,
+        "enabled": true,
+        "failed_rearm_cooldown_sessions": 10,
+        "max_age_sessions": 45,
+        "observation_gap_sessions": 3,
+        "ready_score_min": 7.5,
+        "tracking_score_min": 5.5
+      }
+    },
+    "phases": {
+      "breakout": [
+        "BASE_FORMING",
+        "RANGE_CONTRACTION",
+        "VOLUME_DRY_UP",
+        "PIVOT_READY",
+        "BREAKOUT",
+        "RETEST",
+        "FOLLOW_THROUGH"
+      ],
+      "continuation": [
+        "PAUSE",
+        "FLAG_FORMING",
+        "TIGHT_RANGE",
+        "CONTINUATION_READY",
+        "CONTINUATION_TRIGGER"
+      ],
+      "generic": [
+        "CANDIDATE",
+        "IMPROVING",
+        "READY",
+        "TRIGGERED"
+      ],
+      "pullback": [
+        "PULLBACK_STARTED",
+        "SELLING_PRESSURE_DECLINING",
+        "SUPPORT_APPROACH",
+        "SUPPORT_TEST",
+        "REVERSAL_READY",
+        "REVERSAL_TRIGGER",
+        "FOLLOW_THROUGH"
+      ],
+      "vcp": [
+        "CONTRACTION_1",
+        "CONTRACTION_2",
+        "CONTRACTION_3",
+        "VOLUME_DRY_UP",
+        "PIVOT_READY",
+        "BREAKOUT"
+      ]
+    },
+    "reconstructed_origin": {
+      "enabled": false,
+      "exclude_from_live_alert_statistics": true,
+      "exclude_from_live_alerts": true,
+      "exclude_from_owpe_export": true
+    },
+    "replay": {
+      "enabled": false,
+      "output_authoritative_by_default": false,
+      "persisted_replay_creates_parallel_version": true,
+      "promotion_requires_confirmation": true,
+      "promotion_requires_explicit_admin_action": true
+    },
+    "retention": {
+      "purge_audit_required": true,
+      "purge_confirmation_required": true,
+      "purge_enabled": false,
+      "purge_preview_required": true,
+      "retain_immutable_evidence_indefinitely": true
+    },
+    "signals": {
+      "atr_pct": {
+        "absolute_change": 0.5,
+        "category": "VOLATILITY_VOLUME",
+        "direction": "lower_is_better_until_trigger",
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.debug_json.derived.atr_pct",
+        "type": "percentage",
+        "unit": "pct"
+      },
+      "atr_percentile_252": {
+        "absolute_change": 10,
+        "category": "VOLATILITY_VOLUME",
+        "direction": "lower_is_better_until_trigger",
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.atr_percentile_252",
+        "type": "float",
+        "unit": "percentile"
+      },
+      "atr_value": {
+        "category": "VOLATILITY_VOLUME",
+        "direction": "neutral",
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.debug_json.derived.atr",
+        "type": "float",
+        "unit": "price"
+      },
+      "box_failure": {
+        "category": "RISK",
+        "direction": "false_is_better",
+        "material_on_change": true,
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.v4_debug_json.box.box_failure",
+        "type": "boolean"
+      },
+      "classification": {
+        "category": "SETUP",
+        "direction": "classification_order",
+        "material_on_change": true,
+        "missing_value_policy": "warn",
+        "source": "technical_classification",
+        "type": "enum"
+      },
+      "close_price": {
+        "category": "SETUP",
+        "direction": "neutral",
+        "missing_value_policy": "warn",
+        "source": "price_bars.close",
+        "type": "float",
+        "unit": "price"
+      },
+      "close_trigger_cross": {
+        "category": "SETUP",
+        "direction": "true_is_better",
+        "material_on_change": true,
+        "missing_value_policy": "warn",
+        "source": "close_above_trigger",
+        "trigger_authority": "close",
+        "type": "boolean"
+      },
+      "data_quality": {
+        "category": "DATA_QUALITY",
+        "direction": "quality_order",
+        "material_on_change": true,
+        "missing_value_policy": "warn",
+        "source": "data_quality_label",
+        "type": "enum"
+      },
+      "distance_to_pivot_pct": {
+        "absolute_change": 0.75,
+        "category": "SETUP",
+        "crossings": [
+          5.0,
+          3.0,
+          2.0,
+          1.0,
+          0.0
+        ],
+        "direction": "lower_is_better_until_trigger",
+        "missing_value_policy": "ignore",
+        "source": "distance_to_pivot_pct",
+        "type": "float",
+        "unit": "pct"
+      },
+      "earnings_risk": {
+        "category": "RISK",
+        "direction": "lower_is_better",
+        "material_on_change": true,
+        "missing_value_policy": "ignore",
+        "source": "earnings_risk",
+        "type": "enum"
+      },
+      "extension_mid_pct": {
+        "absolute_change": 2,
+        "category": "RISK",
+        "direction": "lower_is_better",
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.debug_json.derived.extension_mid_pct",
+        "type": "percentage",
+        "unit": "pct"
+      },
+      "extension_percentile_252": {
+        "absolute_change": 10,
+        "category": "RISK",
+        "direction": "lower_is_better",
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.extension_percentile_252",
+        "type": "float",
+        "unit": "percentile"
+      },
+      "failed_breakout": {
+        "category": "RISK",
+        "direction": "false_is_better",
+        "material_on_change": true,
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.debug_json.derived.failed_breakout",
+        "type": "boolean"
+      },
+      "feature_flags": {
+        "category": "SETUP",
+        "direction": "neutral",
+        "material_on_change": true,
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.feature_flags_json",
+        "type": "set"
+      },
+      "fresh_breakout": {
+        "category": "SETUP",
+        "direction": "true_is_better",
+        "material_on_change": true,
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.debug_json.derived.fresh_breakout",
+        "type": "boolean"
+      },
+      "freshness_status": {
+        "category": "DATA_QUALITY",
+        "direction": "quality_order",
+        "material_on_change": true,
+        "missing_value_policy": "warn",
+        "source": "freshness_status",
+        "type": "enum"
+      },
+      "heavy_mid_ma_break": {
+        "category": "RISK",
+        "direction": "false_is_better",
+        "material_on_change": true,
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.debug_json.derived.heavy_mid_ma_break",
+        "type": "boolean"
+      },
+      "held_near_support": {
+        "category": "TREND",
+        "direction": "true_is_better",
+        "material_on_change": true,
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.debug_json.derived.held_near_support",
+        "type": "boolean"
+      },
+      "intraday_high_trigger_cross_diagnostic": {
+        "category": "SETUP",
+        "diagnostic_only": true,
+        "direction": "true_is_better",
+        "material_on_change": true,
+        "missing_value_policy": "ignore",
+        "source": "high_above_trigger",
+        "trigger_authority": "diagnostic_high",
+        "type": "boolean"
+      },
+      "leadership_score": {
+        "absolute_change": 0.5,
+        "category": "LEADERSHIP",
+        "crossings": [
+          5.5,
+          7.0
+        ],
+        "direction": "higher_is_better",
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.leadership_score",
+        "type": "float",
+        "unit": "points"
+      },
+      "liquidity": {
+        "category": "RISK",
+        "direction": "false_is_better",
+        "material_on_change": true,
+        "missing_value_policy": "warn",
+        "source": "liquidity_risk",
+        "type": "boolean"
+      },
+      "market_gate": {
+        "category": "MARKET",
+        "direction": "true_is_better",
+        "material_on_change": true,
+        "missing_value_policy": "warn",
+        "source": "market_gate",
+        "type": "boolean"
+      },
+      "market_regime": {
+        "category": "MARKET",
+        "direction": "neutral",
+        "material_on_change": true,
+        "missing_value_policy": "warn",
+        "source": "market_regime",
+        "type": "enum"
+      },
+      "pullback_depth_pct": {
+        "absolute_change": 2,
+        "category": "SETUP",
+        "direction": "neutral",
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.debug_json.derived.pullback_depth_pct",
+        "type": "percentage",
+        "unit": "pct"
+      },
+      "range_contraction": {
+        "category": "VOLATILITY_VOLUME",
+        "direction": "true_is_better",
+        "material_on_change": true,
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.v4_debug_json.contraction.range_contraction",
+        "type": "boolean"
+      },
+      "range_percentile_252": {
+        "absolute_change": 10,
+        "category": "VOLATILITY_VOLUME",
+        "direction": "lower_is_better_until_trigger",
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.range_percentile_252",
+        "type": "float",
+        "unit": "percentile"
+      },
+      "red_volume_declining": {
+        "category": "VOLATILITY_VOLUME",
+        "direction": "true_is_better",
+        "material_on_change": true,
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.debug_json.derived.red_vol_declining",
+        "type": "boolean"
+      },
+      "relative_strength": {
+        "absolute_change": 0.5,
+        "category": "LEADERSHIP",
+        "crossings": [
+          5.5,
+          7.0
+        ],
+        "direction": "higher_is_better",
+        "missing_value_policy": "warn",
+        "source": "relative_strength_score",
+        "type": "float",
+        "unit": "points"
+      },
+      "required_feature_coverage": {
+        "absolute_change": 0.1,
+        "category": "DATA_QUALITY",
+        "crossings": [
+          0.9,
+          0.5
+        ],
+        "direction": "higher_is_better",
+        "missing_value_policy": "warn",
+        "source": "required_feature_coverage",
+        "type": "float",
+        "unit": "ratio"
+      },
+      "sector_confidence": {
+        "category": "LEADERSHIP",
+        "direction": "quality_order",
+        "material_on_change": true,
+        "missing_value_policy": "ignore",
+        "source": "sector_confidence",
+        "type": "enum"
+      },
+      "sector_rank": {
+        "absolute_change": 3,
+        "category": "LEADERSHIP",
+        "direction": "lower_rank_is_better",
+        "missing_value_policy": "ignore",
+        "source": "sector_rank",
+        "type": "integer_rank"
+      },
+      "setup_score": {
+        "absolute_change": 0.5,
+        "category": "SCORE",
+        "crossings": [
+          5.5,
+          7.5
+        ],
+        "direction": "higher_is_better",
+        "missing_value_policy": "warn",
+        "source": "setup_score",
+        "type": "float",
+        "unit": "points",
+        "velocity_windows": [
+          1,
+          3,
+          5,
+          10
+        ]
+      },
+      "stage": {
+        "category": "SETUP",
+        "direction": "neutral",
+        "material_on_change": true,
+        "missing_value_policy": "ignore",
+        "source": "stage",
+        "type": "enum"
+      },
+      "technical_score": {
+        "absolute_change": 0.5,
+        "category": "SCORE",
+        "crossings": [
+          7.0,
+          7.5,
+          8.0
+        ],
+        "direction": "higher_is_better",
+        "missing_value_policy": "warn",
+        "percentage_change": 0.1,
+        "source": "dual_score",
+        "type": "float",
+        "unit": "points",
+        "velocity_windows": [
+          1,
+          3,
+          5,
+          10
+        ]
+      },
+      "tightness_score": {
+        "absolute_change": 0.5,
+        "category": "VOLATILITY_VOLUME",
+        "direction": "higher_is_better",
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.box_tightness_score",
+        "type": "float",
+        "unit": "points"
+      },
+      "trend_score": {
+        "absolute_change": 0.5,
+        "category": "TREND",
+        "crossings": [
+          5.5,
+          7.0
+        ],
+        "direction": "higher_is_better",
+        "missing_value_policy": "warn",
+        "source": "technical_scores.trend_score",
+        "type": "float",
+        "unit": "points"
+      },
+      "trigger_price": {
+        "category": "SETUP",
+        "direction": "neutral",
+        "missing_value_policy": "ignore",
+        "source": "setup_signal_snapshots.trigger_price",
+        "type": "float",
+        "unit": "price"
+      },
+      "vcp_score": {
+        "absolute_change": 0.5,
+        "category": "SETUP",
+        "crossings": [
+          5.5,
+          7.0
+        ],
+        "direction": "higher_is_better",
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.vcp_score",
+        "type": "float",
+        "unit": "points"
+      },
+      "volume_dry_up": {
+        "category": "VOLATILITY_VOLUME",
+        "direction": "true_is_better",
+        "material_on_change": true,
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.debug_json.derived.volume_dry_up",
+        "type": "boolean"
+      },
+      "volume_percentile_252": {
+        "absolute_change": 10,
+        "category": "VOLATILITY_VOLUME",
+        "direction": "lower_is_better_until_trigger",
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.volume_percentile_252",
+        "type": "float",
+        "unit": "percentile"
+      },
+      "volume_ratio": {
+        "absolute_change": 0.25,
+        "category": "VOLATILITY_VOLUME",
+        "direction": "neutral",
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.debug_json.derived.volume_ratio",
+        "type": "float",
+        "unit": "ratio"
+      },
+      "warning_flags": {
+        "category": "RISK",
+        "direction": "risk_decrease",
+        "material_on_change": true,
+        "missing_value_policy": "ignore",
+        "source": "technical_scores.warning_flags_json",
+        "type": "set"
+      }
+    },
+    "states": {
+      "supported": [
+        "DISCOVERED",
+        "DEVELOPING",
+        "TIGHTENING",
+        "READY",
+        "TRIGGERED",
+        "CONFIRMED",
+        "EXTENDED",
+        "FAILED",
+        "EXPIRED"
+      ],
+      "terminal": [
+        "FAILED",
+        "EXPIRED"
+      ],
+      "transition_precedence": [
+        "FAILED",
+        "EXTENDED",
+        "CONFIRMED",
+        "TRIGGERED",
+        "READY",
+        "TIGHTENING",
+        "DEVELOPING",
+        "DISCOVERED",
+        "EXPIRED"
+      ]
+    }
+  },
+  "technical_scoring_v4.yaml": {
+    "adaptive_percentiles": {
+      "atr_contraction_percentile": 35,
+      "atr_expansion_percentile": 80,
+      "enabled": true,
+      "extension_danger_percentile": 90,
+      "long_lookback": 252,
+      "medium_lookback": 126,
+      "range_climax_percentile": 90,
+      "volume_breakout_percentile": 70,
+      "volume_climax_percentile": 90
+    },
+    "classification_v4": {
+      "buyable_classifications": [
+        "Prime clean pullback",
+        "Clean bull pullback",
+        "Fresh breakout",
+        "Volatility contraction setup",
+        "Tight base breakout",
+        "RS leader pullback"
+      ],
+      "danger_priority": [
+        "Failed breakout",
+        "Blowoff top",
+        "Climax reversal risk",
+        "Distribution risk",
+        "Late-stage extension"
+      ],
+      "sub_tags": [
+        "VCP",
+        "Darvas box",
+        "Donchian breakout",
+        "Stage 2",
+        "RS leader"
+      ]
+    },
+    "climax_risk": {
+      "climax_risk_threshold": 7.0,
+      "enabled": true,
+      "rsi_danger": 80,
+      "rsi_warning": 75,
+      "vertical_move_3d_atr": 3.0,
+      "vertical_move_5d_atr": 4.5
+    },
+    "data_confidence": {
+      "low_confidence_on_missing_optional_data": true,
+      "minimum_data_quality_score": 7.0,
+      "require_benchmark_data": true,
+      "require_htf_data": true,
+      "require_market_data": true
+    },
+    "donchian_darvas": {
+      "box_lookback": 20,
+      "breakout_close_ratio_min": 0.65,
+      "breakout_volume_percentile_min": 70,
+      "donchian_long_len": 55,
+      "donchian_short_len": 20,
+      "enabled": true,
+      "max_box_width_pct": 15.0,
+      "min_box_age": 7
+    },
+    "engine": {
+      "base_engine_version": "3.2.0",
+      "enabled": true,
+      "keep_v3_debug": true,
+      "version": "4.0.0"
+    },
+    "market_regime_v4": {
+      "allow_unknown_market_low_confidence": true,
+      "enabled": true,
+      "use_qqq": true,
+      "use_spy": true
+    },
+    "regime_weights": {
+      "bull_trend": {
+        "execution": 0.06,
+        "leadership": 0.14,
+        "market": 0.08,
+        "momentum": 0.2,
+        "risk_control": 0.1,
+        "setup": 0.2,
+        "trend": 0.22
+      },
+      "choppy": {
+        "execution": 0.06,
+        "leadership": 0.1,
+        "market": 0.1,
+        "momentum": 0.1,
+        "risk_control": 0.22,
+        "setup": 0.24,
+        "trend": 0.18
+      },
+      "risk_off": {
+        "execution": 0.05,
+        "leadership": 0.05,
+        "market": 0.25,
+        "momentum": 0.05,
+        "risk_control": 0.4,
+        "setup": 0.1,
+        "trend": 0.1
+      }
+    },
+    "relative_leadership": {
+      "benchmark_symbols": [
+        "SPY",
+        "QQQ"
+      ],
+      "beta_adjusted_rs": true,
+      "beta_lookbacks": [
+        63,
+        126
+      ],
+      "enabled": true,
+      "leadership_min_percentile": 70,
+      "run_percentiles": true
+    },
+    "stage_analysis": {
+      "allow_prime_only_in_stage_2": true,
+      "allow_stage_1_to_2_transition": true,
+      "enabled": true,
+      "stage3_distribution_min_count": 3
+    },
+    "volatility_contraction": {
+      "bb_length": 20,
+      "bb_stddev": 2.0,
+      "enabled": true,
+      "kc_atr_multiple": 1.5,
+      "kc_length": 20,
+      "squeeze_enabled": true,
+      "tight_close_lookback_long": 10,
+      "tight_close_lookback_short": 5,
+      "tight_close_max_pct": 2.0,
+      "vcp_min_score": 7.0
+    }
+  },
+  "technical_scoring_v5.yaml": {
+    "composite": {
+      "bull_trend": {
+        "entry_quality": 0.2,
+        "setup_quality": 0.35,
+        "technical_strength": 0.45
+      },
+      "choppy": {
+        "entry_quality": 0.3,
+        "setup_quality": 0.35,
+        "technical_strength": 0.35
+      },
+      "risk_off": {
+        "entry_quality": 0.5,
+        "setup_quality": 0.25,
+        "technical_strength": 0.25
+      }
+    },
+    "confidence": {
+      "factors": {
+        "error": 0.0,
+        "high": 1.0,
+        "low": 0.5,
+        "normal": 0.85
+      }
+    },
+    "danger_caps": {
+      "detection": {
+        "climax_risk_min": 7.0,
+        "extension_pct_min": 15.0,
+        "extension_percentile_min": 90.0,
+        "rsi_min": 75.0
+      },
+      "entry_quality": {
+        "blowoff_top": 3.0,
+        "climax_reversal_risk": 4.0,
+        "distribution_risk": 4.5,
+        "failed_breakout": 3.5,
+        "late_stage_extension": 5.0
+      }
+    },
+    "engine": {
+      "base_engine_version": "3.2.0",
+      "version": "5.0.0"
+    },
+    "entry_quality": {
+      "weights": {
+        "execution": 0.3,
+        "risk_control": 0.5,
+        "trigger": 0.2
+      }
+    },
+    "execution": {
+      "fallback_target_discount": 0.7,
+      "preferred_stop_atr_max": 2.5,
+      "preferred_stop_atr_min": 1.0,
+      "reward_risk_target": 3.0,
+      "stop_atr_outer_max": 4.0,
+      "stop_atr_outer_min": 0.5,
+      "weights": {
+        "liquidity": 0.2,
+        "reward_risk": 0.35,
+        "stop_geometry": 0.3,
+        "stop_validity": 0.15
+      }
+    },
+    "leadership": {
+      "leadership_min_percentile": 70,
+      "renormalize_missing": true,
+      "require_beta_adjusted_rs": true,
+      "scope": "run_universe",
+      "weights": {
+        "benchmark_rs": 0.15,
+        "residual_momentum": 0.15,
+        "roc126": 0.15,
+        "roc21": 0.3,
+        "roc63": 0.25
+      }
+    },
+    "momentum": {
+      "acceleration_points_per_pct": 0.25,
+      "acceleration_weight": 0.15,
+      "base_weight": 0.85
+    },
+    "risk": {
+      "secondary_risk_weight": 0.2,
+      "stock_specific_points": {
+        "atr_danger": 1.0,
+        "atr_warn": 0.7,
+        "distribution": 1.5,
+        "extension_danger": 1.5,
+        "extension_warn": 1.0,
+        "failed_breakout": 2.0,
+        "gap_exhaustion": 1.5,
+        "heavy_mid_ma_break": 1.0,
+        "heavy_red": 1.5,
+        "htf_neutral": 0.3,
+        "htf_weak": 1.0,
+        "liquidity_warning": 0.8,
+        "near_resistance": 0.7,
+        "rs_neutral": 0.4,
+        "rs_weak": 1.0,
+        "rsi_danger": 0.7,
+        "rsi_warn": 0.8,
+        "sector_weak": 0.7
+      },
+      "stock_specific_thresholds": {
+        "distribution_count": 3,
+        "rsi_danger": 80.0,
+        "rsi_warn": 75.0
+      }
+    },
+    "sector_benchmarks": {
+      "benchmark_rs_mix": {
+        "broad_market": 0.7,
+        "sector": 0.3
+      },
+      "enabled": true,
+      "fallback_to_market_only": true,
+      "mapping": {
+        "Communication Services": "XLC",
+        "Consumer Discretionary": "XLY",
+        "Consumer Staples": "XLP",
+        "Energy": "XLE",
+        "Financials": "XLF",
+        "Health Care": "XLV",
+        "Industrials": "XLI",
+        "Materials": "XLB",
+        "Real Estate": "XLRE",
+        "Technology": "XLK",
+        "Utilities": "XLU"
+      },
+      "required_for_confidence": false
+    },
+    "setup_quality": {
+      "breakout": {
+        "base_tightness": 0.1,
+        "primary": 0.75,
+        "volume_confirmation": 0.15
+      },
+      "extended_momentum": {
+        "execution_readiness": 0.3,
+        "primary": 0.7
+      },
+      "momentum_continuation": {
+        "execution_readiness": 0.2,
+        "primary": 0.55,
+        "trend_confirmation": 0.25
+      },
+      "pullback": {
+        "primary": 0.7,
+        "trigger_readiness": 0.15,
+        "volume_confirmation": 0.15
+      },
+      "selection": {
+        "breakout_min_score": 7.0,
+        "vcp_min_score": 7.0
+      },
+      "supported_types": [
+        "pullback",
+        "vcp",
+        "breakout",
+        "momentum_continuation",
+        "extended_momentum",
+        "trend_repair",
+        "none"
+      ],
+      "trend_repair": {
+        "primary": 0.7,
+        "trend_confirmation": 0.3
+      },
+      "vcp": {
+        "primary": 0.75,
+        "trend_confirmation": 0.15,
+        "trigger_readiness": 0.1
+      }
+    },
+    "stage": {
+      "modifiers": {
+        "stage_1": 0.0,
+        "stage_1_to_2": 0.1,
+        "stage_2": 0.25,
+        "stage_3": -0.5,
+        "stage_4": -1.0,
+        "unknown": -0.1
+      }
+    },
+    "technical_strength": {
+      "weights": {
+        "leadership": 0.18,
+        "momentum": 0.3,
+        "trend": 0.52
+      }
+    },
+    "trend": {
+      "htf_weight": 0.25,
+      "local_weight": 0.75
+    },
+    "trigger": {
+      "approaching_atr": 1.0,
+      "extended_atr": -1.5,
+      "far_below_atr": 2.0,
+      "freshly_triggered_atr": -0.5,
+      "near_atr": 0.25,
+      "scores": {
+        "approaching": 4.0,
+        "at_trigger": 9.0,
+        "beyond_trigger": 7.0,
+        "extended_beyond_trigger": 3.0,
+        "freshly_triggered": 10.0,
+        "invalidated": 0.0,
+        "near": 7.0,
+        "not_applicable": 5.0,
+        "too_far_below": 2.0
+      }
+    }
+  },
+  "technical_v51_research.yaml": {
+    "danger": {
+      "labels": [
+        "Failed breakout",
+        "Distribution risk",
+        "Climax reversal risk",
+        "Blowoff top",
+        "Late-stage extension"
+      ]
+    },
+    "extension_threshold_sets": {
+      "balanced_v1": {
+        "climax_risk": [
+          1.0,
+          4.0,
+          7.0
+        ],
+        "ema20_extension_atr": [
+          1.0,
+          2.0,
+          3.0
+        ],
+        "ema20_extension_pct": [
+          4.0,
+          7.0,
+          12.0
+        ],
+        "extension_percentile": [
+          60.0,
+          80.0,
+          95.0
+        ],
+        "roc10": [
+          5.0,
+          12.0,
+          20.0
+        ],
+        "roc21": [
+          8.0,
+          18.0,
+          30.0
+        ],
+        "rsi": [
+          60.0,
+          70.0,
+          78.0
+        ],
+        "sma50_extension_atr": [
+          2.25,
+          3.75,
+          5.0
+        ],
+        "sma50_extension_pct": [
+          8.0,
+          14.0,
+          22.0
+        ],
+        "trigger_extension_atr": [
+          0.5,
+          1.5,
+          2.5
+        ]
+      },
+      "conservative_v1": {
+        "climax_risk": [
+          1.5,
+          5.0,
+          7.0
+        ],
+        "ema20_extension_atr": [
+          1.25,
+          2.25,
+          3.5
+        ],
+        "ema20_extension_pct": [
+          5.0,
+          8.0,
+          15.0
+        ],
+        "extension_percentile": [
+          70.0,
+          85.0,
+          97.5
+        ],
+        "roc10": [
+          7.0,
+          14.0,
+          24.0
+        ],
+        "roc21": [
+          10.0,
+          20.0,
+          35.0
+        ],
+        "rsi": [
+          65.0,
+          72.0,
+          80.0
+        ],
+        "sma50_extension_atr": [
+          2.5,
+          4.0,
+          5.5
+        ],
+        "sma50_extension_pct": [
+          10.0,
+          16.0,
+          25.0
+        ],
+        "trigger_extension_atr": [
+          0.75,
+          1.75,
+          3.0
+        ]
+      }
+    },
+    "research": {
+      "active_extension_threshold_set": "balanced_v1",
+      "dataset_version": "technical-v5-shadow-forensic-v2",
+      "minimum_promotion_dates": 50,
+      "preferred_promotion_dates": 80,
+      "production_enabled": false,
+      "v4_secondary_sort_band_size": 0.5,
+      "version": "5.1.0-research.1"
+    },
+    "trigger_policy": {
+      "eligible_states": [
+        "APPROACHING",
+        "NEAR",
+        "AT_TRIGGER",
+        "FRESHLY_TRIGGERED",
+        "BEYOND_TRIGGER",
+        "NOT_APPLICABLE"
+      ],
+      "preference": {
+        "APPROACHING": 3,
+        "AT_TRIGGER": 2,
+        "BEYOND_TRIGGER": 4,
+        "EXTENDED_BEYOND_TRIGGER": 6,
+        "FRESHLY_TRIGGERED": 0,
+        "INVALIDATED": 8,
+        "NEAR": 1,
+        "NOT_APPLICABLE": 5,
+        "TOO_FAR_BELOW": 7
+      }
+    }
+  },
+  "winner_probability.yaml": {
+    "api": {
+      "default_estimate_kind": "DECISION_TIME",
+      "default_view": "CURRENT",
+      "max_as_of_window_days": 3650,
+      "max_page_size": 500
+    },
+    "cohort": {
+      "hierarchy": [
+        {
+          "dimensions": [
+            "setup_family",
+            "dual_score_band",
+            "market_risk_state",
+            "sector_state",
+            "ranking_profile"
+          ],
+          "level": "L0",
+          "min_effective_n": 100
+        },
+        {
+          "dimensions": [
+            "setup_family",
+            "score_band",
+            "market_risk_state",
+            "sector_leadership_bucket"
+          ],
+          "level": "L1",
+          "min_effective_n": 40
+        },
+        {
+          "dimensions": [
+            "setup_family",
+            "score_band",
+            "market_regime_family"
+          ],
+          "level": "L2",
+          "min_effective_n": 25
+        },
+        {
+          "dimensions": [
+            "setup_family",
+            "score_band"
+          ],
+          "level": "L3",
+          "min_effective_n": 15
+        },
+        {
+          "dimensions": [
+            "setup_family"
+          ],
+          "level": "L4",
+          "min_effective_n": 15
+        },
+        {
+          "dimensions": [
+            "global"
+          ],
+          "level": "L5",
+          "min_effective_n": 15
+        }
+      ],
+      "max_interval_width": 0.35,
+      "min_coverage": 0.75,
+      "prior_probability": 0.5,
+      "prior_strength": 20,
+      "rolling_window_years": 5
+    },
+    "cold_start": {
+      "minimum_display_n": 15,
+      "show_insufficient_reasons": true,
+      "show_raw_evidence_counts": true
+    },
+    "drift": {
+      "thresholds": {
+        "brier_score_delta": 0.05,
+        "ece_delta": 0.04,
+        "min_sample": 40,
+        "psi": 0.2,
+        "win_rate_delta": 0.1
+      },
+      "windows_sessions": {
+        "long": 120,
+        "medium": 60,
+        "short": 20
+      }
+    },
+    "engine": {
+      "calculation_version": "owpe-calc-1.1.0",
+      "enabled": true,
+      "feature_schema_version": "owpe-features-1.0.0"
+    },
+    "entry_models": {
+      "diagnostics": [
+        "SIGNAL_CLOSE_DIAGNOSTIC"
+      ],
+      "production": "NEXT_OPEN"
+    },
+    "episode": {
+      "cooldown_sessions": 5,
+      "dependency_keys": [
+        "ticker",
+        "setup_family",
+        "trigger_state"
+      ]
+    },
+    "estimate_kinds": [
+      "DECISION_TIME",
+      "LATEST_RESCORE"
+    ],
+    "estimate_views": {
+      "as_of": "AS_OF",
+      "current": "CURRENT",
+      "decision_time": "DECISION_TIME",
+      "latest_rescore": "LATEST_RESCORE"
+    },
+    "evidence_grades": {
+      "high": {
+        "max_interval_width": 0.2,
+        "min_effective_n": 100
+      },
+      "insufficient": {
+        "max_interval_width": 1.0,
+        "min_effective_n": 0
+      },
+      "low": {
+        "max_interval_width": 0.4,
+        "min_effective_n": 15
+      },
+      "medium": {
+        "max_interval_width": 0.3,
+        "min_effective_n": 40
+      }
+    },
+    "evidence_membership": {
+      "compressed_manifest_threshold": 10000,
+      "include_outcome_revision": true,
+      "manifest_hash_algorithm": "sha256",
+      "persistence": "ROWS"
+    },
+    "feature_schema": {
+      "core_features": [
+        "setup_family",
+        "ranking_profile",
+        "fundamental_score",
+        "technical_score",
+        "combined_score",
+        "market_regime",
+        "market_risk_state",
+        "sector_state",
+        "sector_rank",
+        "reward_risk",
+        "earnings_risk",
+        "technical_data_quality",
+        "fundamental_coverage",
+        "universe_provenance",
+        "screener_provenance"
+      ],
+      "version": "owpe-features-1.0.0"
+    },
+    "filters": {
+      "data_quality": {
+        "allowed": [
+          "ok",
+          "warning",
+          "insufficient",
+          "unknown"
+        ]
+      },
+      "earnings_risk": {
+        "allowed": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "unknown"
+        ]
+      },
+      "effective_sample_size": {
+        "min": 0
+      },
+      "evidence_grade": {
+        "allowed": [
+          "High",
+          "Medium",
+          "Low",
+          "Insufficient"
+        ]
+      },
+      "expected_return_pct": {
+        "max": 1000.0,
+        "min": -100.0
+      },
+      "interval_width": {
+        "max": 1.0,
+        "min": 0.0
+      },
+      "lower_bound": {
+        "max": 1.0,
+        "min": 0.0
+      },
+      "mae_pct": {
+        "max": 0.0,
+        "min": -1000.0
+      },
+      "median_return_pct": {
+        "max": 1000.0,
+        "min": -100.0
+      },
+      "mfe_pct": {
+        "max": 1000.0,
+        "min": 0.0
+      },
+      "probability": {
+        "max": 1.0,
+        "min": 0.0
+      },
+      "target_first_rate": {
+        "max": 1.0,
+        "min": 0.0
+      }
+    },
+    "horizon": {
+      "counting_convention": "ENTRY_SESSION_IS_SESSION_1",
+      "sessions": [
+        1,
+        3,
+        5,
+        10,
+        20
+      ]
+    },
+    "model_governance": {
+      "approved_algorithms": [
+        "cohort",
+        "regularized_logistic_regression"
+      ],
+      "promotion_gates": {
+        "min_brier_improvement": 0.0,
+        "min_log_loss_improvement": 0.0,
+        "require_calibration_bins": true,
+        "require_fresh_drift_metrics": true
+      }
+    },
+    "outcome_definitions": [
+      {
+        "entry_model": "NEXT_OPEN",
+        "horizon_sessions": 5,
+        "id": "T2_5_S2_0_H5_NEXT_OPEN",
+        "label": "+2.5% target before -2.0% stop within 5 sessions",
+        "primary": true,
+        "same_bar_conflict_policy": "CONSERVATIVE_STOP_FIRST",
+        "stop_pct": 2.0,
+        "target_pct": 2.5
+      },
+      {
+        "entry_model": "SIGNAL_CLOSE_DIAGNOSTIC",
+        "horizon_sessions": 5,
+        "id": "T2_5_S2_0_H5_SIGNAL_CLOSE_DIAGNOSTIC",
+        "label": "+2.5% target before -2.0% stop within 5 signal-close sessions",
+        "primary": false,
+        "same_bar_conflict_policy": "CONSERVATIVE_STOP_FIRST",
+        "stop_pct": 2.0,
+        "target_pct": 2.5
+      }
+    ],
+    "pending_outcomes": {
+      "materialize_at_capture": true
+    },
+    "retention": {
+      "operational_log_retention_days": 90,
+      "permanent": [
+        "prediction_snapshots",
+        "outcome_revisions",
+        "decision_time_estimates",
+        "evidence_membership",
+        "evidence_manifests",
+        "model_versions",
+        "cohort_versions",
+        "training_runs",
+        "lifecycle_events"
+      ],
+      "rebuildable": [
+        "neighbor_caches",
+        "temporary_aggregates",
+        "export_files",
+        "operational_logs"
+      ]
+    }
+  }
+}

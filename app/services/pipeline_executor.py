@@ -8,12 +8,13 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from inspect import Parameter, signature
 from time import perf_counter
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from app.models.tables import (
+    BackgroundJob,
     CombinedResult,
     CoreCalculationEvidence,
     FundamentalScore,
@@ -29,6 +30,7 @@ from app.models.tables import (
     TechnicalScore,
     TransitionDecisionHandoffManifest,
     UploadRun,
+    WorkScopeRecord,
 )
 from app.observability.logging import log_event
 from app.observability.transaction_metrics import publish_after_commit
@@ -61,6 +63,7 @@ from app.services.domain_write_fence import ControlPlaneLockTimeout
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.ib_fetch_executor import execute_fetch_plan
 from app.services.ib_fetch_job_service import (
+    IB_FETCH_JOB_TYPE,
     FetchJobOptions,
     _admit_fetch_authority,
     _subset_fetch_plan,
@@ -85,6 +88,14 @@ from app.services.ib_historical_capability import (
 )
 from app.services.market_calculation_context_service import market_context_for_pipeline
 from app.services.market_clock_service import MarketCalculationCutoff
+from app.services.market_data_availability_policy import (
+    availability_diagnostics,
+    fetch_execution_hazards,
+    hard_readiness_blockers,
+    pipeline_availability_policy,
+    processing_tickers,
+    required_dependency,
+)
 from app.services.market_data_prewarm_service import (
     record_pipeline_prewarm_reuse,
     resolve_pipeline_prewarm_context,
@@ -132,6 +143,7 @@ from app.services.technical_score_service import (
     TechnicalScoringOverlapCoordinator,
     score_run_technicals,
 )
+from app.services.us_market_calendar import latest_completed_us_trading_day
 from app.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -338,6 +350,10 @@ class PipelineExecutionResult:
     incomplete_rows: int
     warning_rows: int
     performance: dict[str, Any] = field(default_factory=dict)
+    sec_coverage: dict[str, Any] | None = None
+    sec_unresolved_count: int = 0
+    sec_unresolved_tickers: list[dict[str, Any]] = field(default_factory=list)
+    pipeline_outcome_summary: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -415,7 +431,7 @@ def execute_full_pipeline(
             supplied = getattr(dependencies, name)
             if supplied is not None and supplied != expected:
                 raise ValueError("PIPELINE_CONFIGURATION_FLAG_ANCHOR_MISMATCH: " + name)
-    pipeline = _require_pipeline(db, pipeline_run_id)
+    pipeline = _claim_pipeline_continuation_resume(db, _require_pipeline(db, pipeline_run_id))
     market_cutoff = dependencies.market_cutoff or market_context_for_pipeline(db, pipeline)
     if dependencies.market_cutoff is None:
         dependencies = replace(dependencies, market_cutoff=market_cutoff)
@@ -468,6 +484,7 @@ def execute_full_pipeline(
         result.update(blocked_reason=None, blocked_diagnostics=None, failure_reason=None,
                       resumed_from_step=resume_from_step)
     market_data_policy = _market_data_policy(pipeline)
+    availability_policy = pipeline_availability_policy(pipeline)
     result["market_data_policy"] = market_data_policy.value
     overlap_coordinator: TechnicalScoringOverlapCoordinator | None = None
     try:
@@ -504,8 +521,9 @@ def execute_full_pipeline(
                     result["sec_preflight"] = (
                         validate(db, tickers)
                         if validate is not None
-                        else validate_sec_pipeline_preflight(db, tickers=tickers)
+                        else validate_sec_pipeline_preflight(db, tickers=tickers, pipeline=pipeline)
                     )
+                    _retain_sec_preflight_coverage(result)
 
             _raise_if_cancelled(should_cancel)
             with _pipeline_step(
@@ -523,6 +541,9 @@ def execute_full_pipeline(
                     pipeline_run_id=pipeline.id,
                 )
                 result["fundamental_scores"] = len(fundamental_scores)
+            # The step has committed. Later stages load their exact sealed
+            # inputs; retaining the producer ORM cohort only increases residency.
+            del fundamental_scores
 
         sector_checkpoint = _sector_checkpoint_callback(
             db,
@@ -574,13 +595,25 @@ def execute_full_pipeline(
                         "ib_fetch_authority": fetch_authority.as_dict(),
                     }
             else:
-                plan = dependencies.build_fetch_plan(
-                    db=db,
-                    tickers=tickers,
-                    run_id=upload_run.id,
-                    include_benchmarks=True,
-                    what_to_show_values=DEFAULT_WHAT_TO_SHOW,
+                plan_kwargs = dict(
+                    db=db, tickers=tickers, run_id=upload_run.id,
+                    include_benchmarks=True, what_to_show_values=DEFAULT_WHAT_TO_SHOW,
                 )
+                if _accepts_keyword(dependencies.build_fetch_plan, "allow_history_gaps"):
+                    plan_kwargs["allow_history_gaps"] = availability_policy.allow_history_gaps
+                elif availability_policy.allow_history_gaps:
+                    raise ValueError("MARKET_DATA_GAP_AWARE_PLANNER_REQUIRED")
+                plan = dependencies.build_fetch_plan(**plan_kwargs)
+                first_admission = (
+                    recovering_market_data
+                    and result["market_data_resume_checkpoint"].get("fetch_plan_state")
+                    == "NOT_ADMITTED"
+                )
+                if first_admission:
+                    _validate_first_market_data_plan(plan, pipeline, tickers, market_cutoff)
+                    # Recheck durable absence immediately before admission. A
+                    # missing checkpoint must never become a replacement plan.
+                    _validate_unstarted_market_data_resume(db, pipeline, tickers, market_cutoff)
                 if isinstance(db, Session):
                     fetch_authority = _admit_fetch_authority(
                         db,
@@ -593,6 +626,21 @@ def execute_full_pipeline(
                         "ib_fetch_plan": fetch_plan_to_dict(plan),
                         "ib_fetch_authority": fetch_authority.as_dict(),
                     }
+                    if first_admission:
+                        admitted_checkpoint = {
+                            **result["market_data_resume_checkpoint"],
+                            "first_plan_admitted": True,
+                        }
+                        pipeline.result_json = {
+                            **pipeline.result_json,
+                            "market_data_resume_checkpoint": admitted_checkpoint,
+                        }
+                        # Admission is durable before auxiliary lookups or broker
+                        # coordination. A rollback must leave the local result
+                        # unadmitted so failure reporting cannot invent a commit.
+                        _save_progress(db, lease_guard=lease_guard)
+                if first_admission:
+                    result["market_data_resume_checkpoint"]["first_plan_admitted"] = True
             prewarm_context = resolve_pipeline_prewarm_context(db, tickers)
             prewarm_skipped_tickers = {
                 ticker
@@ -731,6 +779,9 @@ def execute_full_pipeline(
                 if overlap_coordinator is not None:
                     fetch_kwargs["on_ticker_ready"] = overlap_coordinator.on_ticker_ready
                 fetch_run = dependencies.execute_fetch_plan(**fetch_kwargs)
+                # This dictionary can own a bound coordinator callback and its
+                # complete technical working set after fetching has finished.
+                del fetch_kwargs
                 if fetch_authority is not None:
                     bind_semantic_authority(fetch_run, fetch_authority)
                 _apply_fetch_result(result, fetch_run)
@@ -763,6 +814,8 @@ def execute_full_pipeline(
                 overlap_coordinator.mark_fetch_complete()
 
             if isinstance(db, Session):
+                if availability_policy.allow_history_gaps:
+                    _require_market_data_dependencies(db, pipeline, plan, fetch_run, market_cutoff)
                 readiness = evaluate_and_persist_session_readiness(
                     db,
                     pipeline_run_id=pipeline.id,
@@ -772,17 +825,22 @@ def execute_full_pipeline(
                     fetch_run_id=fetch_run.id if fetch_run is not None else None,
                 )
                 result["market_data_session_readiness"] = readiness.as_dict()
+                availability = availability_diagnostics(readiness.rows, availability_policy)
+                result["market_data_availability"] = availability
+                result["market_data_unavailable_count"] = len(availability["unavailable_tickers"])
+                result["market_data_history_gap_count"] = len(availability["history_gap_tickers"])
                 step = _require_step(db, pipeline.id, "FETCHING_MARKET_DATA")
                 step.result_json = readiness.as_dict()
                 if readiness.accepted_inactive_tickers:
                     step.message = "Accepted explicit terminal exclusions: " + ", ".join(
                         readiness.accepted_inactive_tickers
                     )
-                if readiness.blockers:
+                hard_blockers = hard_readiness_blockers(readiness.rows, availability_policy)
+                if hard_blockers:
                     diagnostics = readiness.as_dict()
                     transient_only = all(
                         row.disposition == MarketDataDisposition.TRANSIENT_FAILURE.value
-                        for row in readiness.blockers
+                        for row in hard_blockers
                     )
                     reason_code = (
                         "MARKET_DATA_TRANSIENT_UNRESOLVED"
@@ -793,17 +851,18 @@ def execute_full_pipeline(
                         f"{reason_code}: "
                         + ",".join(
                             f"{row.ticker}={row.disposition}:{row.reason_code}"
-                            for row in readiness.blockers
+                            for row in hard_blockers
                         ),
                         reason_code=reason_code,
                         diagnostics=diagnostics,
                     )
-                technical_tickers = readiness.technical_tickers
-                downstream_tickers = readiness.downstream_tickers
+                technical_tickers = processing_tickers(readiness.rows, availability_policy)
+                downstream_tickers = technical_tickers
             else:
                 technical_tickers = tuple(tickers)
                 downstream_tickers = tuple(tickers)
 
+        del plan, fetch_run
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(
             db,
@@ -920,6 +979,11 @@ def execute_full_pipeline(
             result["technical_scores"] = len(technical_scores)
             result["technical_error_count"] = _technical_error_count(technical_scores)
 
+        del technical_scores
+        # finalize() has already closed the executor. Its completed artifact and
+        # input dictionaries must not remain live through ranking and Sector.
+        overlap_coordinator = None
+
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(
             db,
@@ -937,6 +1001,7 @@ def execute_full_pipeline(
             result["market_regime_confidence"] = snapshot.confidence
             result["market_regime_warning_count"] = len(snapshot.warnings)
             result["market_regime_low_confidence"] = int(snapshot.confidence == "low")
+        del snapshot
 
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(
@@ -962,6 +1027,7 @@ def execute_full_pipeline(
             result["combined_results"] = len(combined_results)
             result["incomplete_rows"] = sum(not row.is_complete for row in combined_results)
             result["warning_rows"] = sum(row.has_warning for row in combined_results)
+        del combined_results
 
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(
@@ -1014,6 +1080,8 @@ def execute_full_pipeline(
                 **_public_result(result),
             }
 
+        del ranking
+
         _raise_if_cancelled(should_cancel)
         with _pipeline_step(
             db,
@@ -1036,6 +1104,7 @@ def execute_full_pipeline(
             result["sector_rotation_leading_sector"] = sector_snapshot.summary.get("leading_sector")
             result["sector_rotation_weakest_sector"] = sector_snapshot.summary.get("weakest_sector")
             result["sector_rotation_warning_count"] = len(sector_snapshot.warnings)
+        del sector_snapshot
         sector_checkpoint(
             phase="SNAPSHOT_COMMITTED",
             processed=1,
@@ -1206,6 +1275,12 @@ def _continue_after_sector_snapshot(
             capture = dependencies.capture_ceri_snapshot or _capture_ceri_snapshot
             ceri_result = _call_market_sensitive(capture, db, upload_run.id, market_cutoff)
             _apply_ceri_capture_result(result, ceri_result)
+            if isinstance(db, Session) and dependencies.capture_ceri_snapshot is None:
+                from app.services.ceri.score_population import certified_scores
+
+                scores = certified_scores(db, pipeline.id, market_cutoff.context_id)
+                result["ceri_certified_score_ids"] = [score.id for score in scores]
+                pipeline.result_json = {**(pipeline.result_json or {}), **result}
 
     if _pipeline_has_step(db, pipeline.id, DECISION_HANDOFF_PIPELINE_STEP):
         _raise_if_cancelled(should_cancel)
@@ -1424,13 +1499,14 @@ def _execute_resumed_pipeline(
             else None
         )
         if resumed_readiness is not None:
-            if resumed_readiness.blockers:
+            availability_policy = pipeline_availability_policy(pipeline)
+            if hard_readiness_blockers(resumed_readiness.rows, availability_policy):
                 raise PipelineBlockedError(
                     "MARKET_DATA_SESSION_READINESS_BLOCKED: resumed decision tail has blockers",
                     reason_code="MARKET_DATA_SESSION_READINESS_BLOCKED",
                     diagnostics=resumed_readiness.as_dict(),
                 )
-            tickers = list(resumed_readiness.downstream_tickers)
+            tickers = list(processing_tickers(resumed_readiness.rows, availability_policy))
         _mark_pipeline_running(db, pipeline, lease_guard=lease_guard)
         if not tickers and resume_from_step != "SECTOR_ROTATION_SNAPSHOT":
             if dependencies.market_cutoff is None:
@@ -1458,23 +1534,38 @@ def _execute_resumed_pipeline(
                 progress_callback=progress_callback,
             )
             validate_sector_checkpoint = dependencies.validate_sector_resume_checkpoint
-            checkpoint = (
-                validate_sector_checkpoint(
-                    db,
-                    pipeline=pipeline,
-                    upload_run_id=upload_run.id,
-                    market_cutoff=dependencies.market_cutoff,
-                    checkpoint_callback=sector_checkpoint,
+            try:
+                checkpoint = (
+                    (validate_sector_checkpoint or _validate_sector_resume_checkpoint)(
+                        db,
+                        pipeline=pipeline,
+                        upload_run_id=upload_run.id,
+                        market_cutoff=dependencies.market_cutoff,
+                        checkpoint_callback=sector_checkpoint,
+                    )
                 )
-                if validate_sector_checkpoint is not None
-                else _validate_sector_resume_checkpoint(
-                    db,
-                    pipeline=pipeline,
-                    upload_run_id=upload_run.id,
-                    market_cutoff=dependencies.market_cutoff,
-                    checkpoint_callback=sector_checkpoint,
-                )
-            )
+            except (ValueError, EvidenceUnavailableError) as exc:
+                # A recovery boundary never grants permission to rebuild its
+                # predecessors when their retained evidence cannot be certified.
+                blocked_step = _require_step(db, pipeline.id, "SECTOR_ROTATION_SNAPSHOT")
+                blocked_step.status = PipelineStepStatus.BLOCKED
+                blocked_step.completed_at = _utcnow()
+                blocked_step.message = "Blocked: SECTOR_RESUME_CHECKPOINT_INVALID"
+                blocked_step.error_message = _safe_message(str(exc))
+                if (pipeline.result_json or {}).get("recovery_continuation"):
+                    result["recovery_continuation"] = {
+                        **pipeline.result_json["recovery_continuation"],
+                        "validation_state": "INVALID",
+                    }
+                raise PipelineBlockedError(
+                    "Sector checkpoint recovery could not validate the retained inputs: "
+                    + str(exc),
+                    reason_code="SECTOR_RESUME_CHECKPOINT_INVALID",
+                    diagnostics={
+                        "resume_from_step": "SECTOR_ROTATION_SNAPSHOT",
+                        "validation_error": str(exc),
+                    },
+                ) from exc
             result.update(checkpoint["restored_result"])
             result["sector_resume_checkpoint"] = {
                 key: value for key, value in checkpoint.items() if key != "restored_result"
@@ -1483,6 +1574,15 @@ def _execute_resumed_pipeline(
                 **(pipeline.result_json or {}),
                 "sector_resume_checkpoint": result["sector_resume_checkpoint"],
             }
+            if (pipeline.result_json or {}).get("recovery_continuation"):
+                continuation = {
+                    **pipeline.result_json["recovery_continuation"],
+                    "validation_state": "VALIDATED",
+                }
+                pipeline.result_json = {
+                    **pipeline.result_json, "recovery_continuation": continuation,
+                }
+                result["recovery_continuation"] = continuation
             _save_progress(db, lease_guard=lease_guard)
             _raise_if_cancelled(should_cancel)
             with _pipeline_step(
@@ -1492,24 +1592,29 @@ def _execute_resumed_pipeline(
                 lease_guard=lease_guard,
                 performance=performance,
             ):
-                sector_snapshot = _call_market_sensitive(
-                    dependencies.build_sector_rotation_snapshot,
-                    db,
-                    upload_run.id,
-                    dependencies.market_cutoff,
-                    checkpoint_callback=sector_checkpoint,
-                )
-                result["sector_rotation_snapshots"] = 1
-                result["sector_rotation_sector_count"] = int(
-                    sector_snapshot.summary.get("sector_count") or len(sector_snapshot.rows)
-                )
-                result["sector_rotation_leading_sector"] = sector_snapshot.summary.get(
-                    "leading_sector"
-                )
-                result["sector_rotation_weakest_sector"] = sector_snapshot.summary.get(
-                    "weakest_sector"
-                )
-                result["sector_rotation_warning_count"] = len(sector_snapshot.warnings)
+                published = checkpoint.get("published_sector_result")
+                if published is not None:
+                    result.update(published)
+                    result["sector_rotation_snapshot_reused"] = True
+                else:
+                    sector_snapshot = _call_market_sensitive(
+                        dependencies.build_sector_rotation_snapshot,
+                        db,
+                        upload_run.id,
+                        dependencies.market_cutoff,
+                        checkpoint_callback=sector_checkpoint,
+                    )
+                    result["sector_rotation_snapshots"] = 1
+                    result["sector_rotation_sector_count"] = int(
+                        sector_snapshot.summary.get("sector_count") or len(sector_snapshot.rows)
+                    )
+                    result["sector_rotation_leading_sector"] = sector_snapshot.summary.get(
+                        "leading_sector"
+                    )
+                    result["sector_rotation_weakest_sector"] = sector_snapshot.summary.get(
+                        "weakest_sector"
+                    )
+                    result["sector_rotation_warning_count"] = len(sector_snapshot.warnings)
             sector_checkpoint(
                 phase="SNAPSHOT_COMMITTED",
                 processed=1,
@@ -1544,8 +1649,9 @@ def _execute_resumed_pipeline(
                 result["sec_preflight"] = (
                     validate_preflight(db, tickers)
                     if validate_preflight is not None
-                    else validate_sec_pipeline_preflight(db, tickers=tickers)
+                    else validate_sec_pipeline_preflight(db, tickers=tickers, pipeline=pipeline)
                 )
+                _retain_sec_preflight_coverage(result)
                 schedule = (
                     dependencies.schedule_ceri_provider_ingest or _schedule_ceri_provider_ingest
                 )
@@ -1969,29 +2075,24 @@ def _validate_sector_resume_checkpoint(
 
     tickers = _pipeline_scope_tickers(db, pipeline)
     expected = len(tickers)
-    rows_by_kind = {
-        CoreEvidenceKind.FUNDAMENTAL: list(
-            db.scalars(select(FundamentalScore).where(FundamentalScore.run_id == upload_run_id))
-        ),
-        CoreEvidenceKind.TECHNICAL: list(
-            db.scalars(select(TechnicalScore).where(TechnicalScore.run_id == upload_run_id))
-        ),
-        CoreEvidenceKind.COMBINED: list(
-            db.scalars(select(CombinedResult).where(CombinedResult.run_id == upload_run_id))
-        ),
-        CoreEvidenceKind.RANKING: list(
-            db.scalars(select(RankingResult).where(RankingResult.run_id == upload_run_id))
-        ),
+    from app.services.core_mutation_authority import (
+        sector_evidence_rows,
+        validate_evidence,
+        validate_source_values,
+    )
+
+    models = {
+        CoreEvidenceKind.FUNDAMENTAL: FundamentalScore,
+        CoreEvidenceKind.TECHNICAL: TechnicalScore,
+        CoreEvidenceKind.COMBINED: CombinedResult,
+        CoreEvidenceKind.RANKING: RankingResult,
     }
-    distinct_counts = {
-        kind.value.lower() + "_tickers": len({str(row.ticker).strip().upper() for row in rows})
-        for kind, rows in rows_by_kind.items()
-    }
-    if any(count != expected for count in distinct_counts.values()):
-        raise ValueError(
-            "Sector resume checkpoint invariant failed: "
-            f"expected {expected} distinct tickers, observed {distinct_counts}."
-        )
+    row_counts = {kind: int(db.scalar(select(func.count()).select_from(model).where(
+        model.run_id == upload_run_id,
+    )) or 0) for kind, model in models.items()}
+    distinct_counts = {}
+    ranking_addresses = []
+    incomplete_rows = warning_rows = technical_errors = 0
 
     market_snapshot = db.scalar(
         select(MarketRegimeSnapshot)
@@ -2005,31 +2106,91 @@ def _validate_sector_resume_checkpoint(
     if market_snapshot is None:
         raise ValueError("Sector resume checkpoint has no pipeline-owned market regime snapshot.")
 
-    all_sources = [(kind, row) for kind, rows in rows_by_kind.items() for row in rows] + [
-        (CoreEvidenceKind.REGIME, market_snapshot)
-    ]
-    total = len(all_sources)
+    total = sum(row_counts.values()) + 1
     certified_ids = set()
-    for index, (kind, row) in enumerate(all_sources, start=1):
-        evidence_id = _require_unchanged_core_evidence(db, kind=kind, row=row)
-        evidence = db.get(CoreCalculationEvidence, evidence_id)
-        _require_sector_resume_source_authority(
-            evidence,
-            kind=kind,
-            row=row,
-            upload_run_id=upload_run_id,
-            pipeline_run_id=pipeline.id,
-            market_cutoff=market_cutoff,
+    index = 0
+    for kind, model in models.items():
+        last_id = 0
+        tickers_seen = set()
+        observed_rows = 0
+        while True:
+            batch = list(db.scalars(select(model).where(
+                model.run_id == upload_run_id, model.id > last_id,
+            ).order_by(model.id).limit(32)))
+            if not batch:
+                break
+            last_id = batch[-1].id
+            ids = {row.evidence_id for row in batch if row.evidence_id is not None}
+            envelopes = sector_evidence_rows(db, ids)
+            for row in batch:
+                evidence = envelopes.get(row.evidence_id)
+                if evidence is None:
+                    raise ValueError("SECTOR_RESUME_SOURCE_EVIDENCE_MISSING")
+                validate_evidence(evidence)
+                evidence_id = _require_unchanged_core_evidence(db, kind=kind, row=row)
+                _require_sector_resume_source_authority(
+                    evidence, kind=kind, row=row, upload_run_id=upload_run_id,
+                    pipeline_run_id=pipeline.id, market_cutoff=market_cutoff,
+                )
+                tickers_seen.add(str(row.ticker).strip().upper())
+                if kind is CoreEvidenceKind.RANKING:
+                    ranking_addresses.append((row.ranking_profile, row.ticker, row.id, evidence_id))
+                elif kind is CoreEvidenceKind.COMBINED:
+                    incomplete_rows += int(not row.is_complete)
+                    warning_rows += int(row.has_warning)
+                elif kind is CoreEvidenceKind.TECHNICAL:
+                    technical_errors += _technical_error_count([row])
+                certified_ids.add(evidence_id)
+                observed_rows += 1
+                index += 1
+                item = f"{kind.value}:{row.id}"
+                # Release decoded serving JSON after every verified row.  Only
+                # addresses and counters survive this bounded validation phase.
+                db.expire(row)
+                if checkpoint_callback is not None and index % 50 == 0:
+                    checkpoint_callback(
+                        phase="RESUME_AUTHORITY_VALIDATION", processed=index, total=total,
+                        current_item=item, last_completed_item=item,
+                    )
+            del envelopes, batch, row, evidence
+        distinct_counts[kind.value.lower() + "_tickers"] = len(tickers_seen)
+        if observed_rows != row_counts[kind]:
+            raise ValueError("SECTOR_RESUME_SOURCE_ROW_COUNT_CHANGED: " + kind.value)
+        if tickers_seen != set(tickers):
+            raise ValueError("SECTOR_RESUME_SOURCE_MEMBERSHIP_CHANGED: " + kind.value)
+    if any(count != expected for count in distinct_counts.values()):
+        raise ValueError(
+            "Sector resume checkpoint invariant failed: "
+            f"expected {expected} distinct tickers, observed {distinct_counts}."
         )
-        certified_ids.add(evidence_id)
-        if checkpoint_callback is not None and (index % 50 == 0 or index == total):
-            checkpoint_callback(
-                phase="RESUME_AUTHORITY_VALIDATION",
-                processed=index,
-                total=total,
-                current_item=f"{kind.value}:{getattr(row, 'id', None)}",
-                last_completed_item=f"{kind.value}:{getattr(row, 'id', None)}",
-            )
+    retained = _public_result(pipeline.result_json or {})
+    ranking_step = next((step for step in steps if step.step_name == "RANKING_PROFILES"), None)
+    if ranking_step is not None and ranking_step.status == PipelineStepStatus.COMPLETED:
+        profiles = {}
+        for profile, ticker, _row_id, _evidence_id in ranking_addresses:
+            profiles.setdefault(profile, set()).add(str(ticker).strip().upper())
+        if (
+            retained.get("ranking_results") != row_counts[CoreEvidenceKind.RANKING]
+            or retained.get("ranking_profiles") != len(profiles)
+            or any(members != set(tickers) for members in profiles.values())
+        ):
+            raise ValueError("SECTOR_RESUME_RANKING_COHORT_CHANGED")
+    regime_evidence = get_certified_evidence_for_row(
+        db, kind=CoreEvidenceKind.REGIME, current_row=market_snapshot,
+    )
+    validate_evidence(regime_evidence)
+    validate_source_values(market_snapshot, regime_evidence, db=db)
+    _require_sector_resume_source_authority(
+        regime_evidence, kind=CoreEvidenceKind.REGIME, row=market_snapshot,
+        upload_run_id=upload_run_id, pipeline_run_id=pipeline.id, market_cutoff=market_cutoff,
+    )
+    certified_ids.add(regime_evidence.id)
+    if checkpoint_callback is not None:
+        checkpoint_callback(
+            phase="RESUME_AUTHORITY_VALIDATION", processed=total, total=total,
+            current_item=f"REGIME:{market_snapshot.id}",
+            last_completed_item=f"REGIME:{market_snapshot.id}",
+        )
 
     existing_sector = list(
         db.scalars(
@@ -2042,34 +2203,61 @@ def _validate_sector_resume_checkpoint(
     if len(existing_sector) > 1:
         raise ValueError("SECTOR_RESUME_MULTIPLE_CURRENT_SNAPSHOTS")
     if existing_sector:
-        certified_ids.add(
-            _require_unchanged_core_evidence(
-                db,
-                kind=CoreEvidenceKind.SECTOR,
-                row=existing_sector[0],
-            )
+        sector = existing_sector[0]
+        sector_evidence = get_certified_evidence_for_row(
+            db, kind=CoreEvidenceKind.SECTOR, current_row=sector,
         )
+        sector_evidence_id = int(sector_evidence.id)
+        validate_evidence(sector_evidence)
+        validate_source_values(sector, sector_evidence, db=db)
+        _require_sector_resume_source_authority(
+            sector_evidence,
+            kind=CoreEvidenceKind.SECTOR,
+            row=sector,
+            upload_run_id=upload_run_id,
+            pipeline_run_id=pipeline.id,
+            market_cutoff=market_cutoff,
+        )
+        from app.services.contextual_effective_configuration import resolve_sector_configuration
 
-    retained = _public_result(pipeline.result_json or {})
+        resolve_sector_configuration().require_retry_identity(
+            CalculationIdentity.from_canonical_payload(sector_evidence.calculation_identity_json)
+        )
+        expected_sources = {
+            f"ranking:{index:06d}": address[3]
+            for index, address in enumerate(sorted(ranking_addresses), start=1)
+        }
+        expected_sources["regime"] = int(market_snapshot.evidence_id)
+        observed_sources = dict(sector_evidence.source_evidence_ids_json or {})
+        if (
+            {key: value for key, value in observed_sources.items() if key != "prior_sector"}
+            != expected_sources
+        ):
+            raise ValueError("SECTOR_RESUME_PUBLISHED_SOURCE_SET_CHANGED")
+        from app.services.core_mutation_authority import validate_sector_manifest
+
+        identity = CalculationIdentity.from_canonical_payload(
+            sector_evidence.calculation_identity_json
+        )
+        envelope = (sector_evidence.payload_json.get("debug") or {}).get("native_input_envelope")
+        if not isinstance(envelope, dict):
+            raise ValueError("SECTOR_RESUME_PUBLISHED_SOURCE_MANIFEST_MISSING")
+        validate_sector_manifest(db, identity, envelope, checkpoint_callback=checkpoint_callback)
+        certified_ids.add(sector_evidence_id)
+
     if retained.get("market_data_mode") not in {"IB_GATEWAY", "CACHE_FALLBACK"}:
         raise ValueError("Sector resume checkpoint is missing the retained market-data mode.")
     retained.update(
         {
             "uploaded_rows": expected,
-            "fundamental_scores": len(rows_by_kind[CoreEvidenceKind.FUNDAMENTAL]),
-            "technical_scores": len(rows_by_kind[CoreEvidenceKind.TECHNICAL]),
-            "combined_results": len(rows_by_kind[CoreEvidenceKind.COMBINED]),
-            "ranking_results": len(rows_by_kind[CoreEvidenceKind.RANKING]),
-            "ranking_profiles": len(
-                {row.ranking_profile for row in rows_by_kind[CoreEvidenceKind.RANKING]}
-            ),
-            "incomplete_rows": sum(
-                not row.is_complete for row in rows_by_kind[CoreEvidenceKind.COMBINED]
-            ),
-            "warning_rows": sum(row.has_warning for row in rows_by_kind[CoreEvidenceKind.COMBINED]),
-            "technical_error_count": _technical_error_count(
-                rows_by_kind[CoreEvidenceKind.TECHNICAL]
-            ),
+            "fundamental_scores": row_counts[CoreEvidenceKind.FUNDAMENTAL],
+            "technical_scores": row_counts[CoreEvidenceKind.TECHNICAL],
+            "combined_results": row_counts[CoreEvidenceKind.COMBINED],
+            "ranking_results": row_counts[CoreEvidenceKind.RANKING],
+            "ranking_profiles": len({address[0] for address in ranking_addresses}),
+            "incomplete_rows": incomplete_rows,
+            "warning_rows": warning_rows,
+            "technical_error_count": technical_errors,
             "market_regime_snapshots": 1,
             "market_regime": market_snapshot.regime,
             "market_risk_state": market_snapshot.risk_state,
@@ -2082,11 +2270,20 @@ def _validate_sector_resume_checkpoint(
         "resume_from_step": "SECTOR_ROTATION_SNAPSHOT",
         "expected_tickers": expected,
         **distinct_counts,
-        "ranking_rows": len(rows_by_kind[CoreEvidenceKind.RANKING]),
+        "ranking_rows": row_counts[CoreEvidenceKind.RANKING],
         "certified_evidence_count": len(certified_ids),
         "market_calculation_context_id": market_cutoff.context_id,
         "validated": True,
         "restored_result": retained,
+        **({"published_sector_result": {
+            "sector_rotation_snapshots": 1,
+            "sector_rotation_sector_count": int(sector.sector_count or 0),
+            "sector_rotation_leading_sector": sector.leading_sector,
+            "sector_rotation_weakest_sector": sector.weakest_sector,
+            "sector_rotation_warning_count": len(sector.warning_flags_json or []),
+            "sector_rotation_snapshot_id": sector.id,
+            "sector_rotation_evidence_id": sector_evidence_id,
+        }} if existing_sector else {}),
     }
 
 
@@ -2142,7 +2339,7 @@ def _validate_ceri_completion_barrier(
         raise ValueError("CERI_COMPLETION_BARRIER_NOT_CERTIFIED")
     if not isinstance(db, Session):
         return
-    from app.models.ceri_tables import CeriScoreSnapshot
+    from app.services.ceri.score_population import certified_scores
     from app.services.market_calculation_context_service import resolve_pipeline_ceri_context
 
     if retained.get("ceri_calculation_context_id") is not None:
@@ -2157,15 +2354,11 @@ def _validate_ceri_completion_barrier(
         # under the original market context. New provider workflows always
         # retain a post-acquisition CERI context before feature calculation.
         context = market_context_for_pipeline(db, pipeline)
-    captured = set(
-        db.scalars(
-            select(CeriScoreSnapshot.ticker).where(
-                CeriScoreSnapshot.run_id == pipeline.upload_run_id,
-                CeriScoreSnapshot.calculation_context_id == context.context_id,
-                CeriScoreSnapshot.evidence_id.is_not(None),
-            )
-        )
-    )
+    receipt = retained.get("ceri_certified_score_ids")
+    if not receipt:
+        raise ValueError("CERI_CERTIFIED_CAPTURE_RECEIPT_MISSING")
+    scores = certified_scores(db, pipeline.id, context.context_id, expected_ids=receipt)
+    captured = {row.ticker for row in scores}
     expected = {ticker.strip().upper() for ticker in tickers}
     if captured != expected:
         raise ValueError(
@@ -2939,8 +3132,33 @@ def _validate_market_data_resume(db, pipeline, tickers, market_cutoff):
     for name in ("VALIDATING_RUN", "SCORING_FUNDAMENTALS"):
         if _require_step(db, pipeline.id, name).status != PipelineStepStatus.COMPLETED:
             raise ValueError("MARKET_DATA_RESUME_PRIOR_STAGE_INCOMPLETE: " + name)
-    if not isinstance((pipeline.result_json or {}).get("ib_fetch_plan"), dict):
-        raise ValueError("MARKET_DATA_RESUME_FROZEN_PLAN_REQUIRED")
+    retained = (pipeline.result_json or {}).get("ib_fetch_plan")
+    fetch_plan_state = "RETAINED"
+    initial_admission = None
+    if isinstance(retained, dict):
+        required = {"run_id", "requested_tickers", "symbols_including_benchmarks", "items"}
+        if not required <= retained.keys() or any(
+            not isinstance(retained[key], list)
+            for key in ("requested_tickers", "symbols_including_benchmarks", "items")
+        ):
+            raise ValueError("MARKET_DATA_RESUME_FROZEN_PLAN_REQUIRED")
+        try:
+            restored = fetch_plan_from_dict(retained)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("MARKET_DATA_RESUME_FROZEN_PLAN_REQUIRED") from exc
+        if (
+            restored.run_id != pipeline.upload_run_id
+            or sorted(restored.requested_tickers) != sorted(tickers)
+            or not set(tickers) <= set(restored.symbols_including_benchmarks)
+        ):
+            raise ValueError("MARKET_DATA_RESUME_PLAN_SCOPE_CHANGED")
+    else:
+        if retained is not None:
+            raise ValueError("MARKET_DATA_RESUME_FROZEN_PLAN_REQUIRED")
+        initial_admission = _validate_unstarted_market_data_resume(
+            db, pipeline, tickers, market_cutoff
+        )
+        fetch_plan_state = "NOT_ADMITTED"
     if isinstance(db, Session):
         from app.services.calculation_identity import (
             PIPELINE_CONTEXT_COMPATIBILITY,
@@ -2970,7 +3188,100 @@ def _validate_market_data_resume(db, pipeline, tickers, market_cutoff):
             )
             if not comparison.accepted:
                 raise ValueError("MARKET_DATA_RESUME_FUNDAMENTAL_CONTEXT_CHANGED: " + ticker)
-    return {"validated": True, "fundamentals_reused": len(tickers)}
+    return {
+        "validated": True,
+        "fundamentals_reused": len(tickers),
+        "fetch_plan_state": fetch_plan_state,
+        **({"initial_admission": initial_admission} if initial_admission is not None else {}),
+    }
+
+
+def _validate_unstarted_market_data_resume(db, pipeline, tickers, market_cutoff):
+    """Permit a first admission after a Gateway failure, never replace one."""
+    saved = pipeline.result_json or {}
+    initial_admission = (
+        CanonicalEvidenceSerializer.canonicalize({
+            "contract_version": "market-data-initial-admission-v1",
+            "pipeline_run_id": pipeline.id,
+            "upload_run_id": pipeline.upload_run_id,
+            "scope_id": getattr(pipeline, "scope_id", None),
+            "refresh_cycle_id": getattr(pipeline, "refresh_cycle_id", None),
+            "acquisition_plan_id": getattr(pipeline, "acquisition_plan_id", None),
+            "market_calculation_context_id": market_cutoff.context_id,
+            "market_cutoff_at": market_cutoff.cutoff_at,
+            "input_as_of_session": market_cutoff.latest_completed_session,
+        }) if market_cutoff is not None else None
+    )
+    checkpoint = saved.get("market_data_resume_checkpoint") or {}
+    retained_initial_admission = (
+        isinstance(checkpoint, dict)
+        and checkpoint.get("validated") is True
+        and checkpoint.get("fetch_plan_state") == "NOT_ADMITTED"
+        and checkpoint.get("first_plan_admitted") is not True
+        and initial_admission is not None
+        and checkpoint.get("initial_admission") == initial_admission
+    )
+    gateway_failed_before_admission = (
+        saved.get("ib_api_available_at_execution") is False
+        and saved.get("ib_execution_error_code") == "IB_GATEWAY_API_UNREACHABLE"
+    )
+    if (
+        saved.get("ib_fetch_plan") is not None
+        or saved.get("ib_fetch_authority") is not None
+        or (isinstance(checkpoint, dict) and checkpoint.get("first_plan_admitted") is True)
+        or not (gateway_failed_before_admission or retained_initial_admission)
+        or int(saved.get("ib_planned_requests") or 0) != 0
+        or int(saved.get("ib_executed_requests") or 0) != 0
+    ):
+        raise ValueError("MARKET_DATA_RESUME_FROZEN_PLAN_REQUIRED")
+    if (
+        market_cutoff is None
+        or latest_completed_us_trading_day() != market_cutoff.latest_completed_session
+    ):
+        raise ValueError("MARKET_DATA_RESUME_SESSION_CHANGED_REPLAN_REQUIRED")
+    if isinstance(db, Session):
+        authority = require_semantic_authority(pipeline)
+        evidence = (
+            select(IBFetchRun.id).where(IBFetchRun.run_id == pipeline.upload_run_id).limit(1),
+            select(WorkScopeRecord.scope_id).where(
+                WorkScopeRecord.parent_scope_id == authority.scope_id,
+                WorkScopeRecord.scope_kind == "ib-price-acquisition",
+            ).limit(1),
+            select(BackgroundJob.id).where(
+                BackgroundJob.job_type == IB_FETCH_JOB_TYPE,
+                BackgroundJob.related_run_id == pipeline.upload_run_id,
+            ).limit(1),
+        )
+        if any(db.scalar(statement) is not None for statement in evidence):
+            raise ValueError("MARKET_DATA_RESUME_ACQUISITION_ALREADY_ADMITTED")
+    return initial_admission
+
+
+def _validate_first_market_data_plan(plan, pipeline, tickers, market_cutoff):
+    """Bind the first newly planned request to the unchanged pipeline session."""
+    expected_session = market_cutoff.latest_completed_session
+    if latest_completed_us_trading_day() != expected_session:
+        raise ValueError("MARKET_DATA_RESUME_SESSION_CHANGED_REPLAN_REQUIRED")
+    item_tickers = {item.ticker for item in plan.items}
+    if (
+        plan.run_id != pipeline.upload_run_id
+        or sorted(plan.requested_tickers) != sorted(tickers)
+        or not set(tickers) <= item_tickers
+        or not item_tickers <= set(plan.symbols_including_benchmarks)
+    ):
+        raise ValueError("MARKET_DATA_RESUME_PLAN_SCOPE_CHANGED")
+    for item in plan.items:
+        if item.freshness_threshold_date != expected_session:
+            raise ValueError("MARKET_DATA_RESUME_PLAN_SESSION_CHANGED")
+        if item.duration or item.post_resolution_duration:
+            if item.request_end_date != expected_session or (
+                item.reviewed_session_expiry is not None
+                and item.reviewed_session_expiry != expected_session
+            ) or (
+                item.request_end_mode == "CURRENT"
+                and item.reviewed_session_expiry != expected_session
+            ):
+                raise ValueError("MARKET_DATA_RESUME_PLAN_SESSION_CHANGED")
 
 
 def _pipeline_scope_tickers(db: Session, pipeline: PipelineRun) -> list[str]:
@@ -3143,7 +3454,8 @@ def _mark_pipeline_finished(
         authority = require_semantic_authority(pipeline)
         result["semantic_child_accounting"] = require_children_terminal(db, authority.scope_id)
     publish_after_commit(db, "set_gauge", "swinglens_pipeline_active", 0)
-    if result.get("partial_scope"):
+    if (result.get("partial_scope") or result.get("sec_coverage")
+            or result.get("market_data_availability")):
         from app.services.pipeline_outcome import derive_pipeline_outcome
 
         result["pipeline_outcome_summary"] = derive_pipeline_outcome(status, result)
@@ -3422,6 +3734,9 @@ def _sector_checkpoint_callback(
     progress_callback: Callable[..., None] | None,
 ) -> Callable[..., None]:
     validation_metrics: dict[str, dict[str, int]] = {}
+    phase_history: list[dict[str, Any]] = []
+    current_phase: dict[str, Any] = {}
+    phase_clock = perf_counter()
 
     def checkpoint(
         *,
@@ -3432,7 +3747,20 @@ def _sector_checkpoint_callback(
         last_completed_item: str | None = None,
         metrics: dict[str, int] | None = None,
     ) -> None:
+        nonlocal phase_clock, current_phase
         _raise_if_cancelled(should_cancel)
+        observed = datetime.now(UTC).isoformat()
+        clock = perf_counter()
+        if phase != current_phase.get("phase"):
+            if current_phase:
+                phase_history.append({
+                    **current_phase, "completed_at": observed,
+                    "elapsed_ms": round((clock - phase_clock) * 1000),
+                })
+                del phase_history[:-32]
+            current_phase = {"phase": phase, "started_at": observed}
+            phase_clock = clock
+        current_phase.update(processed=processed, total=total)
         if phase in {"INPUTS_LOADED", "SOURCE_ROWS_LOADED", "SOURCE_MANIFEST_PREPARED"}:
             close_pipeline_read_transaction(db)
         if metrics is not None:
@@ -3453,6 +3781,9 @@ def _sector_checkpoint_callback(
                         "processed": processed,
                         "total": total,
                         "validation_metrics": dict(validation_metrics),
+                        "phase_started_at": current_phase["started_at"],
+                        "phase_elapsed_ms": round((clock - phase_clock) * 1000),
+                        "phase_history": [dict(item) for item in phase_history],
                     }
                 },
             )
@@ -3627,6 +3958,37 @@ def _plan_skips_ticker(plan: FetchPlan, ticker: str) -> bool:
     return bool(items) and all(item.action == FetchAction.SKIP for item in items)
 
 
+def _require_market_data_dependencies(db, pipeline, plan, fetch_run, market_cutoff):
+    from app.services.price_bar_repository import load_price_bar_rows_for_context
+
+    items = list(db.scalars(select(IBFetchItem).where(
+        IBFetchItem.fetch_run_id == fetch_run.id
+    ))) if fetch_run is not None else []
+    hazards = list(fetch_execution_hazards(fetch_run, plan, items))
+    retained = (pipeline.result_json or {}).get("ib_fetch_plan")
+    complete_plan = fetch_plan_from_dict(retained) if isinstance(retained, dict) else plan
+    required = {(item.ticker, item.what_to_show) for item in complete_plan.items
+                if required_dependency(item)}
+    if required:
+        bars = load_price_bar_rows_for_context(
+            db, tuple(sorted({ticker for ticker, _ in required})),
+            what_to_show=("ADJUSTED_LAST", "TRADES"), timeframes=("1 day",),
+            max_session=market_cutoff.latest_completed_session,
+            as_of=market_cutoff.cutoff_at, calculation_context_id=market_cutoff.context_id,
+        )
+        current = {(bar.ticker, bar.what_to_show) for bar in bars
+                   if bar.bar_date == market_cutoff.latest_completed_session}
+        hazards.extend(f"REQUIRED_SESSION_UNAVAILABLE:{ticker}:{feed}"
+                       for ticker, feed in sorted(required - current))
+    if hazards:
+        raise PipelineBlockedError(
+            "Market-data infrastructure or required dependency is unavailable: "
+            + ",".join(hazards),
+            reason_code="MARKET_DATA_REQUIRED_INPUT_BLOCKED",
+            diagnostics={"hard_failures": hazards},
+        )
+
+
 def _apply_fetch_performance(
     performance: PipelinePerformanceTracker,
     fetch_run: IBFetchRun,
@@ -3652,6 +4014,8 @@ def _final_pipeline_status(result: dict[str, Any]) -> str:
         or result["warning_rows"]
         or result["ib_failure_count"]
         or result.get("market_data_excluded_count", 0)
+        or result.get("market_data_unavailable_count", 0)
+        or result.get("market_data_history_gap_count", 0)
         or result["technical_error_count"]
         or result["fetch_failed"]
         or result["market_regime_low_confidence"]
@@ -3665,6 +4029,9 @@ def _final_pipeline_status(result: dict[str, Any]) -> str:
 
 def _completion_message(status: str, result: dict[str, Any]) -> str:
     winner_summary = _winner_completion_summary(result)
+    unresolved = int(result.get("sec_unresolved_count") or 0)
+    if unresolved:
+        winner_summary += f" SEC source coverage remains unresolved for {unresolved} tickers."
     if status == PipelineStatus.COMPLETED:
         return (
             f"Pipeline completed with {result['combined_results']} combined rows.{winner_summary}"
@@ -3690,6 +4057,16 @@ def _winner_completion_summary(result: dict[str, Any]) -> str:
     return f" Winner Evidence: {inserted} inserted, {excluded} excluded, {failed} failed."
 
 
+def _retain_sec_preflight_coverage(result: dict[str, Any]) -> None:
+    preflight = result.get("sec_preflight") or {}
+    coverage = preflight.get("sec_coverage")
+    # Explicit None clears an invalid or superseded retained projection when
+    # terminal result state is merged back into the parent pipeline.
+    result["sec_coverage"] = coverage
+    result["sec_unresolved_count"] = int(preflight.get("sec_unresolved_count") or 0)
+    result["sec_unresolved_tickers"] = list(preflight.get("sec_unresolved_tickers") or [])
+
+
 def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, Any]:
     return {
         "pipeline_run_id": pipeline.id,
@@ -3700,6 +4077,20 @@ def _empty_result(pipeline: PipelineRun, upload_run: UploadRun) -> dict[str, Any
             else upload_run.row_count or 0
         ),
         "partial_scope": (pipeline.result_json or {}).get("partial_scope"),
+        **({"market_data_availability_policy":
+            pipeline.result_json["market_data_availability_policy"]}
+           if (pipeline.result_json or {}).get("market_data_availability_policy") else {}),
+        **({"market_data_recovery_source": pipeline.result_json["market_data_recovery_source"]}
+           if (pipeline.result_json or {}).get("market_data_recovery_source") else {}),
+        "market_data_unavailable_count": 0,
+        "market_data_history_gap_count": 0,
+        **({
+            "sec_coverage": pipeline.result_json["sec_coverage"],
+            "sec_unresolved_count": int(pipeline.result_json.get("sec_unresolved_count") or 0),
+            "sec_unresolved_tickers": list(
+                pipeline.result_json.get("sec_unresolved_tickers") or []
+            ),
+        } if (pipeline.result_json or {}).get("sec_coverage") is not None else {}),
         "market_data_excluded_count": len(
             ((pipeline.result_json or {}).get("partial_scope") or {}).get("excluded_tickers", [])
         ),
@@ -3839,6 +4230,10 @@ def _to_execution_result(
         incomplete_rows=result["incomplete_rows"],
         warning_rows=result["warning_rows"],
         performance=result.get("performance", {}),
+        sec_coverage=result.get("sec_coverage"),
+        sec_unresolved_count=int(result.get("sec_unresolved_count") or 0),
+        sec_unresolved_tickers=list(result.get("sec_unresolved_tickers") or []),
+        pipeline_outcome_summary=result.get("pipeline_outcome_summary"),
     )
 
 
@@ -3902,12 +4297,16 @@ def _ceri_provider_ingest_enabled(dependencies: PipelineExecutionDependencies) -
     )
 
 
+if TYPE_CHECKING:
+    from app.services.ceri.batched_workflow import CeriBatchedWorkflowPlan
+
+
 def _schedule_ceri_provider_ingest(
     db: Session,
     run_id: int,
     *,
     market_cutoff: MarketCalculationCutoff | None = None,
-) -> int:
+) -> int | CeriBatchedWorkflowPlan:
     """Queue provider-specific ingestion jobs for the current SwingLens run."""
     settings = get_settings()
     # Pipeline-owned provider work must have one durable finalizer/capture tail.
@@ -3919,7 +4318,7 @@ def _schedule_ceri_provider_ingest(
         if market_cutoff is not None:
             return schedule_ceri_batched_workflow(
                 db, run_id, market_cutoff=market_cutoff
-            ).provider_batches
+            )
         return schedule_ceri_batched_workflow(db, run_id).provider_batches
     if not getattr(settings, "ceri_legacy_pipeline_scheduling_enabled", True):
         return 0

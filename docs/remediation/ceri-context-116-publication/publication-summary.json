@@ -1,0 +1,26 @@
+{
+  "checked_at": "2026-11-17T01:23:35.188126+00:00",
+  "destination": "https://github.com/ivobog/swing-lens/tree/main",
+  "certified_source_commit": "f0d986f287d367a3ba90c55dac4853efc82c0215",
+  "upstream_main_before_integration": "fad3e86129c40214dccf0082b2bd55ab41ece3f8",
+  "original_certification_baseline": "6d6952feec93adb9dd62635e41d299e3749b4819",
+  "original_affected_regression_passed": 900,
+  "integration_tests": {
+    "tests": 193,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 193,
+    "warnings": 28,
+    "seconds": 295.858
+  },
+  "junit_sha256": "4583f101e3ec4455204eac602b2609d4c5832cea18f0389d958da6cc972a5deb",
+  "architecture_registry": "PASS",
+  "lint": "PASS",
+  "certified_source_files_changed_by_preserving_main": [
+    "app/services/pipeline_executor.py"
+  ],
+  "sealed_delivery_archive_sha256": "cab31cfd192487555d7b8a45b5ab42343cca86705de9ab8cb6f4187173020bb3",
+  "primary_unrelated_work_included": false,
+  "production_migration_or_recovery_performed": false
+}

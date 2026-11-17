@@ -481,7 +481,8 @@ def test_pipeline_progress_template_exposes_blocked_sec_diagnostics(monkeypatch)
         status_url="/runs/7/pipeline/99/status",
     )
 
-    assert "Pipeline blocked before execution" in html
+    # CERI is a later pipeline stage; the blocked-state heading is stage-neutral.
+    assert "<strong>Pipeline blocked</strong>" in html
     assert "sec-guidance:current" in html
     assert "180" in html
     assert "136" in html

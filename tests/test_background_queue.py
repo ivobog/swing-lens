@@ -33,6 +33,7 @@ def test_worker_queue_names_reject_unknown_or_empty_values() -> None:
     ("job_type", "expected"),
     [
         ("FULL_PIPELINE", INTERACTIVE),
+        ("SEC_READINESS_REPAIR", INTERACTIVE),
         ("IB_HISTOGRAM_FETCH", BROKER),
         ("MARKET_DATA_PREWARM", BROKER),
         ("CERI_FEATURE_BATCH", BACKGROUND),

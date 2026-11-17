@@ -1659,6 +1659,97 @@ def test_require_ib_stops_before_technicals_when_gateway_closes_after_preflight(
     assert fetch_step.status == PipelineStepStatus.FAILED
 
 
+@pytest.mark.parametrize("prior_reason_was_cleared", [False, True])
+@pytest.mark.parametrize("planning_error_before_admission", [False, True])
+def test_gateway_offline_then_online_retry_admits_first_plan_and_reuses_fundamentals(
+    monkeypatch: pytest.MonkeyPatch, prior_reason_was_cleared: bool,
+    planning_error_before_admission: bool,
+) -> None:
+    """An offline gateway cannot create the plan that a later retry requires."""
+    calls: list[str] = []
+    db = PipelineExecutorFakeDb(["MSFT"])
+    cutoff = _readiness_cutoff()
+    monkeypatch.setattr(
+        "app.services.us_market_calendar.latest_completed_us_trading_day",
+        lambda: cutoff.latest_completed_session,
+    )
+    monkeypatch.setattr(
+        pipeline_executor, "latest_completed_us_trading_day",
+        lambda: cutoff.latest_completed_session, raising=False,
+    )
+    plan = replace(
+        _plan(estimated_request_count=0, estimated_skips=1),
+        symbols_including_benchmarks=["MSFT"],
+        items=[FetchPlanItem(
+            ticker="MSFT", contract_status="RESOLVED", what_to_show="TRADES",
+            action=FetchAction.SKIP, duration=None, bar_size="1 day", current_bar_count=300,
+            first_bar_date=date(2025, 1, 2), latest_bar_date=cutoff.latest_completed_session,
+            required_bars=252, reason="Frozen-session cache is complete", estimated_request_count=0,
+            freshness_threshold_date=cutoff.latest_completed_session,
+        )],
+    )
+    base = replace(
+        _dependencies(calls, plan=plan, combined_results=[
+            CombinedResult(run_id=7, ticker="MSFT", is_complete=True, has_warning=False),
+        ]),
+        market_cutoff=cutoff,
+    )
+    offline = replace(
+        base,
+        check_ib_gateway=lambda: SimpleNamespace(
+            status="NOT_RUNNING_OR_UNREACHABLE", checked_at=datetime.now(UTC),
+            api_connected=False, error_code="IB_GATEWAY_API_UNREACHABLE", message="offline",
+        ),
+    )
+    first = execute_full_pipeline(db, pipeline_run_id=3, dependencies=offline)
+    assert first.status == PipelineStatus.FAILED
+    assert calls == ["fundamentals"]
+    assert "ib_fetch_plan" not in db.pipeline.result_json
+    assert "ib_fetch_authority" not in db.pipeline.result_json
+    assert db.pipeline.result_json["ib_api_available_at_execution"] is False
+    assert db.pipeline.result_json["ib_executed_requests"] == 0
+    assert all(step.status == PipelineStepStatus.COMPLETED for step in db.steps[:2])
+    original_prior_steps = [
+        (step.status, step.retry_count, step.started_at, step.completed_at) for step in db.steps[:2]
+    ]
+    # The already-deployed retry bug cleared this field before raising its
+    # missing-plan error. The retained failed API check must still be usable.
+    if prior_reason_was_cleared:
+        db.pipeline.result_json = {**db.pipeline.result_json, "failure_reason": None}
+    db.pipeline.status = PipelineStatus.QUEUED
+    if planning_error_before_admission:
+        def planning_failed(**_kwargs):
+            calls.append("planning_failed")
+            raise RuntimeError("Planning interrupted before any acquisition was admitted")
+
+        with pytest.raises(RuntimeError, match="Planning interrupted"):
+            execute_full_pipeline(
+                db, pipeline_run_id=3, resume_from_step="FETCHING_MARKET_DATA",
+                dependencies=replace(base, build_fetch_plan=planning_failed),
+            )
+        assert db.pipeline.status == PipelineStatus.FAILED
+        assert db.pipeline.result_json["ib_api_available_at_execution"] is True
+        assert db.pipeline.result_json["ib_execution_error_code"] is None
+        assert "ib_fetch_plan" not in db.pipeline.result_json
+        assert db.pipeline.result_json["market_data_resume_checkpoint"]["initial_admission"]
+        db.pipeline.status = PipelineStatus.QUEUED
+    second = execute_full_pipeline(
+        db, pipeline_run_id=3, resume_from_step="FETCHING_MARKET_DATA", dependencies=base,
+    )
+    assert second.status == PipelineStatus.COMPLETED
+    assert calls.count("fundamentals") == 1
+    assert calls.count("build_fetch_plan") == 1
+    assert calls.count("technicals") == 1
+    assert second.fundamental_scores == 1
+    assert [
+        (step.status, step.retry_count, step.started_at, step.completed_at) for step in db.steps[:2]
+    ] == original_prior_steps
+    checkpoint = db.pipeline.result_json["market_data_resume_checkpoint"]
+    assert checkpoint["validated"] is True
+    assert checkpoint["fetch_plan_state"] == "NOT_ADMITTED"
+    assert checkpoint["fundamentals_reused"] == 1
+
+
 def test_historical_capability_failure_blocks_before_fetch_executor() -> None:
     calls: list[str] = []
     db = PipelineExecutorFakeDb(["MSFT"])
@@ -2212,6 +2303,9 @@ def _enable_readiness_boundary(
     )
     monkeypatch.setattr(pipeline_executor, "Session", PipelineExecutorFakeDb)
     monkeypatch.setattr(
+        pipeline_executor, "_claim_pipeline_continuation_resume", lambda _db, pipeline: pipeline,
+    )
+    monkeypatch.setattr(
         pipeline_executor,
         "_pipeline_scope_tickers",
         lambda db, _pipeline: list(db.tickers),
@@ -2247,6 +2341,46 @@ def _readiness_cutoff():
         cutoff_at=datetime(2026, 10, 6, 22, 0, tzinfo=UTC),
         latest_completed_session=date(2026, 10, 6),
     )
+
+
+def test_new_availability_policy_retains_all_requested_processing_members(monkeypatch):
+    from dataclasses import replace
+
+    from app.services.market_data_availability_policy import new_availability_policy
+
+    db = PipelineExecutorFakeDb(tickers=["LIVE", "HLT", "CLBK"])
+    db.pipeline.result_json = {
+        "market_data_availability_policy": new_availability_policy().as_dict()
+    }
+    live = _readiness_row("LIVE", disposition="READY", lifecycle_state="ACTIVE", eligible=True)
+    hlt = _readiness_row("HLT", disposition="READY", lifecycle_state="ACTIVE", eligible=True)
+    hlt.evidence_json = {"history_gap_count": 1, "missing_required_sessions": ["2026-10-05"]}
+    clbk = _readiness_row("CLBK", disposition="REQUIRED_DATA_UNAVAILABLE",
+                          lifecycle_state="UNKNOWN", eligible=False)
+    clbk.evidence_json = {"fetch_failures": [{"provider_error_category":
+                                              "HISTORICAL_DATA_UNAVAILABLE", "retryable": False}]}
+    _enable_readiness_boundary(monkeypatch, SessionReadinessResult((live, hlt, clbk)))
+    technical = []
+    downstream = []
+
+    def score(_db, _run_id, *, frozen_tickers=None, **_kwargs):
+        technical.extend(frozen_tickers)
+        return []
+
+    def finish(_db, *, tickers, pipeline, result, **_kwargs):
+        downstream.extend(tickers)
+        assert result["market_data_unavailable_count"] == 1
+        assert result["market_data_history_gap_count"] == 1
+        assert result["market_data_excluded_count"] == 0
+        pipeline.status = PipelineStatus.PARTIAL
+        return pipeline_executor._to_execution_result(pipeline, result)
+
+    monkeypatch.setattr(pipeline_executor, "_continue_after_sector_snapshot", finish)
+    dependencies = replace(_dependencies([]), score_technicals=score,
+                           market_cutoff=_readiness_cutoff())
+    actual = execute_full_pipeline(db, pipeline_run_id=3, dependencies=dependencies)
+    assert actual.status == PipelineStatus.PARTIAL
+    assert technical == downstream == ["LIVE", "HLT", "CLBK"]
 
 
 def _readiness_row(

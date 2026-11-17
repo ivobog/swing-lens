@@ -53,6 +53,7 @@ class CeriChangeRebuildRequest:
     changed_since: datetime | None = None
     as_of_session: date | None = None
     cutoff_at: datetime | None = None
+    score_ids: tuple[int, ...] | None = None
     semantic_authority: Any | None = None
 
 
@@ -144,6 +145,7 @@ class CeriChangeRebuildService:
         )
         aggregate = CeriChangeRebuildResult()
         processed = 0
+        processed_scores: set[int] = set()
         for company_chunk in _chunks(company_ids, self.company_chunk_size):
             if callable(should_cancel) and should_cancel():
                 raise CeriChangeRebuildCancelled("CERI change detection cancelled between chunks.")
@@ -155,6 +157,8 @@ class CeriChangeRebuildService:
                 target_session=target_session,
                 cutoff_at=cutoff_at,
             )
+            if request.score_ids is not None:
+                processed_scores.update(row.id for row in prepared.snapshots)
             if isinstance(db, Session):
                 result = self._rebuild_locked_chunk(
                     db,
@@ -173,6 +177,8 @@ class CeriChangeRebuildService:
             processed += len(company_chunk)
             if callable(progress_callback):
                 progress_callback(processed, len(company_ids), company_chunk)
+        if request.score_ids is not None and processed_scores != set(request.score_ids):
+            raise ValueError("CERI_CHANGE_POPULATION_MISMATCH")
         return aggregate
 
     def _rebuild_locked_chunk(
@@ -242,10 +248,13 @@ class CeriChangeRebuildService:
         # The semantic transaction is fenced again immediately before commit.
         # Do not retain the background-job row lock during long company chunks;
         # the detached control plane must be able to publish progress/cancel.
-        with db.no_autoflush, prefetched_source_scope(
-            db,
-            bundle,
-            retain_execution_ownership=False,
+        with (
+            db.no_autoflush,
+            prefetched_source_scope(
+                db,
+                bundle,
+                retain_execution_ownership=False,
+            ),
         ):
             return self._rebuild(
                 db,
@@ -423,6 +432,8 @@ class CeriChangeRebuildService:
             CeriScoreSnapshot.as_of_session <= target_session,
             CeriScoreSnapshot.cutoff_at <= cutoff_at,
         )
+        if request.score_ids is not None:
+            statement = statement.where(CeriScoreSnapshot.id.in_(request.score_ids))
         if request.ticker:
             statement = statement.where(
                 func.upper(CeriScoreSnapshot.ticker) == request.ticker.upper()
@@ -484,6 +495,8 @@ class CeriChangeRebuildService:
                 statement = statement.where(
                     func.upper(CeriScoreSnapshot.ticker).in_(authority_tickers)
                 )
+            if request.score_ids is not None:
+                statement = statement.where(CeriScoreSnapshot.id.in_(request.score_ids))
             snapshots = self._eligible_snapshots(db, statement)
             return tuple(
                 sorted(

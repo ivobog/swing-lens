@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -67,8 +68,8 @@ def test_redaction_blocks_auth_tokens_sql_details_and_nested_secrets() -> None:
 def test_purge_preview_and_execute_redact_sources_and_invalidate_derivatives() -> None:
     source = CeriSourceRecord(
         id=10,
-            provider="eodhd",
-            provider_terms_version="2026-08-personal",
+        provider="eodhd",
+        provider_terms_version="2026-08-personal",
         dataset="estimates",
         provider_record_id="est-1",
         raw_json={"ticker": "MSFT", "provider_secret": "secret"},
@@ -77,9 +78,9 @@ def test_purge_preview_and_execute_redact_sources_and_invalidate_derivatives() -
         source_reference="vendor-row-1",
         content_hash="hash",
         idempotency_key="idem",
-            export_policy="restricted",
-            license_scope="personal",
-            purge_eligible=True,
+        export_policy="restricted",
+        license_scope="personal",
+        purge_eligible=True,
     )
     estimate = CeriEstimateSnapshot(id=20, source_record_id=10, company_id=42)
     revision = CeriRevisionFeature(id=30, company_id=42, source_observation_ids_json=[10])
@@ -87,6 +88,8 @@ def test_purge_preview_and_execute_redact_sources_and_invalidate_derivatives() -
         id=40,
         company_id=42,
         ticker="MSFT",
+        as_of_session=date(2026, 8, 3),
+        cutoff_at=datetime(2026, 8, 3, 21, tzinfo=UTC),
         component_json={"source_ids": [10]},
         data_confidence="Normal",
         coverage_pct=100.0,
@@ -213,8 +216,8 @@ def test_localhost_binding_and_admin_csrf_boundary_are_preserved() -> None:
 def _audit() -> CeriPurgeAudit:
     return CeriPurgeAudit(
         id=1,
-                provider="eodhd",
-                license_scope="personal",
+        provider="eodhd",
+        license_scope="personal",
         preview_manifest_hash="preview-hash",
         actor="local-admin",
         reason="preview",
@@ -235,7 +238,7 @@ def _admin_request(*, csrf: bool):
                     _env_file=None,
                     job_worker_enabled=False,
                     ceri_admin_enabled=True,
-                )
+                ),
             )
         ),
         client=SimpleNamespace(host="testclient"),

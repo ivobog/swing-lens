@@ -19,7 +19,7 @@
         "revision_columns": "0"
       },
       "relationships": 541,
-      "selectors": "both original ten-ticker handoff variants"
+      "selectors": "Both original ten-ticker handoff variants and genuine native worker-recovery comparisons; all 620 obligations per original variant retained"
     },
     {
       "authority": "A16",
@@ -32,46 +32,46 @@
   ],
   "candidate": {
     "artifacts": {
-      "tests/e2e/single_run_certification/golden/v4/DERIVATIONS.md": "096f44c04fa56df0227c72bedb95092f30a1c182f941688eb4a3b40df54173eb",
-      "tests/e2e/single_run_certification/golden/v4/calendar.json": "72c85eb606d68c6928b2d7710a8a27986c41eb31734cf8d57c4cfa3d4b92b5cc",
-      "tests/e2e/single_run_certification/golden/v4/configuration.json": "caf5e2936ff3bd9e8fc7313549daa279988c2a2e0543e92c82549f951cd6dcdc",
-      "tests/e2e/single_run_certification/golden/v4/expected-results.json": "adbcd782752be4d851a173badfdff81013b4028b4b8f0370c43f1c7678f78191",
-      "tests/e2e/single_run_certification/golden/v4/financial-source.json": "f46da1fe44b3ac01fce2d654ad1ed04f003b79a1dc1d7ef998754fbdfef1e32a",
-      "tests/e2e/single_run_certification/golden/v4/fundamental-derivation.json": "02c867000316d33048fff2d5444d0d812af10d233b319012450a71e5e206635f",
-      "tests/e2e/single_run_certification/golden/v4/history.json": "bf9c645b1e95558010c81cbcb93c1cfffce153b9246fc4677e175121ba6d8b44",
-      "tests/e2e/single_run_certification/golden/v4/instruments.json": "9edbb37f82101add2d5a840217c4672f52a33b2800581303458f0c18c5338f9c",
-      "tests/e2e/single_run_certification/golden/v4/manifest.json": "8a32fb927bffbcb9d9cb5b4cd9913e8a3f14287dea91ae7a9b8dada07202989b",
-      "tests/e2e/single_run_certification/golden/v4/market-data.json": "18fbe874def6e2ce7a925a21a23fd05d4b3f4c7427a94ddddd58186eaee1d95b",
-      "tests/e2e/single_run_certification/golden/v4/negative-control-specimens.json": "6f11fffa697e208a82151aaf524ec1b4a2b3efafd14fd2f44b0932e50be406af",
-      "tests/e2e/single_run_certification/golden/v4/oracle-completion/DERIVATIONS.md": "621f1c4f387da4fe9c1a02bd20fd31621099b5a8b984e8c69914a40022f541a6",
-      "tests/e2e/single_run_certification/golden/v4/oracle-completion/ceri-derivations.json": "3269fa3190a54cd1b4261c5933688d97303ccf883d3d9ebd1225a1c7d3213b9c",
-      "tests/e2e/single_run_certification/golden/v4/oracle-completion/ceri-expected.json": "9cfdcb92dd389c91c56f1263239e06b5d8107cb0083170936a1deaab60898e2f",
-      "tests/e2e/single_run_certification/golden/v4/oracle-completion/context-derivations.json": "00950a9e7b8a55eee01d63fa109935944daa794962262932b66a03abe7ac9959",
-      "tests/e2e/single_run_certification/golden/v4/oracle-completion/context-expected.json": "651e28cc83a1f4500b5492e9572e99bd183c96846a7d702a58f64211dab400a7",
-      "tests/e2e/single_run_certification/golden/v4/oracle-completion/core-derivations.json": "7c07f2fc649e0278e6fcd738793e5c9a543912884753d8c87a3acaf5137b37a8",
-      "tests/e2e/single_run_certification/golden/v4/oracle-completion/core-expected.json": "58a4093c33e8926766a7fd576e8965c4972a205a7f0fc3cbcc154bbfa8a25044",
-      "tests/e2e/single_run_certification/golden/v4/oracle-completion/downstream-derivations.json": "e2a507f698954a5bf959186839a7b8d5d2b08a30a6d42c94285fce426a1f2abe",
-      "tests/e2e/single_run_certification/golden/v4/oracle-completion/downstream-expected.json": "d5ac9ae177f2d0de01a4378d217fa130a2323c2706dc5e600926c82d55e09601",
-      "tests/e2e/single_run_certification/golden/v4/oracle-completion/manifest.json": "7489d95eeee8050a619e43cc8a39526b57c2162fced972edbccfd4805c9a8502",
-      "tests/e2e/single_run_certification/golden/v4/prerequisites-source.py.txt": "e291ef0f54e0b97972e9ee6f5bc3c50b52716200e86c3b2cee6c405c0bcf3ce4",
-      "tests/e2e/single_run_certification/golden/v4/provider-replay.json": "0ad2ccfd12c4dfdba9b279b4fcabdced446c8d455535d7f044e4e5fbc78506cc",
-      "tests/e2e/single_run_certification/golden/v4/runtime-settings.json": "da3a2dd948c92fd9b99658f2cd48fa234d6fddffcfde4ffe85ae3e9aa38ef22f",
-      "tests/e2e/single_run_certification/golden/v4/universe.csv": "562c079f471fe125f7aa28ef762b2236c196ff68bd6ed6ed87727a2603c09990"
+      "tests/e2e/single_run_certification/golden/v5/DERIVATIONS.md": "064dca6ffac9d1fdd88150e2a0e95fe806627cf6e48840b78c76fb80bb22c320",
+      "tests/e2e/single_run_certification/golden/v5/calendar.json": "72c85eb606d68c6928b2d7710a8a27986c41eb31734cf8d57c4cfa3d4b92b5cc",
+      "tests/e2e/single_run_certification/golden/v5/configuration.json": "caf5e2936ff3bd9e8fc7313549daa279988c2a2e0543e92c82549f951cd6dcdc",
+      "tests/e2e/single_run_certification/golden/v5/expected-results.json": "8a7499352e84ba6b06a9508c320cac7b094821a9f99b19dbe3c9cbda9734fe71",
+      "tests/e2e/single_run_certification/golden/v5/financial-source.json": "f46da1fe44b3ac01fce2d654ad1ed04f003b79a1dc1d7ef998754fbdfef1e32a",
+      "tests/e2e/single_run_certification/golden/v5/fundamental-derivation.json": "02c867000316d33048fff2d5444d0d812af10d233b319012450a71e5e206635f",
+      "tests/e2e/single_run_certification/golden/v5/history.json": "bf9c645b1e95558010c81cbcb93c1cfffce153b9246fc4677e175121ba6d8b44",
+      "tests/e2e/single_run_certification/golden/v5/instruments.json": "9edbb37f82101add2d5a840217c4672f52a33b2800581303458f0c18c5338f9c",
+      "tests/e2e/single_run_certification/golden/v5/manifest.json": "8229bce3b5d2525ebe89bafc53e465d5047d27bf52d2b62938115e1f854d2bbd",
+      "tests/e2e/single_run_certification/golden/v5/market-data.json": "18fbe874def6e2ce7a925a21a23fd05d4b3f4c7427a94ddddd58186eaee1d95b",
+      "tests/e2e/single_run_certification/golden/v5/negative-control-specimens.json": "6f11fffa697e208a82151aaf524ec1b4a2b3efafd14fd2f44b0932e50be406af",
+      "tests/e2e/single_run_certification/golden/v5/oracle-completion/DERIVATIONS.md": "173a5b8424e1c7279f50e6531f28a0c9f9e5fd38b34abade1a4e8b39c9515798",
+      "tests/e2e/single_run_certification/golden/v5/oracle-completion/ceri-derivations.json": "8078f813d9c35f3f0d320fbeeebb98c81059a5fcaf76e4762b0b4432b194b617",
+      "tests/e2e/single_run_certification/golden/v5/oracle-completion/ceri-expected.json": "19a75d1373446df664766097d96588c20e325ad986dc2e4ec1f31239d33e1c7f",
+      "tests/e2e/single_run_certification/golden/v5/oracle-completion/context-derivations.json": "00950a9e7b8a55eee01d63fa109935944daa794962262932b66a03abe7ac9959",
+      "tests/e2e/single_run_certification/golden/v5/oracle-completion/context-expected.json": "651e28cc83a1f4500b5492e9572e99bd183c96846a7d702a58f64211dab400a7",
+      "tests/e2e/single_run_certification/golden/v5/oracle-completion/core-derivations.json": "7c07f2fc649e0278e6fcd738793e5c9a543912884753d8c87a3acaf5137b37a8",
+      "tests/e2e/single_run_certification/golden/v5/oracle-completion/core-expected.json": "58a4093c33e8926766a7fd576e8965c4972a205a7f0fc3cbcc154bbfa8a25044",
+      "tests/e2e/single_run_certification/golden/v5/oracle-completion/downstream-derivations.json": "e2a507f698954a5bf959186839a7b8d5d2b08a30a6d42c94285fce426a1f2abe",
+      "tests/e2e/single_run_certification/golden/v5/oracle-completion/downstream-expected.json": "d5ac9ae177f2d0de01a4378d217fa130a2323c2706dc5e600926c82d55e09601",
+      "tests/e2e/single_run_certification/golden/v5/oracle-completion/manifest.json": "366f3aec051daa3df33c90cfe755a8f27d38d281dfe500590e4d9f138bb61ab5",
+      "tests/e2e/single_run_certification/golden/v5/prerequisites-source.py.txt": "e291ef0f54e0b97972e9ee6f5bc3c50b52716200e86c3b2cee6c405c0bcf3ce4",
+      "tests/e2e/single_run_certification/golden/v5/provider-replay.json": "0ad2ccfd12c4dfdba9b279b4fcabdced446c8d455535d7f044e4e5fbc78506cc",
+      "tests/e2e/single_run_certification/golden/v5/runtime-settings.json": "da3a2dd948c92fd9b99658f2cd48fa234d6fddffcfde4ffe85ae3e9aa38ef22f",
+      "tests/e2e/single_run_certification/golden/v5/universe.csv": "562c079f471fe125f7aa28ef762b2236c196ff68bd6ed6ed87727a2603c09990"
     },
-    "completion_manifest": "tests/e2e/single_run_certification/golden/v4/oracle-completion/manifest.json",
-    "completion_manifest_sha256": "7489d95eeee8050a619e43cc8a39526b57c2162fced972edbccfd4805c9a8502",
+    "completion_manifest": "tests/e2e/single_run_certification/golden/v5/oracle-completion/manifest.json",
+    "completion_manifest_sha256": "366f3aec051daa3df33c90cfe755a8f27d38d281dfe500590e4d9f138bb61ab5",
     "expectation_artifacts": {
-      "tests/e2e/single_run_certification/golden/v3/expected-results.json": "tests/e2e/single_run_certification/golden/v4/expected-results.json",
-      "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json": "tests/e2e/single_run_certification/golden/v4/oracle-completion/ceri-expected.json",
-      "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-expected.json": "tests/e2e/single_run_certification/golden/v4/oracle-completion/context-expected.json",
-      "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json": "tests/e2e/single_run_certification/golden/v4/oracle-completion/core-expected.json",
-      "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json": "tests/e2e/single_run_certification/golden/v4/oracle-completion/downstream-expected.json"
+      "tests/e2e/single_run_certification/golden/v3/expected-results.json": "tests/e2e/single_run_certification/golden/v5/expected-results.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json": "tests/e2e/single_run_certification/golden/v5/oracle-completion/ceri-expected.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-expected.json": "tests/e2e/single_run_certification/golden/v5/oracle-completion/context-expected.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json": "tests/e2e/single_run_certification/golden/v5/oracle-completion/core-expected.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json": "tests/e2e/single_run_certification/golden/v5/oracle-completion/downstream-expected.json"
     },
-    "expectation_revision": "a05b-r4",
-    "input_identity": "5f60e708aee9fa97f7fdd56b36ef75abe1ad797230aa9e762be00a3040061595",
-    "input_manifest": "tests/e2e/single_run_certification/golden/v4/manifest.json",
-    "input_manifest_sha256": "8a32fb927bffbcb9d9cb5b4cd9913e8a3f14287dea91ae7a9b8dada07202989b",
-    "input_version": "a05-v4"
+    "expectation_revision": "a05b-r5",
+    "input_identity": "2a52a37b6eda3b6486e3c104bd2fc16efa3ac400080e74c635fdebed1e704375",
+    "input_manifest": "tests/e2e/single_run_certification/golden/v5/manifest.json",
+    "input_manifest_sha256": "8229bce3b5d2525ebe89bafc53e465d5047d27bf52d2b62938115e1f854d2bbd",
+    "input_version": "a05-v5"
   },
   "contract_change": {
     "configuration_sha256": {
@@ -92,16 +92,86 @@
       "config/technical_v51_research.yaml": "64b0ecbacf27fbee542b8156a2b938388630f977199651d5d7a16d7c9f005f01",
       "config/winner_probability.yaml": "9cfae4719d312718e24ec5c882d4cc94ba19cc262460ad71297b3f51bd4a8c7a"
     },
-    "reason": "Versioned IBMI1.0.2 configuration plus complete review of Technical research v2, preserve-stricter-v1 and all scoped activation fixes; explicit candidate financial validation preserves historical seals and existing authority. The Run40 Winner-positive synthetic fixture is corrected to genuine READY input while retaining warned-input v1 rejection, unchanged 88-prediction/replay assertions and historical data; see docs/verification/ibmi-pr78-native-certification-20261103.md. Production rules and golden financial expectations are unchanged by this test-fixture correction.",
-    "source_revision": "c32c6287e71776e71ba5e2eee0450a27d659d15b"
+    "reason": "CERI verified-parent capture identity under the requested context/ownership/handoff remediation. Dedicated CERI context FK remains NULL; explicit reverse binding and exact job/workflow/context/configuration/cutoff authorize the new capture's KNOWN parent. Historical UNKNOWN remains immutable. Retain prior v4 configuration and independent financial derivations; no numerical or tolerance changes.",
+    "source_revision": "7348116b3ee9c5ff2ada33f95f4d23dbb45a1399"
   },
   "expectation_changes": [
     {
-      "after": "a05-v4",
+      "after": "a05-v5",
       "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
       "before": "a05-v3",
       "pointer": "/version",
-      "reason": "Distinct candidate contract identity after independent full-scope branch/formula review; all402 numerical vector rows remain unchanged, with no tolerance change."
+      "reason": "Distinct candidate contract identity; all financial values and precisions retained."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/0/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/1/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/2/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/3/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/4/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/5/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/6/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/7/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/8/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
+    },
+    {
+      "after": "KNOWN",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "UNKNOWN",
+      "pointer": "/captures/9/pipeline_ownership_state",
+      "reason": "Exactly one explicit parent/upload/job/workflow/dedicated-context/configuration/cutoff binding entails KNOWN ownership of that parent; the dedicated context FK stays NULL. Missing, ambiguous or foreign authority is refused; upload history is not authority. Historical UNKNOWN evidence is immutable."
     }
   ],
   "historical_artifacts": {
@@ -155,7 +225,36 @@
     "artifacts": {
       "docs/testing/golden-provenance/a05b-r4/REVIEW.md": "36009dbddcc0ff64856c4de9847fdfad0bf5458f4a9ab0420295403b534fbf73",
       "docs/testing/golden-provenance/a05b-r4/authoring-record.py.txt": "aa6d8e60880ade94f7b06086b4afae67bdd8fa83bde16e2e5a712039b4709358",
-      "docs/testing/golden-provenance/a05b-r4/independent-review.json": "0c73a7bd0c51e7090e9c0cc9d1366196e0cdada677718629ff3bfadeb48af76f"
+      "docs/testing/golden-provenance/a05b-r4/independent-review.json": "0c73a7bd0c51e7090e9c0cc9d1366196e0cdada677718629ff3bfadeb48af76f",
+      "docs/testing/golden-provenance/a05b-r5/REVIEW.md": "ebffb1c31e5d355b1d47370833b363f130b702634beee8f58f615efa467c90f2",
+      "docs/testing/golden-provenance/a05b-r5/authoring-record.py.txt": "931fc2c5c3a57d236ad5ce2fdaf6bdcdd3ce1fbdb1f580e378fc4f48826778a4",
+      "docs/testing/golden-provenance/a05b-r5/independent-review.json": "4712d6037f9f83fecaae4c51f2ce10c3c965cc0e502c69e67bc9de5ab7fad6ac",
+      "docs/testing/golden-provenance/a05b-r5/previous-v4-proposal.json": "98141ce7d98704100e7a8cc423f32bb8350f882df0044e12760ff02537d0d891",
+      "tests/e2e/single_run_certification/golden/v4/DERIVATIONS.md": "096f44c04fa56df0227c72bedb95092f30a1c182f941688eb4a3b40df54173eb",
+      "tests/e2e/single_run_certification/golden/v4/calendar.json": "72c85eb606d68c6928b2d7710a8a27986c41eb31734cf8d57c4cfa3d4b92b5cc",
+      "tests/e2e/single_run_certification/golden/v4/configuration.json": "caf5e2936ff3bd9e8fc7313549daa279988c2a2e0543e92c82549f951cd6dcdc",
+      "tests/e2e/single_run_certification/golden/v4/expected-results.json": "adbcd782752be4d851a173badfdff81013b4028b4b8f0370c43f1c7678f78191",
+      "tests/e2e/single_run_certification/golden/v4/financial-source.json": "f46da1fe44b3ac01fce2d654ad1ed04f003b79a1dc1d7ef998754fbdfef1e32a",
+      "tests/e2e/single_run_certification/golden/v4/fundamental-derivation.json": "02c867000316d33048fff2d5444d0d812af10d233b319012450a71e5e206635f",
+      "tests/e2e/single_run_certification/golden/v4/history.json": "bf9c645b1e95558010c81cbcb93c1cfffce153b9246fc4677e175121ba6d8b44",
+      "tests/e2e/single_run_certification/golden/v4/instruments.json": "9edbb37f82101add2d5a840217c4672f52a33b2800581303458f0c18c5338f9c",
+      "tests/e2e/single_run_certification/golden/v4/manifest.json": "8a32fb927bffbcb9d9cb5b4cd9913e8a3f14287dea91ae7a9b8dada07202989b",
+      "tests/e2e/single_run_certification/golden/v4/market-data.json": "18fbe874def6e2ce7a925a21a23fd05d4b3f4c7427a94ddddd58186eaee1d95b",
+      "tests/e2e/single_run_certification/golden/v4/negative-control-specimens.json": "6f11fffa697e208a82151aaf524ec1b4a2b3efafd14fd2f44b0932e50be406af",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/DERIVATIONS.md": "621f1c4f387da4fe9c1a02bd20fd31621099b5a8b984e8c69914a40022f541a6",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/ceri-derivations.json": "3269fa3190a54cd1b4261c5933688d97303ccf883d3d9ebd1225a1c7d3213b9c",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/ceri-expected.json": "9cfdcb92dd389c91c56f1263239e06b5d8107cb0083170936a1deaab60898e2f",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/context-derivations.json": "00950a9e7b8a55eee01d63fa109935944daa794962262932b66a03abe7ac9959",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/context-expected.json": "651e28cc83a1f4500b5492e9572e99bd183c96846a7d702a58f64211dab400a7",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/core-derivations.json": "7c07f2fc649e0278e6fcd738793e5c9a543912884753d8c87a3acaf5137b37a8",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/core-expected.json": "58a4093c33e8926766a7fd576e8965c4972a205a7f0fc3cbcc154bbfa8a25044",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/downstream-derivations.json": "e2a507f698954a5bf959186839a7b8d5d2b08a30a6d42c94285fce426a1f2abe",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/downstream-expected.json": "d5ac9ae177f2d0de01a4378d217fa130a2323c2706dc5e600926c82d55e09601",
+      "tests/e2e/single_run_certification/golden/v4/oracle-completion/manifest.json": "7489d95eeee8050a619e43cc8a39526b57c2162fced972edbccfd4805c9a8502",
+      "tests/e2e/single_run_certification/golden/v4/prerequisites-source.py.txt": "e291ef0f54e0b97972e9ee6f5bc3c50b52716200e86c3b2cee6c405c0bcf3ce4",
+      "tests/e2e/single_run_certification/golden/v4/provider-replay.json": "0ad2ccfd12c4dfdba9b279b4fcabdced446c8d455535d7f044e4e5fbc78506cc",
+      "tests/e2e/single_run_certification/golden/v4/runtime-settings.json": "da3a2dd948c92fd9b99658f2cd48fa234d6fddffcfde4ffe85ae3e9aa38ef22f",
+      "tests/e2e/single_run_certification/golden/v4/universe.csv": "562c079f471fe125f7aa28ef762b2236c196ff68bd6ed6ed87727a2603c09990"
     },
     "method": "INDEPENDENT_FORMULA_REVIEW",
     "production_outputs_used": false
@@ -168,11 +267,11 @@
     "input_version": "a05-v3"
   },
   "review_request": {
-    "candidate_digest": "1aa6cfaa8acb70fb8d24d5e856219a23a48a3dacb7e0a3412c15ab47c7e897b5",
-    "expectation_revision": "a05b-r4",
-    "input_version": "a05-v4",
+    "candidate_digest": "ea3d4e2ae5ee4e4302d867845145477b3943dbc0f837ba1495eb87033e39fb39",
+    "expectation_revision": "a05b-r5",
+    "input_version": "a05-v5",
     "producer": "INDEPENDENT_FORMULA_REVIEW",
-    "source_revision": "c32c6287e71776e71ba5e2eee0450a27d659d15b",
+    "source_revision": "7348116b3ee9c5ff2ada33f95f4d23dbb45a1399",
     "status": "PROPOSED"
   },
   "schema": "swinglens.golden-update-proposal.v1"

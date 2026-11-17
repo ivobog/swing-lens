@@ -1,0 +1,67 @@
+[
+  {
+    "test": "tests.ceri.test_ceri_acceptance_fixture::test_purge_preview_and_execute_redact_sources_and_invalidate_derivatives",
+    "message": "TypeError: combine() argument 1 must be datetime.date, not None",
+    "trace": "tests\\ceri\\test_ceri_acceptance_fixture.py:179: in test_purge_preview_and_execute_redact_sources_and_invalidate_derivatives\n    query_payload = CeriQueryService().latest(db, CeriListQuery(CeriQueryFilters()))\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\napp\\services\\ceri\\query_service.py:214: in latest\n    payload = self._snapshot_page(\napp\\services\\ceri\\query_service.py:1861: in _snapshot_page\n    _score_snapshot_payload(\napp\\services\\ceri\\query_service.py:2048: in _score_snapshot_payload\n    _guidance_summary(db, snapshot.company_id, snapshot.cutoff_at)\napp\\services\\ceri\\query_service.py:2480: in _guidance_summary\n    cutoff_at = cutoff if isinstance(cutoff, datetime) else datetime.combine(cutoff, time.max, UTC)\n                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: combine() argument 1 must be datetime.date, not None"
+  },
+  {
+    "test": "tests.ceri.test_sec_processor_lifecycle::test_readiness_requires_current_signature_for_every_required_cik",
+    "message": "AssertionError: assert 'OTHER_BLOCKING_REASON' == 'SYNC_STATE_MISSING'\n  \n  - SYNC_STATE_MISSING\n  + OTHER_BLOCKING_REASON",
+    "trace": "tests\\ceri\\test_sec_processor_lifecycle.py:301: in test_readiness_requires_current_signature_for_every_required_cik\n    assert result.tickers[0].category.value == \"SYNC_STATE_MISSING\"\nE   AssertionError: assert 'OTHER_BLOCKING_REASON' == 'SYNC_STATE_MISSING'\nE     \nE     - SYNC_STATE_MISSING\nE     + OTHER_BLOCKING_REASON"
+  },
+  {
+    "test": "tests.ceri.test_t15d_residual_findings::test_deployment_identity_reports_current_database_head_and_separate_evidence_schema",
+    "message": "AssertionError: assert '0096_ceri_native_context' == '0094_sector_acquisition'\n  \n  - 0094_sector_acquisition\n  + 0096_ceri_native_context",
+    "trace": "tests\\ceri\\test_t15d_residual_findings.py:120: in test_deployment_identity_reports_current_database_head_and_separate_evidence_schema\n    assert identity[\"schema_revision\"] == \"0094_sector_acquisition\"\nE   AssertionError: assert '0096_ceri_native_context' == '0094_sector_acquisition'\nE     \nE     - 0094_sector_acquisition\nE     + 0096_ceri_native_context"
+  },
+  {
+    "test": "tests.ceri.test_wave1_p0::test_sec_identity_mapping_is_persisted_durably",
+    "message": "AttributeError: 'IdentityDb' object has no attribute 'scalars'. Did you mean: 'scalar'?",
+    "trace": "tests\\ceri\\test_wave1_p0.py:429: in test_sec_identity_mapping_is_persisted_durably\n    _persist_sec_identity(db, source, company.id)\napp\\services\\source_mutation_authority.py:909: in guarded\n    return mechanism(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\napp\\services\\ceri\\normalization_service.py:628: in _persist_sec_identity\n    conflict = ownership_conflict(db, company.ticker, cik, writing=True)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\napp\\services\\ceri\\sec\\issuer_succession.py:33: in ownership_conflict\n    owners = db.scalars(select(CeriCompany).where(CeriCompany.cik == cik)).all()\n             ^^^^^^^^^^\nE   AttributeError: 'IdentityDb' object has no attribute 'scalars'. Did you mean: 'scalar'?"
+  },
+  {
+    "test": "tests.integration.test_decision_configuration_delivery_postgresql::test_stale_reclaim_changes_lease_but_preserves_configuration",
+    "message": "app.services.pipeline_state_machine.PipelineTransitionError: PIPELINE_TRANSITION_FORBIDDEN:PENDING->QUEUED:actor=recovery",
+    "trace": "tests\\integration\\test_decision_configuration_delivery_postgresql.py:222: in test_stale_reclaim_changes_lease_but_preserves_configuration\n    recover_stale_jobs(\napp\\services\\background_job_service.py:2336: in recover_stale_jobs\n    return _recover_jobs(db, eligible, now=now)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\napp\\services\\background_job_service.py:2387: in _recover_jobs\n    _interrupt_fenced_pipeline_steps(\napp\\services\\background_job_service.py:1481: in _interrupt_fenced_pipeline_steps\n    transition_pipeline(\napp\\services\\pipeline_state_machine.py:67: in transition_pipeline\n    raise PipelineTransitionError(\nE   app.services.pipeline_state_machine.PipelineTransitionError: PIPELINE_TRANSITION_FORBIDDEN:PENDING->QUEUED:actor=recovery"
+  },
+  {
+    "test": "tests.integration.test_ceri_systemic_remediation::test_retry_rejects_changed_source_before_new_output",
+    "message": "app.services.market_calculation_context_service.CeriContextIntegrityError: CERI_CONTEXT_IDENTITY_MISMATCH: source manifest calculation context identity does not match",
+    "trace": "app\\services\\market_calculation_context_service.py:931: in _require_execution_calendar\n    require_current_execution_calendar(cutoff)\napp\\services\\market_clock_service.py:187: in require_current_execution_calendar\n    clock_for_cutoff(cutoff)\napp\\services\\market_clock_service.py:170: in clock_for_cutoff\n    clock = MarketClockService(calendar_version=cutoff.calendar_version)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\napp\\services\\market_clock_service.py:88: in __init__\n    raise ValueError(\"unsupported US equity calendar version\")\nE   ValueError: unsupported US equity calendar version\n\nThe above exception was the direct cause of the following exception:\napp\\services\\ceri\\source_manifest_service.py:82: in freeze_or_verify_feature_source_manifest\n    resolver(\napp\\services\\market_calculation_context_service.py:342: in resolve_pipeline_ceri_context\n    _require_execution_calendar(cutoff)\napp\\services\\market_calculation_context_service.py:933: in _require_execution_calendar\n    raise PipelineCalculationContextError(str(exc)) from exc\nE   app.services.market_calculation_context_service.PipelineCalculationContextError: unsupported US equity calendar version\n\nThe above exception was the direct cause of the following exception:\ntests\\integration\\test_ceri_systemic_remediation.py:128: in test_retry_rejects_changed_source_before_new_output\n    manifest, created = freeze_or_verify_feature_source_manifest(\napp\\services\\ceri\\source_manifest_service.py:94: in freeze_or_verify_feature_source_manifest\n    raise CeriContextIntegrityError(\nE   app.services.market_calculation_context_service.CeriContextIntegrityError: CERI_CONTEXT_IDENTITY_MISMATCH: source manifest calculation context identity does not match"
+  },
+  {
+    "test": "tests.integration.test_ceri_systemic_remediation::test_crash_retry_reuses_unchanged_manifest_and_order_is_deterministic",
+    "message": "app.services.market_calculation_context_service.CeriContextIntegrityError: CERI_CONTEXT_IDENTITY_MISMATCH: source manifest calculation context identity does not match",
+    "trace": "app\\services\\market_calculation_context_service.py:931: in _require_execution_calendar\n    require_current_execution_calendar(cutoff)\napp\\services\\market_clock_service.py:187: in require_current_execution_calendar\n    clock_for_cutoff(cutoff)\napp\\services\\market_clock_service.py:170: in clock_for_cutoff\n    clock = MarketClockService(calendar_version=cutoff.calendar_version)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\napp\\services\\market_clock_service.py:88: in __init__\n    raise ValueError(\"unsupported US equity calendar version\")\nE   ValueError: unsupported US equity calendar version\n\nThe above exception was the direct cause of the following exception:\napp\\services\\ceri\\source_manifest_service.py:82: in freeze_or_verify_feature_source_manifest\n    resolver(\napp\\services\\market_calculation_context_service.py:342: in resolve_pipeline_ceri_context\n    _require_execution_calendar(cutoff)\napp\\services\\market_calculation_context_service.py:933: in _require_execution_calendar\n    raise PipelineCalculationContextError(str(exc)) from exc\nE   app.services.market_calculation_context_service.PipelineCalculationContextError: unsupported US equity calendar version\n\nThe above exception was the direct cause of the following exception:\ntests\\integration\\test_ceri_systemic_remediation.py:167: in test_crash_retry_reuses_unchanged_manifest_and_order_is_deterministic\n    manifest, created = freeze_or_verify_feature_source_manifest(\napp\\services\\ceri\\source_manifest_service.py:94: in freeze_or_verify_feature_source_manifest\n    raise CeriContextIntegrityError(\nE   app.services.market_calculation_context_service.CeriContextIntegrityError: CERI_CONTEXT_IDENTITY_MISMATCH: source manifest calculation context identity does not match"
+  },
+  {
+    "test": "tests.integration.test_ceri_change_rebuild_scoping_postgresql::test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads[COMPLETED-5-0-2]",
+    "message": "assert set() == {1, 2, 3, 4, 5}\n  \n  Extra items in the right set:\n  1\n  2\n  3\n  4\n  5\n  Use -v to get more diff",
+    "trace": "tests\\integration\\test_ceri_change_rebuild_scoping_postgresql.py:118: in test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads\n    assert set(detector.company_ids) == (set(target_ids) if eligible else set())\nE   assert set() == {1, 2, 3, 4, 5}\nE     \nE     Extra items in the right set:\nE     1\nE     2\nE     3\nE     4\nE     5\nE     Use -v to get more diff"
+  },
+  {
+    "test": "tests.integration.test_ceri_change_rebuild_scoping_postgresql::test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads[COMPLETED-5-250-2]",
+    "message": "assert set() == {1, 2, 3, 4, 5}\n  \n  Extra items in the right set:\n  1\n  2\n  3\n  4\n  5\n  Use -v to get more diff",
+    "trace": "tests\\integration\\test_ceri_change_rebuild_scoping_postgresql.py:118: in test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads\n    assert set(detector.company_ids) == (set(target_ids) if eligible else set())\nE   assert set() == {1, 2, 3, 4, 5}\nE     \nE     Extra items in the right set:\nE     1\nE     2\nE     3\nE     4\nE     5\nE     Use -v to get more diff"
+  },
+  {
+    "test": "tests.integration.test_ceri_change_rebuild_scoping_postgresql::test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads[COMPLETED-11-500-4]",
+    "message": "AssertionError: assert set() == {1, 2, 3, 4, 5, 6, ...}\n  \n  Extra items in the right set:\n  1\n  2\n  3\n  4\n  5...\n  \n  ...Full output truncated (7 lines hidden), use '-vv' to show",
+    "trace": "tests\\integration\\test_ceri_change_rebuild_scoping_postgresql.py:118: in test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads\n    assert set(detector.company_ids) == (set(target_ids) if eligible else set())\nE   AssertionError: assert set() == {1, 2, 3, 4, 5, 6, ...}\nE     \nE     Extra items in the right set:\nE     1\nE     2\nE     3\nE     4\nE     5...\nE     \nE     ...Full output truncated (7 lines hidden), use '-vv' to show"
+  },
+  {
+    "test": "tests.integration.test_ceri_change_rebuild_scoping_postgresql::test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads[SAFE_PARTIAL-5-0-2]",
+    "message": "assert set() == {1, 2, 3, 4, 5}\n  \n  Extra items in the right set:\n  1\n  2\n  3\n  4\n  5\n  Use -v to get more diff",
+    "trace": "tests\\integration\\test_ceri_change_rebuild_scoping_postgresql.py:118: in test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads\n    assert set(detector.company_ids) == (set(target_ids) if eligible else set())\nE   assert set() == {1, 2, 3, 4, 5}\nE     \nE     Extra items in the right set:\nE     1\nE     2\nE     3\nE     4\nE     5\nE     Use -v to get more diff"
+  },
+  {
+    "test": "tests.integration.test_ceri_change_rebuild_scoping_postgresql::test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads[SAFE_PARTIAL-5-250-2]",
+    "message": "assert set() == {1, 2, 3, 4, 5}\n  \n  Extra items in the right set:\n  1\n  2\n  3\n  4\n  5\n  Use -v to get more diff",
+    "trace": "tests\\integration\\test_ceri_change_rebuild_scoping_postgresql.py:118: in test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads\n    assert set(detector.company_ids) == (set(target_ids) if eligible else set())\nE   assert set() == {1, 2, 3, 4, 5}\nE     \nE     Extra items in the right set:\nE     1\nE     2\nE     3\nE     4\nE     5\nE     Use -v to get more diff"
+  },
+  {
+    "test": "tests.integration.test_ceri_change_rebuild_scoping_postgresql::test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads[SAFE_PARTIAL-11-500-4]",
+    "message": "AssertionError: assert set() == {1, 2, 3, 4, 5, 6, ...}\n  \n  Extra items in the right set:\n  1\n  2\n  3\n  4\n  5...\n  \n  ...Full output truncated (7 lines hidden), use '-vv' to show",
+    "trace": "tests\\integration\\test_ceri_change_rebuild_scoping_postgresql.py:118: in test_high_cardinality_unrelated_rows_never_enter_scoped_change_reads\n    assert set(detector.company_ids) == (set(target_ids) if eligible else set())\nE   AssertionError: assert set() == {1, 2, 3, 4, 5, 6, ...}\nE     \nE     Extra items in the right set:\nE     1\nE     2\nE     3\nE     4\nE     5...\nE     \nE     ...Full output truncated (7 lines hidden), use '-vv' to show"
+  }
+]

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -15,12 +16,16 @@ from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.config import load_ceri_config
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.provider_registry import CeriProviderRegistry
+from app.services.ceri.sec.coverage import (
+    load_sec_coverage,
+    sec_coverage_blocking_tickers,
+    sec_coverage_can_continue,
+    sec_coverage_current_gaps,
+    sec_coverage_ticker_scope,
+)
 from app.services.ceri.sec.processor_lifecycle import require_deployed_processor_active
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
-from app.services.ceri.sec.readiness_diagnostics import (
-    SecTickerReadinessCategory,
-    diagnose_sec_readiness,
-)
+from app.services.ceri.sec.readiness_diagnostics import diagnose_sec_readiness
 from app.services.domain_mutation import MutationDomain, MutationSemanticMode
 from app.services.entrypoint_authority import EntryPointAuthorityError
 from app.services.market_calculation_context_service import resolve_pipeline_market_context
@@ -86,6 +91,8 @@ class SecReadinessCoverage:
     ready_tickers: int
     missing_tickers: tuple[str, ...]
     missing_ciks: tuple[str, ...]
+    sec_coverage: dict[str, Any] | None = None
+    sec_unresolved_count: int = 0
 
     @property
     def complete(self) -> bool:
@@ -97,6 +104,7 @@ def build_ceri_batched_workflow_plan(
     run_id: int,
     tickers: Iterable[str],
     config_hash: str,
+    workflow_key: str | None = None,
     settings: Settings | None = None,
     provider_datasets: Mapping[str, tuple[CeriDataset, ...]] = DEFAULT_PROVIDER_DATASETS,
     provider_tickers: Mapping[str, Iterable[str]] | None = None,
@@ -105,7 +113,7 @@ def build_ceri_batched_workflow_plan(
     symbols = tuple(
         sorted({str(ticker).strip().upper() for ticker in tickers if str(ticker).strip()})
     )
-    workflow_key = f"ceri:pipeline:{run_id}:{config_hash}"
+    workflow_key = workflow_key or f"ceri:pipeline:{run_id}:{config_hash}"
     jobs: list[CeriBatchJobSpec] = []
     provider_count = 0
     normalization_count = 0
@@ -162,7 +170,8 @@ def build_ceri_batched_workflow_plan(
                     CeriBatchJobSpec(
                         job_type=CERI_NORMALIZE_BATCH,
                         request_key=request_key,
-                        priority=priority + 1,
+                        # Every normalization waits for the entire provider stage.
+                        priority=max(DATASET_PRIORITIES.values()) + 1,
                         payload={
                             "workflow_key": workflow_key,
                             "request_key": request_key,
@@ -230,6 +239,7 @@ def schedule_ceri_batched_workflow(
     *,
     market_cutoff: MarketCalculationCutoff | None = None,
 ) -> CeriBatchedWorkflowPlan:
+    pipeline = None
     pipeline_authority = {}
     semantic_authority = None
     if isinstance(db, Session):
@@ -309,6 +319,10 @@ def schedule_ceri_batched_workflow(
             tickers=tickers,
             processor_signature=lifecycle.active_signature or lifecycle.deployed_signature,
         )
+        coverage = load_sec_coverage(
+            pipeline, processor_signature=readiness.processor_signature, tickers=tickers
+        )
+        blocking_tickers = sec_coverage_blocking_tickers(readiness, coverage)
         logger.info(
             "ceri.sec.preflight",
             extra={
@@ -320,15 +334,17 @@ def schedule_ceri_batched_workflow(
                 "ready_tickers": readiness.ready_tickers,
                 "readiness_counts": readiness.counts(),
                 "blocking_tickers": list(readiness.blocking_tickers),
+                "sec_unresolved_count": len(sec_coverage_current_gaps(readiness, coverage)),
+                "pending_tickers": list(blocking_tickers),
             },
         )
         if (
             runtime_settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE
             and runtime_settings.sec_readiness_policy is SecReadinessPolicy.REQUIRE_READY
-            and not readiness.complete
+            and not sec_coverage_can_continue(readiness, coverage)
         ):
-            missing = ", ".join(readiness.blocking_tickers[:25])
-            suffix = "..." if len(readiness.blocking_tickers) > 25 else ""
+            missing = ", ".join(blocking_tickers[:25])
+            suffix = "..." if len(blocking_tickers) > 25 else ""
             raise CeriBootstrapRequiredError(
                 "SEC ACTIVE preflight rejected the CERI workflow before enqueue: "
                 f"{readiness.ready_tickers}/{readiness.requested_tickers} tickers are accepted "
@@ -337,17 +353,23 @@ def schedule_ceri_batched_workflow(
                 diagnostics={
                     "processor": lifecycle.as_dict(),
                     "readiness": readiness.as_dict(),
+                    "sec_coverage": coverage,
                 },
             )
-        provider_ticker_scopes["sec"] = tuple(
-            item.ticker
-            for item in readiness.tickers
-            if item.category is not SecTickerReadinessCategory.SEC_NOT_APPLICABLE
-        )
+        provider_ticker_scopes["sec"] = sec_coverage_ticker_scope(readiness, coverage)
+    config_hash = load_ceri_config().config_hash
+    workflow_key = None
+    if pipeline is not None:
+        # The upload may be reused by multiple independent pipeline executions.
+        # A retained key keeps an already-dispatched legacy workflow resumable.
+        workflow_key = (pipeline.result_json or {}).get("ceri_provider_workflow_key")
+        if not workflow_key:
+            workflow_key = f"ceri:pipeline:owner:{pipeline.id}:{run_id}:{config_hash}"
     plan = build_ceri_batched_workflow_plan(
         run_id=run_id,
         tickers=tickers,
-        config_hash=load_ceri_config().config_hash,
+        config_hash=config_hash,
+        workflow_key=workflow_key,
         settings=runtime_settings,
         provider_datasets=provider_datasets,
         provider_tickers=provider_ticker_scopes,
@@ -389,12 +411,18 @@ def sec_readiness_coverage(
     *,
     tickers: Iterable[str],
     processor_signature: str | None = None,
+    pipeline: PipelineRun | None = None,
 ) -> SecReadinessCoverage:
     signature = processor_signature or sec_guidance_processor_signature()
     readiness = diagnose_sec_readiness(
         db,
         tickers=tickers,
         processor_signature=signature,
+    )
+    coverage = load_sec_coverage(
+        pipeline,
+        processor_signature=signature,
+        tickers=(item.ticker for item in readiness.tickers),
     )
     return SecReadinessCoverage(
         processor_signature=signature,
@@ -404,6 +432,8 @@ def sec_readiness_coverage(
         missing_ciks=tuple(
             sorted({cik for item in readiness.tickers if not item.accepted for cik in item.ciks})
         ),
+        sec_coverage=coverage,
+        sec_unresolved_count=len(sec_coverage_current_gaps(readiness, coverage)),
     )
 
 
@@ -411,18 +441,25 @@ def sec_readiness_coverage(
     MutationDomain.CERI_SOURCE, "provider_source", mode=MutationSemanticMode.BOOTSTRAP
 )
 def _ensure_ceri_companies(db: Session, tickers: Iterable[str]) -> None:
+    from app.services.ceri.filing_authority import reviewed_filing_authority
+
     existing = {company.ticker.upper() for company in db.scalars(select(CeriCompany))}
     for ticker in tickers:
         symbol = ticker.upper()
         if symbol in existing:
             continue
-        db.add(
-            CeriCompany(
-                ticker=symbol,
-                exchange="US",
-                current_provider_ids_json={"eodhd": f"{symbol}.US"},
-            )
+        company = CeriCompany(
+            ticker=symbol,
+            exchange="US",
+            current_provider_ids_json={"eodhd": f"{symbol}.US"},
         )
+        reviewed = reviewed_filing_authority(symbol)
+        if reviewed is not None and not reviewed.sec_required:
+            company.company_name = reviewed.company_name
+            company.sec_applicability = "NOT_APPLICABLE"
+            company.sec_applicability_reason = reviewed.applicability_reason
+            company.sec_applicability_updated_at = datetime.now(UTC)
+        db.add(company)
         existing.add(symbol)
     db.flush()
 

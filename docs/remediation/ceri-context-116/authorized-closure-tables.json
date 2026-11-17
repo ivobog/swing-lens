@@ -1,0 +1,21 @@
+[
+  "acquisition_plan_records",
+  "combined_results",
+  "core_calculation_evidence",
+  "fundamental_scores",
+  "market_calculation_contexts",
+  "market_regime_snapshots",
+  "pipeline_runs",
+  "ranking_results",
+  "raw_company_rows",
+  "refresh_cycle_records",
+  "sector_rotation_snapshots",
+  "setup_lifecycle_evaluation_runs",
+  "setup_signal_snapshots",
+  "technical_scores",
+  "technical_source_manifests",
+  "transition_decision_handoff_manifests",
+  "transition_preflight_plans",
+  "upload_runs",
+  "work_scope_records"
+]

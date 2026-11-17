@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from threading import Event, Thread
+from threading import Event, Thread, get_ident
 from typing import Any
 from uuid import uuid4
 
@@ -948,6 +948,7 @@ def run_worker_once(
                         "lease_seconds": stale_after_seconds,
                         "interval_seconds": heartbeat_interval_seconds,
                         "stop_event": control_heartbeat_stop,
+                        "handler_thread_id": get_ident(),
                     },
                     name=f"{worker_id}-job-control-heartbeat",
                     daemon=True,
@@ -1188,10 +1189,20 @@ def _active_pipeline_control_heartbeat_loop(
     lease_seconds: int,
     interval_seconds: float,
     stop_event: Event,
+    handler_thread_id: int | None = None,
 ) -> None:
     """Renew long-running job authority independently of business progress."""
 
+    from app.services.job_progress_diagnostics import JobProgressDiagnostics
+
     interval = max(0.1, float(interval_seconds))
+    diagnostics = (
+        JobProgressDiagnostics(
+            job_id=job_id, handler_thread_id=handler_thread_id, settings=get_settings(),
+        )
+        if handler_thread_id is not None else None
+    )
+    next_diagnostic_at = time.monotonic() + 5.0
     while not stop_event.wait(interval):
         try:
             persist_detached_job_control(
@@ -1202,6 +1213,40 @@ def _active_pipeline_control_heartbeat_loop(
                 worker_instance_id=worker_instance_id,
                 lease_seconds=lease_seconds,
             )
+            if diagnostics is not None and time.monotonic() >= next_diagnostic_at:
+                next_diagnostic_at = time.monotonic() + 5.0
+                try:
+                    with session_factory() as diagnostic_db:
+                        if diagnostic_db.get_bind().dialect.name == "postgresql":
+                            diagnostic_db.execute(
+                                text("SELECT set_config('statement_timeout', :timeout, true)"),
+                                {"timeout": "2000ms"},
+                            )
+                        row = diagnostic_db.execute(
+                            select(
+                                BackgroundJob.progress_stage,
+                                BackgroundJob.progress_sequence,
+                                BackgroundJob.progress_current_item,
+                                BackgroundJob.progress_processed,
+                                BackgroundJob.progress_total,
+                                BackgroundJob.last_progress_at,
+                                BackgroundJob.started_at,
+                                BackgroundJob.operational_metadata_json,
+                            ).where(
+                                BackgroundJob.id == job_id,
+                                BackgroundJob.status == JobStatus.RUNNING,
+                                BackgroundJob.execution_token == execution_token,
+                            )
+                        ).mappings().one_or_none()
+                    if row is not None:
+                        diagnostics.observe(row)
+                except Exception as exc:
+                    # Diagnostics must never interrupt authority renewal or work.
+                    # SQL exceptions can format execution-token bind values.
+                    logger.warning(
+                        "job.progress_diagnostic_sample_failed",
+                        extra={"job_id": job_id, "error_type": type(exc).__name__},
+                    )
         except JobLeaseLost:
             return
         except Exception:
@@ -1235,14 +1280,14 @@ def execute_job(
     company = payload.get("company")
     from app.services.configuration_delivery import (
         configuration_delivery_scope,
-        durable_business_job,
         execution_configuration_reference,
+        is_configuration_bound_job,
         load_configuration_delivery,
     )
 
     delivery = None
     if isinstance(db, Session) and (
-        durable_business_job(job.job_type) or job.job_type == "SEC_READINESS_REPAIR"
+        is_configuration_bound_job(job.job_type, payload) or job.job_type == "SEC_READINESS_REPAIR"
     ):
         expected = execution_configuration_reference(db, job)
         delivery = load_configuration_delivery(db, expected, expected_anchor=expected)

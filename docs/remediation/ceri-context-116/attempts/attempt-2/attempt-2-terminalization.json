@@ -1,0 +1,6 @@
+{
+  "job": 2548,
+  "status": "FAILED",
+  "pipeline_status": "FAILED",
+  "reason": "actual dedicated score-change context regression, fixed before next attempt"
+}

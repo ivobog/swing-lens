@@ -88,11 +88,12 @@ def test_sector_residency_rechecks_seals_and_expires_with_its_transaction(contex
     "boundary", [
         "UNIVERSE_RANKING_INPUTS_LOADED", "UNIVERSE_SOURCE_VALIDATION",
         "PERSISTENCE_VALIDATION_SOURCE_LOCKS", "PERSISTENCE_VALIDATION_SOURCE_ROLES",
+        "PERSISTENCE_CANONICAL_HASH",
     ],
 )
 @pytest.mark.parametrize("fault", ["cancel", "failure"])
 def test_sector_source_role_checkpoints_preserve_locks_and_rollback(
-    contextual_engine, fault, boundary,
+    contextual_engine, fault, boundary, monkeypatch,
 ):
     import psycopg
     from native_mutation_support import seed_native_core
@@ -107,6 +108,7 @@ def test_sector_source_role_checkpoints_preserve_locks_and_rollback(
         SectorRotationRow,
         SectorRotationSnapshot,
     )
+    from app.services import sector_serialization
     from app.services.configuration_delivery import ANCHOR_KEY, binding_reference
     from app.services.contextual_effective_configuration import (
         resolve_regime_configuration,
@@ -119,6 +121,9 @@ def test_sector_source_role_checkpoints_preserve_locks_and_rollback(
     from app.services.market_regime_command_center import MarketRegimeCommandCenterService
     from app.services.pipeline_executor import PipelineCancelled, _sector_checkpoint_callback
     from app.services.sector_rotation_service import SectorRotationService
+
+    if boundary == "PERSISTENCE_CANONICAL_HASH":
+        monkeypatch.setattr(sector_serialization, "HASH_PROGRESS_MIN_BYTES", 0)
 
     configuration = resolve_sector_configuration()
     regime = resolve_regime_configuration()
@@ -166,10 +171,14 @@ def test_sector_source_role_checkpoints_preserve_locks_and_rollback(
 
         def progress(_db, **values):
             phase = values["operational_metadata_patch"]["sector_progress"]["phase"]
+            if (boundary == "PERSISTENCE_CANONICAL_HASH" and phase == boundary
+                    and (":manifest:" not in values["current_item"]
+                         or not state.get("phase", "").startswith("PERSISTENCE_VALIDATION"))):
+                return  # Exercise a hash after the writer staged its full snapshot/children.
             if phase == "SOURCE_ROWS_LOADED":
                 assert not db.in_transaction()
             if phase == boundary:
-                atomic = boundary.startswith("PERSISTENCE_VALIDATION")
+                atomic = boundary.startswith(("PERSISTENCE_VALIDATION", "PERSISTENCE_CANONICAL"))
                 assert db.in_nested_transaction() == atomic
                 with Session(contextual_engine) as contender:
                     assert counts(contender) == before  # staged rows remain invisible
@@ -183,7 +192,9 @@ def test_sector_source_role_checkpoints_preserve_locks_and_rollback(
                         with pytest.raises(OperationalError) as error:
                             contender.execute(statement)
                         assert isinstance(error.value.orig, psycopg.errors.LockNotAvailable)
-                if fault == "failure" and values["processed"] > 0:
+                if fault == "failure" and (
+                    values["processed"] > 0 or boundary == "PERSISTENCE_CANONICAL_HASH"
+                ):
                     observed.append((phase, values["processed"], values["total"]))
                     raise RuntimeError("sector-source-role-test-failure")
             state.update(phase=phase, processed=values["processed"])
@@ -209,13 +220,13 @@ def test_sector_source_role_checkpoints_preserve_locks_and_rollback(
                 )
         finally:
             event.remove(contextual_engine, "before_cursor_execute", observe_sql)
-        if boundary.startswith("PERSISTENCE_VALIDATION"):
+        if boundary.startswith(("PERSISTENCE_VALIDATION", "PERSISTENCE_CANONICAL")):
             assert ("SOURCE_ROWS_LOADED", 2, 2) in observed
         assert any(phase == boundary for phase, _, _ in observed)
         assert not cpu_phase_queries  # no lazy ORM query reopened the clean CPU phase
         assert len(writer_evidence_bulk_reads) == len(set(writer_evidence_bulk_reads))
         assert bool(writer_evidence_bulk_reads) == (
-            boundary.startswith("PERSISTENCE_VALIDATION")
+            boundary.startswith(("PERSISTENCE_VALIDATION", "PERSISTENCE_CANONICAL"))
         )  # each producer JSON loads once; every validation pass still executes
         assert counts(db) == before
         db.commit()  # a caller cannot accidentally publish rejected staged state

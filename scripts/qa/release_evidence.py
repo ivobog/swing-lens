@@ -14,6 +14,7 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
@@ -524,6 +525,22 @@ def _selection(config) -> dict:
 _capture: dict = {}
 
 
+def _enable_native_browser_candidate() -> None:
+    """Validate proposed data for native tests without changing trusted CI policy."""
+    proposal = ROOT / "docs/testing/golden-update-proposal.json"
+    if not proposal.is_file():
+        return
+    # Run before test collection: fixture modules bind version/data paths when
+    # imported. A previously imported historical adapter must never be reused.
+    os.environ["SWINGLENS_CERTIFICATION_CANDIDATE_VALIDATION"] = "1"
+    sys.path.insert(0, str(ROOT / "tests/e2e"))
+    from single_run_certification import candidate_validation
+
+    declared = candidate_validation.candidate_proposal()
+    if candidate_validation.VERSION != declared["candidate"]["input_version"]:
+        raise EvidenceError("native browser candidate adapter was initialized before selection")
+
+
 def pytest_sessionstart(session):
     global _capture
     path = os.environ.get("SWINGLENS_RELEASE_PLAN")
@@ -543,6 +560,8 @@ def pytest_sessionstart(session):
         mode == "collection"
     ):
         raise EvidenceError("independent collection/execution phase required")
+    if lane == "browser-smoke":
+        _enable_native_browser_candidate()
     directory = Path(os.environ["SWINGLENS_RELEASE_RECORD_DIR"])
     profile = environment_profile()
     if spec.get("postgres_major"):

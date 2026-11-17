@@ -1,0 +1,641 @@
+;
+; Archive created at 2026-11-16 11:07:42
+;     dbname: swinglens
+;     TOC Entries: 963
+;     Compression: gzip
+;     Dump Version: 1.16-0
+;     Format: CUSTOM
+;     Integer: 4 bytes
+;     Offset: 8 bytes
+;     Dumped from database version: 18.3
+;     Dumped by pg_dump version: 18.3
+;
+;
+; Selected TOC Entries:
+;
+6787; 2606 36323399 CONSTRAINT public acquisition_plan_records acquisition_plan_records_pkey postgres
+6028; 2606 36319401 CONSTRAINT public alembic_version alembic_version_pkc postgres
+6676; 2606 36322556 CONSTRAINT public background_job_enqueue_attempts background_job_enqueue_attempts_pkey postgres
+6682; 2606 36322616 CONSTRAINT public background_job_fanout_roots background_job_fanout_roots_pkey postgres
+6092; 2606 36319104 CONSTRAINT public background_jobs background_jobs_pkey postgres
+6654; 2606 36322357 CONSTRAINT public background_supervisors background_supervisors_pkey postgres
+6582; 2606 36321754 CONSTRAINT public background_workers background_workers_pkey postgres
+6465; 2606 36321008 CONSTRAINT public ceri_alert_events ceri_alert_events_pkey postgres
+6461; 2606 36320990 CONSTRAINT public ceri_alert_rules ceri_alert_rules_pkey postgres
+6418; 2606 36320779 CONSTRAINT public ceri_catalyst_event_revisions ceri_catalyst_event_revisions_pkey postgres
+6413; 2606 36320754 CONSTRAINT public ceri_catalyst_events ceri_catalyst_events_pkey postgres
+6424; 2606 36320817 CONSTRAINT public ceri_catalyst_sources ceri_catalyst_sources_pkey postgres
+6450; 2606 36320925 CONSTRAINT public ceri_change_events ceri_change_events_pkey postgres
+6354; 2606 36320519 CONSTRAINT public ceri_companies ceri_companies_pkey postgres
+6359; 2606 36320539 CONSTRAINT public ceri_company_aliases ceri_company_aliases_pkey postgres
+6602; 2606 36321894 CONSTRAINT public ceri_controlled_replays ceri_controlled_replays_pkey postgres
+6604; 2606 36321896 CONSTRAINT public ceri_controlled_replays ceri_controlled_replays_replay_identifier_key postgres
+6506; 2606 36321260 CONSTRAINT public ceri_derived_features ceri_derived_features_pkey postgres
+6402; 2606 36320690 CONSTRAINT public ceri_earnings_actuals ceri_earnings_actuals_pkey postgres
+6393; 2606 36320656 CONSTRAINT public ceri_estimate_snapshots ceri_estimate_snapshots_pkey postgres
+6727; 2606 36322940 CONSTRAINT public ceri_evidence_dispositions ceri_evidence_dispositions_pkey postgres
+6622; 2606 36322113 CONSTRAINT public ceri_feature_build_states ceri_feature_build_states_pkey postgres
+6806; 2606 36323706 CONSTRAINT public ceri_feature_source_manifests ceri_feature_source_manifests_pkey postgres
+6407; 2606 36320722 CONSTRAINT public ceri_guidance_events ceri_guidance_events_pkey postgres
+6825; 2606 36415001 CONSTRAINT public ceri_ingestion_run_source_records ceri_ingestion_run_source_records_pkey postgres
+6365; 2606 36320573 CONSTRAINT public ceri_ingestion_runs ceri_ingestion_runs_pkey postgres
+6457; 2606 36320966 CONSTRAINT public ceri_manual_reviews ceri_manual_reviews_pkey postgres
+6499; 2606 36321233 CONSTRAINT public ceri_price_response_features ceri_price_response_features_pkey postgres
+6371; 2606 36320600 CONSTRAINT public ceri_processing_runs ceri_processing_runs_pkey postgres
+6493; 2606 36321209 CONSTRAINT public ceri_provider_request_telemetry ceri_provider_request_telemetry_pkey postgres
+6472; 2606 36321045 CONSTRAINT public ceri_purge_audits ceri_purge_audits_pkey postgres
+6429; 2606 36320853 CONSTRAINT public ceri_revision_features ceri_revision_features_pkey postgres
+6437; 2606 36320894 CONSTRAINT public ceri_score_snapshots ceri_score_snapshots_pkey postgres
+6591; 2606 36321814 CONSTRAINT public ceri_sec_document_extractions ceri_sec_document_extractions_pkey postgres
+6585; 2606 36321788 CONSTRAINT public ceri_sec_filing_documents ceri_sec_filing_documents_pkey postgres
+6650; 2606 36322322 CONSTRAINT public ceri_sec_processor_releases ceri_sec_processor_releases_pkey postgres
+6597; 2606 36321840 CONSTRAINT public ceri_sec_sync_states ceri_sec_sync_states_pkey postgres
+6379; 2606 36320622 CONSTRAINT public ceri_source_records ceri_source_records_pkey postgres
+6065; 2606 36318950 CONSTRAINT public combined_results combined_results_pkey postgres
+6843; 2606 65719577 CONSTRAINT public consumer_eligibility_decisions consumer_eligibility_decisions_pkey postgres
+6744; 2606 36323028 CONSTRAINT public core_calculation_current_projections core_calculation_current_projections_pkey postgres
+6733; 2606 36322975 CONSTRAINT public core_calculation_evidence core_calculation_evidence_pkey postgres
+6739; 2606 36322996 CONSTRAINT public core_calculation_evidence_sources core_calculation_evidence_sources_pkey postgres
+6775; 2606 36323336 CONSTRAINT public effective_configuration_records effective_configuration_records_pkey postgres
+6855; 2606 65719672 CONSTRAINT public eligibility_shadow_evaluations eligibility_shadow_evaluations_pkey postgres
+6078; 2606 36318973 CONSTRAINT public engine_parameters engine_parameters_pkey postgres
+6777; 2606 36323348 CONSTRAINT public execution_configuration_anchors execution_configuration_anchors_pkey postgres
+6779; 2606 36323362 CONSTRAINT public execution_configuration_bindings execution_configuration_binding_winner_cohort_generation_id_key postgres
+6781; 2606 36323358 CONSTRAINT public execution_configuration_bindings execution_configuration_bindings_job_id_key postgres
+6783; 2606 36323360 CONSTRAINT public execution_configuration_bindings execution_configuration_bindings_pipeline_run_id_key postgres
+6785; 2606 36323356 CONSTRAINT public execution_configuration_bindings execution_configuration_bindings_pkey postgres
+6051; 2606 36318904 CONSTRAINT public fundamental_scores fundamental_scores_pkey postgres
+6877; 2606 75634425 CONSTRAINT public ib_bar_admission_receipts ib_bar_admission_receipts_fetch_item_id_key postgres
+6879; 2606 75634423 CONSTRAINT public ib_bar_admission_receipts ib_bar_admission_receipts_pkey postgres
+6034; 2606 36318845 CONSTRAINT public ib_contracts ib_contracts_pkey postgres
+6036; 2606 36318847 CONSTRAINT public ib_contracts ib_contracts_ticker_key postgres
+6567; 2606 36321638 CONSTRAINT public ib_execution_fills ib_execution_fills_pkey postgres
+6084; 2606 36319024 CONSTRAINT public ib_fetch_items ib_fetch_items_pkey postgres
+6081; 2606 36319001 CONSTRAINT public ib_fetch_runs ib_fetch_runs_pkey postgres
+6563; 2606 36321604 CONSTRAINT public ib_flex_import_runs ib_flex_import_runs_pkey postgres
+6559; 2606 36321573 CONSTRAINT public ib_histogram_bins ib_histogram_bins_pkey postgres
+6554; 2606 36321554 CONSTRAINT public ib_histogram_snapshots ib_histogram_snapshots_evidence_hash_key postgres
+6556; 2606 36321552 CONSTRAINT public ib_histogram_snapshots ib_histogram_snapshots_pkey postgres
+6875; 2606 74756230 CONSTRAINT public ib_historical_gate ib_historical_gate_pkey postgres
+6522; 2606 36321366 CONSTRAINT public ib_historical_metric_bars ib_historical_metric_bars_pkey postgres
+6527; 2606 36321391 CONSTRAINT public ib_historical_metric_revisions ib_historical_metric_revisions_pkey postgres
+6536; 2606 36321452 CONSTRAINT public ib_intelligence_features ib_intelligence_features_pkey postgres
+6517; 2606 36321330 CONSTRAINT public ib_intelligence_request_items ib_intelligence_request_items_pkey postgres
+6513; 2606 36321300 CONSTRAINT public ib_intelligence_runs ib_intelligence_runs_pkey postgres
+6531; 2606 36321418 CONSTRAINT public ib_market_intelligence_snapshots ib_market_intelligence_snapshots_pkey postgres
+6549; 2606 36321520 CONSTRAINT public ib_scanner_candidates ib_scanner_candidates_pkey postgres
+6542; 2606 36321475 CONSTRAINT public ib_scanner_parameter_cache ib_scanner_parameter_cache_content_hash_key postgres
+6544; 2606 36321473 CONSTRAINT public ib_scanner_parameter_cache ib_scanner_parameter_cache_pkey postgres
+6546; 2606 36321495 CONSTRAINT public ib_scanner_runs ib_scanner_runs_pkey postgres
+6573; 2606 36321679 CONSTRAINT public ib_trade_episodes ib_trade_episodes_episode_key_key postgres
+6575; 2606 36321677 CONSTRAINT public ib_trade_episodes ib_trade_episodes_pkey postgres
+6578; 2606 36321698 CONSTRAINT public ib_trade_research_links ib_trade_research_links_pkey postgres
+6580; 2606 36321700 CONSTRAINT public ib_trade_research_links ib_trade_research_links_trade_episode_id_key postgres
+6832; 2606 39377893 CONSTRAINT public instrument_lifecycle_records instrument_lifecycle_records_pkey postgres
+6688; 2606 36322637 CONSTRAINT public market_calculation_contexts market_calculation_contexts_pkey postgres
+6838; 2606 39377933 CONSTRAINT public market_data_session_dispositions market_data_session_dispositions_pkey postgres
+6146; 2606 36319274 CONSTRAINT public market_regime_snapshots market_regime_snapshots_pkey postgres
+6867; 2606 71016059 CONSTRAINT public market_sector_rotation_rows market_sector_rotation_rows_pkey postgres
+6863; 2606 71016016 CONSTRAINT public market_sector_rotation_snapshots market_sector_rotation_snapshots_pkey postgres
+6814; 2606 36323780 CONSTRAINT public pipeline_dependencies pipeline_dependencies_pkey postgres
+6120; 2606 36319121 CONSTRAINT public pipeline_runs pipeline_runs_pkey postgres
+6123; 2606 36319145 CONSTRAINT public pipeline_steps pipeline_steps_pkey postgres
+6479; 2606 36321070 CONSTRAINT public price_bar_revisions price_bar_revisions_pkey postgres
+6040; 2606 36318864 CONSTRAINT public price_bars price_bars_pkey postgres
+6484; 2606 36321153 CONSTRAINT public price_series_versions price_series_versions_pkey postgres
+6134; 2606 36319205 CONSTRAINT public ranking_results ranking_results_pkey postgres
+6049; 2606 36318883 CONSTRAINT public raw_company_rows raw_company_rows_pkey postgres
+6796; 2606 36323466 CONSTRAINT public refresh_cycle_records refresh_cycle_records_pkey postgres
+6873; 2606 74756212 CONSTRAINT public sector_refresh_requests sector_refresh_requests_pkey postgres
+6162; 2606 36319384 CONSTRAINT public sector_rotation_rows sector_rotation_rows_pkey postgres
+6156; 2606 36319310 CONSTRAINT public sector_rotation_snapshots sector_rotation_snapshots_pkey postgres
+6352; 2606 36320498 CONSTRAINT public setup_lifecycle_administrative_audit_events setup_lifecycle_administrative_audit_events_pkey postgres
+6310; 2606 36320244 CONSTRAINT public setup_lifecycle_episodes setup_lifecycle_episodes_pkey postgres
+6753; 2606 36323144 CONSTRAINT public setup_lifecycle_evaluation_evidence setup_lifecycle_evaluation_evidence_pkey postgres
+6289; 2606 36320096 CONSTRAINT public setup_lifecycle_evaluation_runs setup_lifecycle_evaluation_runs_pkey postgres
+6321; 2606 36320310 CONSTRAINT public setup_lifecycle_events setup_lifecycle_events_pkey postgres
+6758; 2606 36323190 CONSTRAINT public setup_lifecycle_transition_evidence setup_lifecycle_transition_evidence_pkey postgres
+6694; 2606 36322703 CONSTRAINT public setup_signal_snapshot_current_selections setup_signal_snapshot_current_selections_pkey postgres
+6702; 2606 36322745 CONSTRAINT public setup_signal_snapshot_selection_events setup_signal_snapshot_selection_events_pkey postgres
+6302; 2606 36320147 CONSTRAINT public setup_signal_snapshots setup_signal_snapshots_pkey postgres
+6771; 2606 36323282 CONSTRAINT public signal_alert_decision_evidence signal_alert_decision_evidence_pkey postgres
+6343; 2606 36320451 CONSTRAINT public signal_alert_events signal_alert_events_pkey postgres
+6765; 2606 36323249 CONSTRAINT public signal_alert_rule_evidence signal_alert_rule_evidence_pkey postgres
+6336; 2606 36320423 CONSTRAINT public signal_alert_rules signal_alert_rules_pkey postgres
+6331; 2606 36320367 CONSTRAINT public signal_change_events signal_change_events_pkey postgres
+6489; 2606 36321184 CONSTRAINT public technical_feature_artifacts technical_feature_artifacts_pkey postgres
+6061; 2606 36318928 CONSTRAINT public technical_scores technical_scores_pkey postgres
+6802; 2606 36323652 CONSTRAINT public technical_source_manifests technical_source_manifests_pkey postgres
+6719; 2606 36322892 CONSTRAINT public transition_decision_handoff_manifests transition_decision_handoff_manifests_pkey postgres
+6710; 2606 36322810 CONSTRAINT public transition_preflight_plans transition_preflight_plans_pkey postgres
+6032; 2606 36318833 CONSTRAINT public upload_runs upload_runs_pkey postgres
+6470; 2606 36321010 CONSTRAINT public ceri_alert_events uq_ceri_alert_events_event_key postgres
+6463; 2606 36320992 CONSTRAINT public ceri_alert_rules uq_ceri_alert_rules_rule_id postgres
+6422; 2606 36320781 CONSTRAINT public ceri_catalyst_event_revisions uq_ceri_catalyst_event_revision_number postgres
+6416; 2606 36320756 CONSTRAINT public ceri_catalyst_events uq_ceri_catalyst_events_cluster postgres
+6427; 2606 36320819 CONSTRAINT public ceri_catalyst_sources uq_ceri_catalyst_sources_event_source postgres
+6455; 2606 36320927 CONSTRAINT public ceri_change_events uq_ceri_change_events_dedup_key postgres
+6357; 2606 36320521 CONSTRAINT public ceri_companies uq_ceri_companies_ticker_exchange postgres
+6363; 2606 36320541 CONSTRAINT public ceri_company_aliases uq_ceri_company_alias_validity postgres
+6511; 2606 36322871 CONSTRAINT public ceri_derived_features uq_ceri_derived_features_identity postgres
+6405; 2606 36320692 CONSTRAINT public ceri_earnings_actuals uq_ceri_earnings_actuals_source_metric_period postgres
+6400; 2606 36321273 CONSTRAINT public ceri_estimate_snapshots uq_ceri_estimate_snapshots_source_record postgres
+6731; 2606 36322942 CONSTRAINT public ceri_evidence_dispositions uq_ceri_evidence_dispositions_event_fingerprint postgres
+6627; 2606 36322873 CONSTRAINT public ceri_feature_build_states uq_ceri_feature_build_states_identity postgres
+6810; 2606 36323708 CONSTRAINT public ceri_feature_source_manifests uq_ceri_feature_source_manifest_job postgres
+6369; 2606 36320575 CONSTRAINT public ceri_ingestion_runs uq_ceri_ingestion_runs_request_key postgres
+6829; 2606 36415003 CONSTRAINT public ceri_ingestion_run_source_records uq_ceri_ingestion_source_membership postgres
+6504; 2606 36321235 CONSTRAINT public ceri_price_response_features uq_ceri_price_response_event_key postgres
+6377; 2606 36320602 CONSTRAINT public ceri_processing_runs uq_ceri_processing_runs_request_key postgres
+6475; 2606 36321047 CONSTRAINT public ceri_purge_audits uq_ceri_purge_audits_preview_scope postgres
+6435; 2606 36322869 CONSTRAINT public ceri_revision_features uq_ceri_revision_features_identity postgres
+6446; 2606 36321917 CONSTRAINT public ceri_score_snapshots uq_ceri_score_snapshots_controlled_replay_company postgres
+6448; 2606 36320896 CONSTRAINT public ceri_score_snapshots uq_ceri_score_snapshots_run_company_version postgres
+6595; 2606 36321816 CONSTRAINT public ceri_sec_document_extractions uq_ceri_sec_document_extraction_identity postgres
+6589; 2606 36321790 CONSTRAINT public ceri_sec_filing_documents uq_ceri_sec_filing_document_identity postgres
+6600; 2606 36321842 CONSTRAINT public ceri_sec_sync_states uq_ceri_sec_sync_state postgres
+6389; 2606 36320626 CONSTRAINT public ceri_source_records uq_ceri_source_records_idempotency postgres
+6391; 2606 36321091 CONSTRAINT public ceri_source_records uq_ceri_source_records_provider_record postgres
+6076; 2606 36318952 CONSTRAINT public combined_results uq_combined_results_run_ticker postgres
+6847; 2606 65719579 CONSTRAINT public consumer_eligibility_decisions uq_consumer_eligibility_decision_fingerprint postgres
+6737; 2606 36322977 CONSTRAINT public core_calculation_evidence uq_core_calculation_evidence_key postgres
+6742; 2606 36323068 CONSTRAINT public core_calculation_evidence_sources uq_core_evidence_source_role postgres
+6859; 2606 65719674 CONSTRAINT public eligibility_shadow_evaluations uq_eligibility_shadow_evaluation_fingerprint postgres
+6055; 2606 36318906 CONSTRAINT public fundamental_scores uq_fundamental_scores_run_ticker postgres
+6090; 2606 36322335 CONSTRAINT public ib_fetch_items uq_ib_fetch_items_run_ticker_feed postgres
+6561; 2606 36321575 CONSTRAINT public ib_histogram_bins uq_ib_histogram_bin_price postgres
+6525; 2606 36321368 CONSTRAINT public ib_historical_metric_bars uq_ib_historical_metric_bar_identity postgres
+6540; 2606 36321727 CONSTRAINT public ib_intelligence_features uq_ib_intelligence_feature_version postgres
+6520; 2606 36321332 CONSTRAINT public ib_intelligence_request_items uq_ib_intelligence_request_item_key postgres
+6534; 2606 36321420 CONSTRAINT public ib_market_intelligence_snapshots uq_ib_market_snapshot_evidence_hash postgres
+6529; 2606 36321393 CONSTRAINT public ib_historical_metric_revisions uq_ib_metric_revision postgres
+6552; 2606 36321522 CONSTRAINT public ib_scanner_candidates uq_ib_scanner_candidate_conid postgres
+6835; 2606 39377895 CONSTRAINT public instrument_lifecycle_records uq_instrument_lifecycle_ticker_revision postgres
+6690; 2606 36322639 CONSTRAINT public market_calculation_contexts uq_market_calculation_context_pipeline postgres
+6841; 2606 39377935 CONSTRAINT public market_data_session_dispositions uq_market_data_disposition_revision postgres
+6148; 2606 36321106 CONSTRAINT public market_regime_snapshots uq_market_regime_snapshots_run_date_version postgres
+6869; 2606 71016063 CONSTRAINT public market_sector_rotation_rows uq_msi_rotation_rank postgres
+6865; 2606 71016018 CONSTRAINT public market_sector_rotation_snapshots uq_msi_rotation_session_version_config postgres
+6871; 2606 71016061 CONSTRAINT public market_sector_rotation_rows uq_msi_rotation_symbol postgres
+6817; 2606 36323786 CONSTRAINT public pipeline_dependencies uq_pipeline_dependencies_child_job postgres
+6819; 2606 36323784 CONSTRAINT public pipeline_dependencies uq_pipeline_dependencies_continuation_identity postgres
+6821; 2606 36323788 CONSTRAINT public pipeline_dependencies uq_pipeline_dependencies_continuation_job postgres
+6823; 2606 36323782 CONSTRAINT public pipeline_dependencies uq_pipeline_dependencies_key postgres
+6125; 2606 36319147 CONSTRAINT public pipeline_steps uq_pipeline_steps_pipeline_step postgres
+6481; 2606 36321072 CONSTRAINT public price_bar_revisions uq_price_bar_revisions_price_bar_revision postgres
+6042; 2606 36318866 CONSTRAINT public price_bars uq_price_bars_ticker_date_timeframe_what_to_show postgres
+6486; 2606 36321155 CONSTRAINT public price_series_versions uq_price_series_versions_identity postgres
+6136; 2606 36319207 CONSTRAINT public ranking_results uq_ranking_results_run_profile_ticker postgres
+6798; 2606 36323468 CONSTRAINT public refresh_cycle_records uq_refresh_cycle_semantic_key postgres
+6164; 2606 36319386 CONSTRAINT public sector_rotation_rows uq_sector_rotation_rows_snapshot_sector_slug postgres
+6158; 2606 36321121 CONSTRAINT public sector_rotation_snapshots uq_sector_rotation_snapshots_run_date_version_mode postgres
+6755; 2606 36323146 CONSTRAINT public setup_lifecycle_evaluation_evidence uq_setup_lifecycle_evaluation_evidence_key postgres
+6323; 2606 36320312 CONSTRAINT public setup_lifecycle_events uq_setup_lifecycle_events_eval_source_key postgres
+6696; 2606 36322705 CONSTRAINT public setup_signal_snapshot_current_selections uq_setup_signal_snapshot_current_selection_key postgres
+6698; 2606 36322707 CONSTRAINT public setup_signal_snapshot_current_selections uq_setup_signal_snapshot_current_selection_snapshot postgres
+6704; 2606 36322747 CONSTRAINT public setup_signal_snapshot_selection_events uq_setup_signal_snapshot_selection_event_key postgres
+6706; 2606 36322749 CONSTRAINT public setup_signal_snapshot_selection_events uq_setup_signal_snapshot_selection_event_revision postgres
+6304; 2606 36321125 CONSTRAINT public setup_signal_snapshots uq_setup_signal_snapshots_run_identity postgres
+6760; 2606 36323192 CONSTRAINT public setup_lifecycle_transition_evidence uq_setup_transition_evaluation postgres
+6762; 2606 36323194 CONSTRAINT public setup_lifecycle_transition_evidence uq_setup_transition_evidence_key postgres
+6773; 2606 36323284 CONSTRAINT public signal_alert_decision_evidence uq_signal_alert_decision_evidence_key postgres
+6345; 2606 36323323 CONSTRAINT public signal_alert_events uq_signal_alert_events_decision_evidence postgres
+6347; 2606 36320453 CONSTRAINT public signal_alert_events uq_signal_alert_events_event_key postgres
+6767; 2606 36323251 CONSTRAINT public signal_alert_rule_evidence uq_signal_alert_rule_evidence_key postgres
+6338; 2606 36320425 CONSTRAINT public signal_alert_rules uq_signal_alert_rules_rule_id postgres
+6333; 2606 36320369 CONSTRAINT public signal_change_events uq_signal_change_events_source_key postgres
+6491; 2606 36321186 CONSTRAINT public technical_feature_artifacts uq_technical_feature_artifacts_signature postgres
+6063; 2606 36318930 CONSTRAINT public technical_scores uq_technical_scores_run_ticker postgres
+6804; 2606 36323654 CONSTRAINT public technical_source_manifests uq_technical_source_manifest_digest postgres
+6721; 2606 36322898 CONSTRAINT public transition_decision_handoff_manifests uq_transition_handoff_fingerprint postgres
+6723; 2606 36322896 CONSTRAINT public transition_decision_handoff_manifests uq_transition_handoff_pipeline postgres
+6725; 2606 36322894 CONSTRAINT public transition_decision_handoff_manifests uq_transition_handoff_preflight postgres
+6712; 2606 36322812 CONSTRAINT public transition_preflight_plans uq_transition_preflight_plan_context postgres
+6714; 2606 36322816 CONSTRAINT public transition_preflight_plans uq_transition_preflight_plan_idempotency postgres
+6716; 2606 36322814 CONSTRAINT public transition_preflight_plans uq_transition_preflight_plan_pipeline postgres
+6851; 2606 65719622 CONSTRAINT public winner_acquisition_decisions uq_winner_acquisition_decision_fingerprint postgres
+6211; 2606 36319627 CONSTRAINT public winner_cohort_definitions uq_winner_cohort_definitions_key_outcome_version postgres
+6637; 2606 36322199 CONSTRAINT public winner_cohort_generations uq_winner_cohort_generations_key postgres
+6630; 2606 36322159 CONSTRAINT public winner_cohort_refresh_state uq_winner_cohort_refresh_state_contract postgres
+6217; 2606 36319657 CONSTRAINT public winner_cohort_statistics uq_winner_cohort_statistics_definition_cutoff postgres
+6259; 2606 36319890 CONSTRAINT public winner_drift_metrics uq_winner_drift_metrics_identity postgres
+6249; 2606 36319812 CONSTRAINT public winner_estimate_evidence_members uq_winner_estimate_evidence_members_estimate_outcome_revision postgres
+6672; 2606 36322519 CONSTRAINT public winner_estimate_publication_requests uq_winner_estimate_publication_request_key postgres
+6223; 2606 36319687 CONSTRAINT public winner_evidence_manifests uq_winner_evidence_manifests_hash postgres
+6196; 2606 36319550 CONSTRAINT public winner_forward_outcomes uq_winner_forward_outcomes_prediction_entry_horizon_revision postgres
+6644; 2606 36322241 CONSTRAINT public winner_evidence_manifest_members uq_winner_manifest_members_hash postgres
+6646; 2606 36322239 CONSTRAINT public winner_evidence_manifest_members uq_winner_manifest_members_ordinal postgres
+6666; 2606 36322463 CONSTRAINT public winner_market_data_obligations uq_winner_market_data_obligation_outcome_basis postgres
+6229; 2606 36319726 CONSTRAINT public winner_model_versions uq_winner_model_versions_model_key postgres
+6174; 2606 36319448 CONSTRAINT public winner_outcome_definitions uq_winner_outcome_definitions_definition_version postgres
+6168; 2606 36319420 CONSTRAINT public winner_prediction_episodes uq_winner_prediction_episodes_key postgres
+6187; 2606 36319486 CONSTRAINT public winner_prediction_snapshots uq_winner_prediction_snapshots_natural_revision postgres
+6240; 2606 36319760 CONSTRAINT public winner_probability_estimates uq_winner_probability_estimates_identity postgres
+6280; 2606 36320027 CONSTRAINT public winner_similarity_links uq_winner_similarity_links_prediction_definition_cache_rank postgres
+6205; 2606 36319586 CONSTRAINT public winner_target_stop_outcomes uq_winner_target_stop_outcomes_prediction_definition_revision postgres
+6659; 2606 36322407 CONSTRAINT public winner_temporal_validity_decisions uq_winner_temporal_validity_prediction_sequence postgres
+6609; 2606 36321983 CONSTRAINT public winner_training_eligibility_decisions uq_winner_training_eligibility_decision_hash postgres
+6611; 2606 36321985 CONSTRAINT public winner_training_eligibility_decisions uq_winner_training_eligibility_decision_revision postgres
+6616; 2606 36322050 CONSTRAINT public winner_training_outcome_replays uq_winner_training_outcome_replay_hash postgres
+6618; 2606 36322052 CONSTRAINT public winner_training_outcome_replays uq_winner_training_outcome_replay_revision postgres
+6792; 2606 36323445 CONSTRAINT public work_scope_members uq_work_scope_member_ordinal postgres
+6853; 2606 65719620 CONSTRAINT public winner_acquisition_decisions winner_acquisition_decisions_pkey postgres
+6255; 2606 36319854 CONSTRAINT public winner_calibration_bins winner_calibration_bins_pkey postgres
+6213; 2606 36319625 CONSTRAINT public winner_cohort_definitions winner_cohort_definitions_pkey postgres
+6639; 2606 36322197 CONSTRAINT public winner_cohort_generations winner_cohort_generations_pkey postgres
+6632; 2606 36322157 CONSTRAINT public winner_cohort_refresh_state winner_cohort_refresh_state_pkey postgres
+6220; 2606 36319655 CONSTRAINT public winner_cohort_statistics winner_cohort_statistics_pkey postgres
+6261; 2606 36319888 CONSTRAINT public winner_drift_metrics winner_drift_metrics_pkey postgres
+6251; 2606 36319810 CONSTRAINT public winner_estimate_evidence_members winner_estimate_evidence_members_pkey postgres
+6674; 2606 36322517 CONSTRAINT public winner_estimate_publication_requests winner_estimate_publication_requests_pkey postgres
+6648; 2606 36322237 CONSTRAINT public winner_evidence_manifest_members winner_evidence_manifest_members_pkey postgres
+6225; 2606 36319685 CONSTRAINT public winner_evidence_manifests winner_evidence_manifests_pkey postgres
+6198; 2606 36319548 CONSTRAINT public winner_forward_outcomes winner_forward_outcomes_pkey postgres
+6668; 2606 36322461 CONSTRAINT public winner_market_data_obligations winner_market_data_obligations_pkey postgres
+6276; 2606 36319991 CONSTRAINT public winner_model_lifecycle_events winner_model_lifecycle_events_pkey postgres
+6272; 2606 36319956 CONSTRAINT public winner_model_training_runs winner_model_training_runs_pkey postgres
+6231; 2606 36319724 CONSTRAINT public winner_model_versions winner_model_versions_pkey postgres
+6176; 2606 36319446 CONSTRAINT public winner_outcome_definitions winner_outcome_definitions_pkey postgres
+6170; 2606 36319418 CONSTRAINT public winner_prediction_episodes winner_prediction_episodes_pkey postgres
+6189; 2606 36319484 CONSTRAINT public winner_prediction_snapshots winner_prediction_snapshots_pkey postgres
+6243; 2606 36319758 CONSTRAINT public winner_probability_estimates winner_probability_estimates_pkey postgres
+6268; 2606 36319920 CONSTRAINT public winner_processing_runs winner_processing_runs_pkey postgres
+6282; 2606 36320025 CONSTRAINT public winner_similarity_links winner_similarity_links_pkey postgres
+6207; 2606 36319584 CONSTRAINT public winner_target_stop_outcomes winner_target_stop_outcomes_pkey postgres
+6661; 2606 36322405 CONSTRAINT public winner_temporal_validity_decisions winner_temporal_validity_decisions_pkey postgres
+6613; 2606 36321981 CONSTRAINT public winner_training_eligibility_decisions winner_training_eligibility_decisions_pkey postgres
+6620; 2606 36322048 CONSTRAINT public winner_training_outcome_replays winner_training_outcome_replays_pkey postgres
+6794; 2606 36323443 CONSTRAINT public work_scope_members work_scope_members_pkey postgres
+6789; 2606 36323421 CONSTRAINT public work_scope_records work_scope_records_pkey postgres
+6093; 1259 36322538 INDEX public idx_background_jobs_coalesced_into_job_id postgres
+6094; 1259 36319399 INDEX public idx_background_jobs_execution_token postgres
+6095; 1259 36322537 INDEX public idx_background_jobs_fanout_group_id postgres
+6096; 1259 36319398 INDEX public idx_background_jobs_lease_expires_at postgres
+6097; 1259 36319107 INDEX public idx_background_jobs_locked_at postgres
+6098; 1259 36322373 INDEX public idx_background_jobs_parent_job_id postgres
+6099; 1259 36323817 INDEX public idx_background_jobs_pipeline_dependency postgres
+6100; 1259 36322331 INDEX public idx_background_jobs_progress_watchdog postgres
+6101; 1259 36321756 INDEX public idx_background_jobs_queue_claim postgres
+6102; 1259 36319106 INDEX public idx_background_jobs_related_run_id postgres
+6103; 1259 36321126 INDEX public idx_background_jobs_request_key postgres
+6104; 1259 36322536 INDEX public idx_background_jobs_root_correlation_id postgres
+6105; 1259 36322372 INDEX public idx_background_jobs_root_job_id postgres
+6106; 1259 36323515 INDEX public idx_background_jobs_scope_refresh postgres
+6107; 1259 36319105 INDEX public idx_background_jobs_status_priority postgres
+6108; 1259 36322575 INDEX public idx_background_jobs_triggered_by_job_id postgres
+6109; 1259 36322337 INDEX public idx_background_jobs_worker_instance postgres
+6110; 1259 36321739 INDEX public idx_background_jobs_workflow_type_status postgres
+6655; 1259 36322358 INDEX public idx_background_supervisors_heartbeat postgres
+6583; 1259 36321755 INDEX public idx_background_workers_heartbeat postgres
+6366; 1259 36323547 INDEX public idx_ceri_ingestion_runs_scope_refresh postgres
+6372; 1259 36323563 INDEX public idx_ceri_processing_runs_scope_refresh postgres
+6066; 1259 36319160 INDEX public idx_combined_results_complete postgres
+6067; 1259 36319157 INDEX public idx_combined_results_decision postgres
+6068; 1259 36319164 INDEX public idx_combined_results_earnings_risk postgres
+6069; 1259 36323059 INDEX public idx_combined_results_evidence postgres
+6070; 1259 36318958 INDEX public idx_combined_results_run_id postgres
+6071; 1259 36318959 INDEX public idx_combined_results_run_rank postgres
+6072; 1259 36319158 INDEX public idx_combined_results_score postgres
+6073; 1259 36319156 INDEX public idx_combined_results_ticker postgres
+6074; 1259 36319159 INDEX public idx_combined_results_warning postgres
+6844; 1259 65719595 INDEX public idx_consumer_eligibility_run_edge postgres
+6845; 1259 65719596 INDEX public idx_consumer_eligibility_source postgres
+6745; 1259 36323041 INDEX public idx_core_current_projection_evidence postgres
+6734; 1259 36322983 INDEX public idx_core_evidence_identity postgres
+6735; 1259 36322984 INDEX public idx_core_evidence_scope postgres
+6740; 1259 36323009 INDEX public idx_core_evidence_source_upstream postgres
+6856; 1259 65719686 INDEX public idx_eligibility_shadow_differs postgres
+6857; 1259 65719685 INDEX public idx_eligibility_shadow_run_edge postgres
+6079; 1259 36318979 INDEX public idx_engine_parameters_run_id postgres
+6677; 1259 36322569 INDEX public idx_enqueue_attempts_authoritative_job postgres
+6678; 1259 36322568 INDEX public idx_enqueue_attempts_parent_time postgres
+6679; 1259 36322567 INDEX public idx_enqueue_attempts_root_time postgres
+6680; 1259 36322620 INDEX public idx_enqueue_attempts_time_root postgres
+6683; 1259 36322618 INDEX public idx_fanout_roots_family_recent postgres
+6684; 1259 36322617 INDEX public idx_fanout_roots_recent postgres
+6052; 1259 36323047 INDEX public idx_fundamental_scores_evidence postgres
+6053; 1259 36318912 INDEX public idx_fundamental_scores_run_id postgres
+6880; 1259 75634466 INDEX public idx_ib_bar_admission_context_key postgres
+6881; 1259 75634467 INDEX public idx_ib_bar_admission_scope postgres
+6085; 1259 36319030 INDEX public idx_ib_fetch_items_fetch_run_id postgres
+6086; 1259 36321770 INDEX public idx_ib_fetch_items_full_backfill_evidence postgres
+6087; 1259 36319078 INDEX public idx_ib_fetch_items_status postgres
+6088; 1259 36319031 INDEX public idx_ib_fetch_items_ticker postgres
+6082; 1259 36323531 INDEX public idx_ib_fetch_runs_scope_refresh postgres
+6830; 1259 39377901 INDEX public idx_instrument_lifecycle_current postgres
+6685; 1259 36322651 INDEX public idx_market_calculation_contexts_cutoff postgres
+6686; 1259 36322650 INDEX public idx_market_calculation_contexts_upload_session postgres
+6836; 1259 39377961 INDEX public idx_market_data_disposition_current postgres
+6137; 1259 36319282 INDEX public idx_market_regime_snapshots_as_of_date postgres
+6138; 1259 36321108 INDEX public idx_market_regime_snapshots_current_revision postgres
+6139; 1259 36323079 INDEX public idx_market_regime_snapshots_evidence postgres
+6140; 1259 36321107 INDEX public idx_market_regime_snapshots_evidence_hash postgres
+6141; 1259 36319284 INDEX public idx_market_regime_snapshots_regime postgres
+6142; 1259 36319285 INDEX public idx_market_regime_snapshots_risk_state postgres
+6143; 1259 36319283 INDEX public idx_market_regime_snapshots_run_id postgres
+6144; 1259 36322663 INDEX public idx_market_regime_snapshots_temporal_lineage postgres
+6860; 1259 71016020 INDEX public idx_msi_rotation_algorithm postgres
+6861; 1259 71016019 INDEX public idx_msi_rotation_latest postgres
+6811; 1259 36323809 INDEX public idx_pipeline_dependencies_pipeline postgres
+6812; 1259 36323810 INDEX public idx_pipeline_dependencies_root_job postgres
+6114; 1259 36319129 INDEX public idx_pipeline_runs_created_at postgres
+6115; 1259 37884089 INDEX public idx_pipeline_runs_execution_authority postgres
+6116; 1259 36323499 INDEX public idx_pipeline_runs_scope_refresh postgres
+6117; 1259 36319128 INDEX public idx_pipeline_runs_status postgres
+6118; 1259 36319127 INDEX public idx_pipeline_runs_upload_run_id postgres
+6121; 1259 36319153 INDEX public idx_pipeline_steps_pipeline_run_id postgres
+6476; 1259 36321088 INDEX public idx_price_bar_revisions_natural_key postgres
+6477; 1259 36321089 INDEX public idx_price_bar_revisions_observed_at postgres
+6037; 1259 36323633 INDEX public idx_price_bars_first_fetch_item postgres
+6038; 1259 36318867 INDEX public idx_price_bars_ticker_date postgres
+6482; 1259 36321156 INDEX public idx_price_series_versions_latest postgres
+6126; 1259 36319223 INDEX public idx_ranking_results_earnings_risk postgres
+6127; 1259 36323065 INDEX public idx_ranking_results_evidence postgres
+6128; 1259 36319220 INDEX public idx_ranking_results_profile postgres
+6129; 1259 36319218 INDEX public idx_ranking_results_run_id postgres
+6130; 1259 36319221 INDEX public idx_ranking_results_run_profile_rank postgres
+6131; 1259 36319222 INDEX public idx_ranking_results_run_profile_score postgres
+6132; 1259 36319219 INDEX public idx_ranking_results_ticker postgres
+6043; 1259 36318889 INDEX public idx_raw_company_rows_run_id postgres
+6044; 1259 36319394 INDEX public idx_raw_company_rows_sector_canonical postgres
+6045; 1259 36319395 INDEX public idx_raw_company_rows_sector_mapping_status postgres
+6046; 1259 36318890 INDEX public idx_raw_company_rows_ticker postgres
+6047; 1259 36319161 INDEX public idx_raw_company_rows_upcoming_earnings_date postgres
+6159; 1259 36319393 INDEX public idx_sector_rotation_rows_sector_slug postgres
+6160; 1259 36319392 INDEX public idx_sector_rotation_rows_snapshot_rank postgres
+6149; 1259 36321123 INDEX public idx_sector_rotation_snapshot_current_revision postgres
+6150; 1259 36319324 INDEX public idx_sector_rotation_snapshot_date postgres
+6151; 1259 36321122 INDEX public idx_sector_rotation_snapshot_evidence_hash postgres
+6152; 1259 36319323 INDEX public idx_sector_rotation_snapshot_run_date postgres
+6153; 1259 36323085 INDEX public idx_sector_rotation_snapshots_evidence postgres
+6154; 1259 36322669 INDEX public idx_sector_rotation_snapshots_temporal_lineage postgres
+6348; 1259 36320504 INDEX public idx_setup_lifecycle_admin_audit_created postgres
+6349; 1259 36320505 INDEX public idx_setup_lifecycle_admin_audit_eval postgres
+6350; 1259 36320506 INDEX public idx_setup_lifecycle_admin_audit_type postgres
+6305; 1259 36323226 INDEX public idx_setup_lifecycle_episode_latest_evidence postgres
+6306; 1259 36320270 INDEX public idx_setup_lifecycle_episodes_current_snapshot postgres
+6307; 1259 36320271 INDEX public idx_setup_lifecycle_episodes_family_state postgres
+6308; 1259 36320272 INDEX public idx_setup_lifecycle_episodes_ticker_status postgres
+6283; 1259 36320102 INDEX public idx_setup_lifecycle_eval_runs_date_range postgres
+6284; 1259 36320103 INDEX public idx_setup_lifecycle_eval_runs_mode_status postgres
+6285; 1259 36320104 INDEX public idx_setup_lifecycle_eval_runs_source_run postgres
+6286; 1259 36320105 INDEX public idx_setup_lifecycle_eval_runs_status postgres
+6287; 1259 36320106 INDEX public idx_setup_lifecycle_eval_runs_version postgres
+6750; 1259 36323162 INDEX public idx_setup_lifecycle_evaluation_evidence_chain postgres
+6751; 1259 36323163 INDEX public idx_setup_lifecycle_evaluation_setup postgres
+6312; 1259 36321734 INDEX public idx_setup_lifecycle_events_confidence_order postgres
+6313; 1259 36320333 INDEX public idx_setup_lifecycle_events_current postgres
+6314; 1259 36321735 INDEX public idx_setup_lifecycle_events_dashboard_compound postgres
+6315; 1259 36321733 INDEX public idx_setup_lifecycle_events_dashboard_order postgres
+6316; 1259 36320334 INDEX public idx_setup_lifecycle_events_episode postgres
+6317; 1259 36320335 INDEX public idx_setup_lifecycle_events_ticker_date postgres
+6318; 1259 36323232 INDEX public idx_setup_lifecycle_events_transition_evidence postgres
+6319; 1259 36320336 INDEX public idx_setup_lifecycle_events_type postgres
+6756; 1259 36323210 INDEX public idx_setup_lifecycle_transition_chain postgres
+6691; 1259 36322724 INDEX public idx_setup_signal_snapshot_current_selection_evaluation postgres
+6692; 1259 36322723 INDEX public idx_setup_signal_snapshot_current_selection_run postgres
+6699; 1259 36322771 INDEX public idx_setup_signal_snapshot_selection_events_run postgres
+6700; 1259 36322770 INDEX public idx_setup_signal_snapshot_selection_events_selected postgres
+6290; 1259 36322772 INDEX public idx_setup_signal_snapshots_canonical_at_decision postgres
+6291; 1259 36321732 INDEX public idx_setup_signal_snapshots_canonical_date_id postgres
+6292; 1259 36321738 INDEX public idx_setup_signal_snapshots_dashboard_compound postgres
+6293; 1259 36320200 INDEX public idx_setup_signal_snapshots_eval_run postgres
+6294; 1259 36323110 INDEX public idx_setup_signal_snapshots_evidence postgres
+6295; 1259 36320201 INDEX public idx_setup_signal_snapshots_family_phase postgres
+6296; 1259 36320202 INDEX public idx_setup_signal_snapshots_quality postgres
+6297; 1259 36320203 INDEX public idx_setup_signal_snapshots_run_ticker postgres
+6298; 1259 36320204 INDEX public idx_setup_signal_snapshots_source_hash postgres
+6299; 1259 36322675 INDEX public idx_setup_signal_snapshots_temporal_lineage postgres
+6300; 1259 36320205 INDEX public idx_setup_signal_snapshots_ticker_as_of postgres
+6768; 1259 36323316 INDEX public idx_signal_alert_decision_semantic postgres
+6769; 1259 36323315 INDEX public idx_signal_alert_decision_temporal postgres
+6339; 1259 36320474 INDEX public idx_signal_alert_events_rule postgres
+6340; 1259 36320475 INDEX public idx_signal_alert_events_status_severity postgres
+6341; 1259 36320476 INDEX public idx_signal_alert_events_ticker_date postgres
+6763; 1259 36323257 INDEX public idx_signal_alert_rule_evidence_rule postgres
+6334; 1259 36320426 INDEX public idx_signal_alert_rules_enabled_severity postgres
+6324; 1259 36320390 INDEX public idx_signal_change_events_category_severity postgres
+6325; 1259 36321737 INDEX public idx_signal_change_events_current_snapshot postgres
+6326; 1259 36321736 INDEX public idx_signal_change_events_dashboard_order postgres
+6327; 1259 36320391 INDEX public idx_signal_change_events_eval_run postgres
+6328; 1259 36320392 INDEX public idx_signal_change_events_signal postgres
+6329; 1259 36320393 INDEX public idx_signal_change_events_ticker_date postgres
+6487; 1259 36321187 INDEX public idx_technical_feature_artifacts_last_used postgres
+6056; 1259 36323053 INDEX public idx_technical_scores_evidence postgres
+6057; 1259 36318936 INDEX public idx_technical_scores_run_id postgres
+6058; 1259 36323677 INDEX public idx_technical_scores_source_manifest postgres
+6059; 1259 36322657 INDEX public idx_technical_scores_temporal_lineage postgres
+6799; 1259 36323671 INDEX public idx_technical_source_manifest_context postgres
+6800; 1259 36323670 INDEX public idx_technical_source_manifest_run postgres
+6717; 1259 36322919 INDEX public idx_transition_decision_handoff_run_context postgres
+6707; 1259 36322833 INDEX public idx_transition_preflight_plans_expiry postgres
+6708; 1259 36322832 INDEX public idx_transition_preflight_plans_upload_status postgres
+6029; 1259 36319155 INDEX public idx_upload_runs_status postgres
+6030; 1259 36319154 INDEX public idx_upload_runs_uploaded_at_desc postgres
+6848; 1259 65719644 INDEX public idx_winner_acquisition_prediction postgres
+6849; 1259 65719643 INDEX public idx_winner_acquisition_run_ticker postgres
+6252; 1259 36319865 INDEX public idx_winner_calibration_bins_model postgres
+6253; 1259 36319866 INDEX public idx_winner_calibration_bins_outcome_kind postgres
+6208; 1259 36319633 INDEX public idx_winner_cohort_definitions_level postgres
+6209; 1259 36319634 INDEX public idx_winner_cohort_definitions_status postgres
+6633; 1259 36322216 INDEX public idx_winner_cohort_generations_published postgres
+6634; 1259 36323587 INDEX public idx_winner_cohort_generations_scope_refresh postgres
+6635; 1259 36322215 INDEX public idx_winner_cohort_generations_state_status postgres
+6628; 1259 36322165 INDEX public idx_winner_cohort_refresh_state_published postgres
+6214; 1259 36319668 INDEX public idx_winner_cohort_statistics_cutoff postgres
+6215; 1259 36319669 INDEX public idx_winner_cohort_statistics_grade_n postgres
+6256; 1259 36319901 INDEX public idx_winner_drift_metrics_as_of postgres
+6257; 1259 36319902 INDEX public idx_winner_drift_metrics_breached postgres
+6244; 1259 36319833 INDEX public idx_winner_estimate_evidence_members_estimate_episode postgres
+6245; 1259 36319834 INDEX public idx_winner_estimate_evidence_members_estimate_outcome postgres
+6246; 1259 36319835 INDEX public idx_winner_estimate_evidence_members_prediction_asof postgres
+6247; 1259 36322428 INDEX public idx_winner_estimate_evidence_members_temporal_validity postgres
+6669; 1259 36322530 INDEX public idx_winner_estimate_publication_request_generation postgres
+6670; 1259 36323604 INDEX public idx_winner_estimate_publication_requests_scope_refresh postgres
+6640; 1259 36322422 INDEX public idx_winner_evidence_manifest_members_temporal_validity postgres
+6221; 1259 36319688 INDEX public idx_winner_evidence_manifests_created_at postgres
+6190; 1259 36319556 INDEX public idx_winner_forward_outcomes_bar_lineage_current postgres
+6191; 1259 36319557 INDEX public idx_winner_forward_outcomes_current_revision postgres
+6192; 1259 36322302 INDEX public idx_winner_forward_outcomes_h5_due_retry postgres
+6193; 1259 36319558 INDEX public idx_winner_forward_outcomes_prediction_entry_horizon postgres
+6194; 1259 36319559 INDEX public idx_winner_forward_outcomes_status_due postgres
+6641; 1259 36322273 INDEX public idx_winner_manifest_members_forward_revision postgres
+6642; 1259 36322272 INDEX public idx_winner_manifest_members_prediction postgres
+6662; 1259 36322480 INDEX public idx_winner_market_data_obligation_contract_status postgres
+6663; 1259 36322481 INDEX public idx_winner_market_data_obligation_prediction postgres
+6664; 1259 36322479 INDEX public idx_winner_market_data_obligation_status_range postgres
+6273; 1259 36320002 INDEX public idx_winner_model_lifecycle_events_model postgres
+6274; 1259 36320003 INDEX public idx_winner_model_lifecycle_events_type postgres
+6269; 1259 36319972 INDEX public idx_winner_model_training_runs_candidate postgres
+6270; 1259 36319973 INDEX public idx_winner_model_training_runs_status postgres
+6226; 1259 36319732 INDEX public idx_winner_model_versions_outcome_status postgres
+6227; 1259 36319733 INDEX public idx_winner_model_versions_status postgres
+6171; 1259 36319449 INDEX public idx_winner_outcome_definitions_active postgres
+6172; 1259 36319450 INDEX public idx_winner_outcome_definitions_entry_model postgres
+6165; 1259 36319421 INDEX public idx_winner_prediction_episodes_group postgres
+6166; 1259 36319422 INDEX public idx_winner_prediction_episodes_ticker_dates postgres
+6177; 1259 36319522 INDEX public idx_winner_prediction_snapshots_active_revision postgres
+6178; 1259 36322303 INDEX public idx_winner_prediction_snapshots_current_contract postgres
+6179; 1259 36322375 INDEX public idx_winner_prediction_snapshots_decision_at postgres
+6180; 1259 36319523 INDEX public idx_winner_prediction_snapshots_earnings_quality postgres
+6181; 1259 36319524 INDEX public idx_winner_prediction_snapshots_eligibility postgres
+6182; 1259 36319525 INDEX public idx_winner_prediction_snapshots_profile postgres
+6183; 1259 36319526 INDEX public idx_winner_prediction_snapshots_regime_sector postgres
+6184; 1259 36319527 INDEX public idx_winner_prediction_snapshots_run_ticker postgres
+6185; 1259 36319528 INDEX public idx_winner_prediction_snapshots_ticker_as_of postgres
+6232; 1259 36319786 INDEX public idx_winner_probability_estimates_grade_n postgres
+6233; 1259 36319787 INDEX public idx_winner_probability_estimates_lower_bound postgres
+6234; 1259 36319788 INDEX public idx_winner_probability_estimates_model_created postgres
+6235; 1259 36319789 INDEX public idx_winner_probability_estimates_prediction_outcome_kind postgres
+6236; 1259 36319790 INDEX public idx_winner_probability_estimates_probability postgres
+6237; 1259 36322486 INDEX public idx_winner_probability_estimates_serving postgres
+6262; 1259 36322301 INDEX public idx_winner_processing_runs_generation_attempt postgres
+6263; 1259 36319931 INDEX public idx_winner_processing_runs_job_id postgres
+6264; 1259 36319932 INDEX public idx_winner_processing_runs_run_id postgres
+6265; 1259 36323621 INDEX public idx_winner_processing_runs_scope_refresh postgres
+6266; 1259 36319933 INDEX public idx_winner_processing_runs_type_status postgres
+6277; 1259 36320048 INDEX public idx_winner_similarity_links_neighbor postgres
+6278; 1259 36320049 INDEX public idx_winner_similarity_links_prediction postgres
+6199; 1259 36319602 INDEX public idx_winner_target_stop_outcomes_current_revision postgres
+6200; 1259 36322305 INDEX public idx_winner_target_stop_outcomes_forward_current postgres
+6201; 1259 36322304 INDEX public idx_winner_target_stop_outcomes_generation_source postgres
+6202; 1259 36319603 INDEX public idx_winner_target_stop_outcomes_prediction_definition postgres
+6203; 1259 36319604 INDEX public idx_winner_target_stop_outcomes_status postgres
+6656; 1259 36322414 INDEX public idx_winner_temporal_validity_evidence_eligible postgres
+6657; 1259 36322413 INDEX public idx_winner_temporal_validity_prediction_sequence postgres
+6607; 1259 36322001 INDEX public idx_winner_training_eligibility_decision_lookup postgres
+6614; 1259 36322078 INDEX public idx_winner_training_outcome_replay_lookup postgres
+6790; 1259 36323451 INDEX public idx_work_scope_members_scope postgres
+6466; 1259 36321026 INDEX public ix_ceri_alert_events_status_created postgres
+6467; 1259 36321027 INDEX public ix_ceri_alert_events_ticker postgres
+6468; 1259 36321930 INDEX public ix_ceri_alert_events_validity postgres
+6419; 1259 36320802 INDEX public ix_ceri_catalyst_event_revisions_status postgres
+6414; 1259 36320762 INDEX public ix_ceri_catalyst_events_company_category postgres
+6425; 1259 36320835 INDEX public ix_ceri_catalyst_sources_source postgres
+6451; 1259 36320948 INDEX public ix_ceri_change_events_company_created postgres
+6452; 1259 36321929 INDEX public ix_ceri_change_events_semantic_filters postgres
+6453; 1259 36320949 INDEX public ix_ceri_change_events_type postgres
+6355; 1259 36320522 INDEX public ix_ceri_companies_cik postgres
+6360; 1259 36320547 INDEX public ix_ceri_company_aliases_company postgres
+6361; 1259 36320548 INDEX public ix_ceri_company_aliases_lookup postgres
+6605; 1259 36321902 INDEX public ix_ceri_controlled_replays_source_run postgres
+6606; 1259 36321903 INDEX public ix_ceri_controlled_replays_status postgres
+6507; 1259 36322123 INDEX public ix_ceri_derived_features_batch_identity postgres
+6508; 1259 36321271 INDEX public ix_ceri_derived_features_company_session postgres
+6509; 1259 36322853 INDEX public ix_ceri_derived_features_context postgres
+6403; 1259 36320708 INDEX public ix_ceri_earnings_actuals_company_report postgres
+6394; 1259 36321274 INDEX public ix_ceri_estimate_snapshots_canonical_observation postgres
+6395; 1259 36320674 INDEX public ix_ceri_estimate_snapshots_company_metric_effective postgres
+6396; 1259 36320675 INDEX public ix_ceri_estimate_snapshots_effective_session postgres
+6397; 1259 36321771 INDEX public ix_ceri_estimates_period_slot_known postgres
+6398; 1259 36321269 INDEX public ix_ceri_estimates_trend_baseline_reference postgres
+6728; 1259 36322949 INDEX public ix_ceri_evidence_dispositions_incident postgres
+6729; 1259 36322948 INDEX public ix_ceri_evidence_dispositions_snapshot_effective postgres
+6623; 1259 36322121 INDEX public ix_ceri_feature_build_states_company_session postgres
+6624; 1259 36322863 INDEX public ix_ceri_feature_build_states_context postgres
+6625; 1259 36323756 INDEX public ix_ceri_feature_build_states_manifest postgres
+6807; 1259 36323749 INDEX public ix_ceri_feature_source_manifest_context postgres
+6808; 1259 36323750 INDEX public ix_ceri_feature_source_manifest_run postgres
+6408; 1259 36320738 INDEX public ix_ceri_guidance_events_action postgres
+6409; 1259 36320739 INDEX public ix_ceri_guidance_events_company_effective postgres
+6410; 1259 36322124 INDEX public ix_ceri_guidance_events_prior_lookup postgres
+6411; 1259 36321213 INDEX public ix_ceri_guidance_events_source_accession postgres
+6367; 1259 36320576 INDEX public ix_ceri_ingestion_runs_provider_dataset_status postgres
+6826; 1259 36415014 INDEX public ix_ceri_ingestion_source_membership_run postgres
+6827; 1259 36415015 INDEX public ix_ceri_ingestion_source_membership_ticker postgres
+6458; 1259 36320972 INDEX public ix_ceri_manual_reviews_target postgres
+6500; 1259 36321270 INDEX public ix_ceri_price_response_company_session postgres
+6501; 1259 36322779 INDEX public ix_ceri_price_response_features_context postgres
+6502; 1259 36322778 INDEX public ix_ceri_price_response_features_cutoff postgres
+6373; 1259 36320603 INDEX public ix_ceri_processing_runs_heartbeat postgres
+6374; 1259 36322586 INDEX public ix_ceri_processing_runs_root postgres
+6375; 1259 36320604 INDEX public ix_ceri_processing_runs_status_checkpoint postgres
+6494; 1259 36321211 INDEX public ix_ceri_provider_telemetry_endpoint_observed postgres
+6495; 1259 36322621 INDEX public ix_ceri_provider_telemetry_observed_provider postgres
+6496; 1259 36321210 INDEX public ix_ceri_provider_telemetry_provider_observed postgres
+6497; 1259 36322587 INDEX public ix_ceri_provider_telemetry_root postgres
+6473; 1259 36321048 INDEX public ix_ceri_purge_audits_status postgres
+6430; 1259 36322122 INDEX public ix_ceri_revision_features_batch_identity postgres
+6431; 1259 36320871 INDEX public ix_ceri_revision_features_company_session postgres
+6432; 1259 36322843 INDEX public ix_ceri_revision_features_context postgres
+6433; 1259 36321909 INDEX public ix_ceri_revision_features_controlled_replay postgres
+6438; 1259 36323678 INDEX public ix_ceri_score_snapshots_company_temporal postgres
+6439; 1259 36321923 INDEX public ix_ceri_score_snapshots_comparison_state postgres
+6440; 1259 36320907 INDEX public ix_ceri_score_snapshots_confidence postgres
+6441; 1259 36321915 INDEX public ix_ceri_score_snapshots_controlled_replay postgres
+6442; 1259 36323094 INDEX public ix_ceri_score_snapshots_evidence postgres
+6443; 1259 36320908 INDEX public ix_ceri_score_snapshots_run_ticker postgres
+6444; 1259 36320909 INDEX public ix_ceri_score_snapshots_scores postgres
+6592; 1259 36321822 INDEX public ix_ceri_sec_document_extractions_claim postgres
+6593; 1259 36321823 INDEX public ix_ceri_sec_document_extractions_document postgres
+6586; 1259 36321792 INDEX public ix_ceri_sec_filing_documents_accession postgres
+6587; 1259 36321791 INDEX public ix_ceri_sec_filing_documents_cik_date postgres
+6651; 1259 36322323 INDEX public ix_ceri_sec_processor_releases_status postgres
+6598; 1259 36321843 INDEX public ix_ceri_sec_sync_states_cik_dataset postgres
+6380; 1259 36320637 INDEX public ix_ceri_source_records_content_hash postgres
+6381; 1259 36322361 INDEX public ix_ceri_source_records_dataset_freshness postgres
+6382; 1259 36320638 INDEX public ix_ceri_source_records_dataset_published postgres
+6383; 1259 36322359 INDEX public ix_ceri_source_records_freshness postgres
+6384; 1259 36322125 INDEX public ix_ceri_source_records_ingestion_id postgres
+6385; 1259 36321212 INDEX public ix_ceri_source_records_provider_retrieved postgres
+6386; 1259 36321268 INDEX public ix_ceri_source_records_provider_source_timestamp postgres
+6387; 1259 36320639 INDEX public ix_ceri_source_records_quarantine postgres
+6568; 1259 36321649 INDEX public ix_ib_execution_external_id postgres
+6569; 1259 36321650 INDEX public ix_ib_execution_symbol_time postgres
+6564; 1259 36321610 INDEX public ix_ib_flex_import_content_hash postgres
+6565; 1259 36321611 INDEX public ix_ib_flex_import_started postgres
+6557; 1259 36321560 INDEX public ix_ib_histogram_latest postgres
+6523; 1259 36321374 INDEX public ix_ib_historical_metric_ticker_type_date postgres
+6537; 1259 36323102 INDEX public ix_ib_intelligence_feature_evidence postgres
+6538; 1259 36321460 INDEX public ix_ib_intelligence_feature_latest postgres
+6518; 1259 36321338 INDEX public ix_ib_intelligence_request_item_status postgres
+6514; 1259 36321306 INDEX public ix_ib_intelligence_runs_module_started postgres
+6515; 1259 36321307 INDEX public ix_ib_intelligence_runs_request_key postgres
+6532; 1259 36321426 INDEX public ix_ib_market_snapshot_latest postgres
+6550; 1259 36321533 INDEX public ix_ib_scanner_candidates_ticker postgres
+6547; 1259 36321501 INDEX public ix_ib_scanner_runs_started postgres
+6576; 1259 36321680 INDEX public ix_ib_trade_episode_ticker_opened postgres
+6111; 1259 36322619 INDEX public uq_background_jobs_active_request_key postgres
+6112; 1259 36322374 INDEX public uq_background_jobs_active_winner_maturation_workflow postgres
+6113; 1259 36321740 INDEX public uq_background_jobs_workflow_stage postgres
+6420; 1259 36320803 INDEX public uq_ceri_catalyst_event_current_revision postgres
+6459; 1259 36320973 INDEX public uq_ceri_manual_reviews_active_target postgres
+6652; 1259 36322324 INDEX public uq_ceri_sec_processor_releases_active postgres
+6746; 1259 36323072 INDEX public uq_core_current_projection_context_run_scope postgres
+6747; 1259 36323073 INDEX public uq_core_current_projection_global_scope postgres
+6748; 1259 36323088 INDEX public uq_core_current_projection_global_ticker_scope postgres
+6749; 1259 36323071 INDEX public uq_core_current_projection_ticker_scope postgres
+6570; 1259 36321729 INDEX public uq_ib_execution_active_external postgres
+6571; 1259 36321728 INDEX public uq_ib_execution_raw_hash postgres
+6833; 1259 39377902 INDEX public uq_instrument_lifecycle_one_current postgres
+6839; 1259 39377962 INDEX public uq_market_data_disposition_one_current postgres
+6815; 1259 36323811 INDEX public uq_pipeline_dependencies_active_type postgres
+6311; 1259 36320273 INDEX public uq_setup_lifecycle_episodes_active_family postgres
+6218; 1259 36322284 INDEX public uq_winner_cohort_statistics_generation_definition postgres
+6238; 1259 36322290 INDEX public uq_winner_probability_estimates_generation_identity postgres
+6241; 1259 36322492 INDEX public uq_winner_probability_estimates_supersedes postgres
+7230; 2620 36323480 TRIGGER public acquisition_plan_records acquisition_plan_records_immutable postgres
+7216; 2620 36323568 TRIGGER public background_jobs background_jobs_semantic_authority_immutable postgres
+7219; 2620 36323570 TRIGGER public ceri_ingestion_runs ceri_ingestion_runs_semantic_authority_immutable postgres
+7220; 2620 36323571 TRIGGER public ceri_processing_runs ceri_processing_runs_semantic_authority_immutable postgres
+7227; 2620 36323338 TRIGGER public effective_configuration_records effective_configuration_records_immutable postgres
+7228; 2620 36323383 TRIGGER public execution_configuration_anchors execution_configuration_anchors_immutable postgres
+7229; 2620 36323384 TRIGGER public execution_configuration_bindings execution_configuration_bindings_immutable postgres
+7239; 2620 75634469 TRIGGER public ib_bar_admission_receipts ib_bar_admission_receipts_immutable postgres
+7215; 2620 36323569 TRIGGER public ib_fetch_runs ib_fetch_runs_semantic_authority_immutable postgres
+7238; 2620 71016071 TRIGGER public market_sector_rotation_rows market_sector_rotation_rows_immutable postgres
+7237; 2620 71016070 TRIGGER public market_sector_rotation_snapshots market_sector_rotation_snapshots_immutable postgres
+7217; 2620 36323567 TRIGGER public pipeline_runs pipeline_runs_semantic_authority_immutable postgres
+7233; 2620 36323483 TRIGGER public refresh_cycle_records refresh_cycle_records_immutable postgres
+7226; 2620 36322951 TRIGGER public ceri_evidence_dispositions trg_ceri_evidence_dispositions_append_only postgres
+7234; 2620 65719688 TRIGGER public consumer_eligibility_decisions trg_consumer_eligibility_decisions_append_only postgres
+7236; 2620 65719690 TRIGGER public eligibility_shadow_evaluations trg_eligibility_shadow_evaluations_append_only postgres
+7235; 2620 65719689 TRIGGER public winner_acquisition_decisions trg_winner_acquisition_decisions_append_only postgres
+7224; 2620 36322430 TRIGGER public winner_temporal_validity_decisions trg_winner_temporal_validity_append_only postgres
+7221; 2620 36322092 TRIGGER public winner_training_eligibility_decisions trg_winner_training_decision_append_only postgres
+7222; 2620 36322093 TRIGGER public winner_training_outcome_replays trg_winner_training_replay_append_only postgres
+7223; 2620 36323588 TRIGGER public winner_cohort_generations winner_cohort_generations_semantic_authority_immutable postgres
+7225; 2620 36323605 TRIGGER public winner_estimate_publication_requests winner_estimate_publication_requests_semantic_authority_immutab postgres
+7218; 2620 36323622 TRIGGER public winner_processing_runs winner_processing_runs_semantic_authority_immutable postgres
+7232; 2620 36323482 TRIGGER public work_scope_members work_scope_members_immutable postgres
+7231; 2620 36323481 TRIGGER public work_scope_records work_scope_records_immutable postgres
