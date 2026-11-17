@@ -4057,6 +4057,10 @@
           {
             "path": "app/observability/db_monitor.py",
             "symbol": "JsonlTelemetryWriter._run"
+          },
+          {
+            "path": "tests/e2e/single_run_certification/evidence.py",
+            "symbol": "evaluate_pipeline_evidence"
           }
         ],
         "impact_patterns": [
@@ -4361,6 +4365,186 @@
             "positive": "Server-rendered progress exposes recovery and explicit subset controls for the retained readiness evidence.",
             "negative": "The original pipeline must remain explicitly disclosed as blocked; rendering these controls does not establish browser interaction or server admission proof.",
             "reviewed_test_sha256": "328b0d25e9119cab0b481a7f217163f7536b1622334243d7e8f62b62ed73e1ce"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_file_finalizer_requires_exact_known_capture_owner[False]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_file_finalizer_requires_exact_known_capture_owner[True]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-unknown-owner]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-owner]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-run]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-context]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-cutoff]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-changed-configuration]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-changed-sources]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-missing-member]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-unknown-owner]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-owner]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-run]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-context]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-cutoff]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-changed-configuration]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-changed-sources]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-missing-member]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_historical_capture_ownership_is_not_reinterpreted[False]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
+          },
+          {
+            "id": "tests/test_candidate_pipeline_finalization.py::test_historical_capture_ownership_is_not_reinterpreted[True]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
+            "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
+            "reviewed_test_sha256": "aeb2415092af52692d857a7fcab235f95cd8f7a2197b3b248486d1352323996a"
           }
         ],
         "oracle": "Only original A04 finalizer plus A05B independent oracle; 13 required evidence seals.",
@@ -4372,7 +4556,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "191403f2f2b1f3ff537cfe412e82eeeaf0e879308c4d4136e049276357edee10",
+        "review_sha256": "1757658d3ce65b92c367a3909b253d20f0db2f339b4fd37fede4db007eedcfff",
         "review_addenda": [
           {
             "task": "MSI-20261104-renderer",
@@ -4484,6 +4668,13 @@
             "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
             "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
             "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-FINALIZER-OWNERSHIP-20261117",
+            "kind": "STATIC_SEALED_MANIFEST_AND_FAULT_CONTROL_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+            "scope": "One stale CERI UNKNOWN literal is replaced by the exact selected sealed capture row state; KNOWN requires the native parent ID, UNKNOWN stays exact, other states refuse. All other lineage/financial/source checks and 620-gate inventory remain. Twenty new controls are FAST/UNIT_DOUBLES.",
+            "claim": "STATIC_INTENT. The 128 passing unit cases and two original-source diagnostic rechecks do not substitute for fresh current-source native CI or actual owner authorization."
           }
         ]
       },
@@ -4822,7 +5013,8 @@
           "docs/remediation/ceri-context-116-publication/source-contract-review.json",
           "docs/remediation/ceri-context-116-publication/source-contract-review.md",
           "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.md",
-          "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json"
+          "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
+          "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md"
         ],
         "tests": [
           {
@@ -5798,7 +5990,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "0aeeed4563adffb7c4c4ffa923d837122d38307b14be981f4b99d66a70feb6bf",
+        "review_sha256": "183ce65606b662e776a87da8797184211542783bdc277525e2a8b76209c64a6b",
         "review_addenda": [
           {
             "task": "INTEGRATION-20261107-budget-retention",
@@ -5814,6 +6006,13 @@
             "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
             "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
             "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
+          },
+          {
+            "task": "CERI-CONTEXT116-PR82-FINALIZER-OWNERSHIP-20261117",
+            "kind": "STATIC_SEALED_MANIFEST_AND_FAULT_CONTROL_REVIEW",
+            "evidence": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+            "scope": "One stale CERI UNKNOWN literal is replaced by the exact selected sealed capture row state; KNOWN requires the native parent ID, UNKNOWN stays exact, other states refuse. All other lineage/financial/source checks and 620-gate inventory remain. Twenty new controls are FAST/UNIT_DOUBLES.",
+            "claim": "STATIC_INTENT. The 128 passing unit cases and two original-source diagnostic rechecks do not substitute for fresh current-source native CI or actual owner authorization."
           }
         ]
       }
@@ -7401,6 +7600,206 @@
           "tests/integration/test_pipeline_authority_certification_postgresql.py",
           "docs/verification/ci443-seed-connection-cleanup-20261107.md"
         ],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_file_finalizer_requires_exact_known_capture_owner[False]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_file_finalizer_requires_exact_known_capture_owner[True]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-unknown-owner]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-owner]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-run]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-context]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-cutoff]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-changed-configuration]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-changed-sources]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-missing-member]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-unknown-owner]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-owner]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-run]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-context]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-cutoff]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-changed-configuration]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-changed-sources]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-missing-member]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_historical_capture_ownership_is_not_reinterpreted[False]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
+        "deferred_outcome": "NOT_RUN"
+      },
+      {
+        "tier": "RELEASE_CORE",
+        "contract": "NATIVE_PIPELINE_CERTIFICATION",
+        "exact_test_id": "tests/test_candidate_pipeline_finalization.py::test_historical_capture_ownership_is_not_reinterpreted[True]",
+        "reason": "The original file finalizer follows the independently sealed capture-owner contract and refuses wrong lineage without weakening any of its 620 gates.",
+        "source": "docs/remediation/ceri-context-116-publication/finalizer-ownership-review.md",
+        "in_original_catalog": false,
+        "trigger_paths": [],
         "deferred_outcome": "NOT_RUN"
       }
     ],

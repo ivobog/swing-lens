@@ -600,6 +600,10 @@ def evaluate_pipeline_evidence(
 
     def immutable_lineage():
         details = oracle["component_details"]["immutable_evidence"]
+        capture_owners = {
+            relationship_key("captures", row): row["pipeline_ownership_state"]
+            for row in manifest["completion"]["domains"]["captures"]
+        }
         sections = {
             "TECHNICAL": "technical",
             "COMBINED": "combined",
@@ -619,11 +623,17 @@ def evaluate_pipeline_evidence(
         )
         for row in details:
             same(row["ownership"]["run_id"], {"state": "KNOWN", "value": native["run_id"]})
+            # The sealed oracle distinguishes historical unowned captures from
+            # new captures with a proved dedicated-context reverse binding.
+            # A KNOWN state must identify this exact native parent.
+            owner = {"state": "KNOWN", "value": native["pipeline_id"]}
+            if row["kind"] == "CERI":
+                state = capture_owners[row["semantic_member"]]
+                assert state in {"KNOWN", "UNKNOWN"}, "unsupported capture ownership state"
+                owner = {"state": "UNKNOWN"} if state == "UNKNOWN" else owner
             same(
                 row["ownership"]["pipeline_id"],
-                {"state": "UNKNOWN"}
-                if row["kind"] == "CERI"
-                else {"state": "KNOWN", "value": native["pipeline_id"]},
+                owner,
             )
             context_id = (
                 native["ceri_context_id"] if row["kind"] == "CERI" else native["market_context_id"]
