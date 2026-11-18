@@ -25,7 +25,7 @@ class MemoryDb:
         return []
 
     def get(self, _model, _address):
-        return SimpleNamespace(upload_run_id=7, pipeline_run_id=61)
+        return SimpleNamespace(upload_run_id=7, pipeline_run_id=61, result_json={})
 
     def get_transaction(self):
         return self.transaction
