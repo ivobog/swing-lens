@@ -3644,6 +3644,8 @@
         ],
         "impact_patterns": [
           "app/services/setup_lifecycle/*.py",
+          "app/static/setup_lifecycle.js",
+          "app/templates/setup_lifecycle.html",
           "app/services/transition_preflight_plan_service.py",
           "config/setup_lifecycle.yaml",
           "tests/integration/test_lifecycle_completed_company_postgresql.py",
@@ -3680,7 +3682,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "fc2639e5ef8a0e61bd9b40a15a32c9301a4b379523d25712ddc74eb1fc20d494"
+        "review_sha256": "5c8a857cbcf82c3ca8f080e826b363b40ed8ac7a287da34f72cb4d8afa774451"
       },
       {
         "id": "WINNER_EVIDENCE_MATURATION",
