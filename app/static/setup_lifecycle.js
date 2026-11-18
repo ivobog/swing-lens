@@ -1,8 +1,19 @@
 document.addEventListener("DOMContentLoaded", () => {
+  bindSetupLifecycleFilterForms();
   bindSetupLifecycleDetailButtons();
   bindSetupLifecycleAlertActions();
   bindSetupLifecycleOperationForms();
 });
+
+function bindSetupLifecycleFilterForms() {
+  document.querySelectorAll("[data-slse-filter-form]").forEach((form) => {
+    form.addEventListener("formdata", ({ formData }) => {
+      for (const [key, value] of Array.from(formData)) {
+        if (value === "") formData.delete(key);
+      }
+    });
+  });
+}
 
 function bindSetupLifecycleDetailButtons() {
   document.querySelectorAll("[data-slse-detail-url]").forEach((button) => {

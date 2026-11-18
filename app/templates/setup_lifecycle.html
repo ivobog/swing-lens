@@ -68,7 +68,7 @@
       <a class="quick-filter-chip {{ 'active' if quick.active else '' }}" href="{{ quick.href }}" aria-pressed="{{ 'true' if quick.active else 'false' }}">{{ quick.label }}</a>
     {% endfor %}
   </div>
-  <form class="setup-lifecycle-filter-grid section-gap" method="get">
+  <form class="setup-lifecycle-filter-grid section-gap" method="get" data-slse-filter-form>
     <label><span>Ticker</span><input name="ticker" value="{{ filters.ticker }}"></label>
     <label><span>Data as of</span><input name="as_of" type="date" value="{{ filters.as_of }}"></label>
     <label><span>Date from</span><input name="date_from" type="date" value="{{ filters.date_from }}"></label>
