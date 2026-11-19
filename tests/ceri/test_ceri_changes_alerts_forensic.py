@@ -28,6 +28,8 @@ from app.services.ceri.query_service import (
     _change_matches_filters,
     _change_payload,
     _comparison_context,
+    _mixed_revision_windows,
+    _revision_summary,
 )
 
 
@@ -412,6 +414,25 @@ def test_revision_trigger_uses_aggregate_instead_of_decreasing_window() -> None:
     assert "unit unverified" in project()["summary"]
     current.component_json = None
     assert "trigger values unavailable" in project()["summary"]
+
+
+def test_revision_summary_preserves_aapl_trigger_precision_and_units() -> None:
+    summary = _revision_summary(
+        "revision_acceleration", 5.2768175, 5.3428525, 0.06603500000000029,
+        unit_verified=True,
+    )
+    assert summary == "Revision acceleration score 5.2768175 -> 5.3428525 (+0.066035 score points)"
+
+
+def test_mixed_revision_windows_need_both_matched_directions() -> None:
+    evidence = [
+        {"metric": "EPS_DILUTED", "period_key": "CURRENT_FISCAL_YEAR", "window_days": days,
+         "pct_change_unit": "PERCENTAGE_POINTS", "pct_change": 0.0}
+        for days in (30, 90)
+    ]
+    differing = [dict(evidence[0], pct_change=0.1), dict(evidence[1], pct_change=-0.2)]
+    assert _mixed_revision_windows(evidence, differing)
+    assert not _mixed_revision_windows(evidence, differing[:1])
 
 
 def test_comparison_header_uses_shown_pairs_and_explicit_bounds() -> None:

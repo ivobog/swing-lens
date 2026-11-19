@@ -3173,6 +3173,8 @@ def _semantic_change_values(
             delta.get("delta"),
             unit_verified=unit_verified,
         )
+        if _mixed_revision_windows(previous_windows, current_windows):
+            summary += " · Supporting revision windows moved in different directions"
         threshold = (
             {"acceleration_delta": change_thresholds.get("acceleration_delta", 0.01)}
             if component_name == "revision_acceleration"
@@ -3427,6 +3429,33 @@ def _revision_window_values(
     )
 
 
+def _mixed_revision_windows(
+    previous: list[dict[str, Any]], current: list[dict[str, Any]]
+) -> bool:
+    def observed_values(windows):
+        return {
+            (row["metric"], row["period_key"], row["window_days"]): row["pct_change"]
+            for row in windows
+            if row["pct_change_unit"] == "PERCENTAGE_POINTS" and row["pct_change"] is not None
+        }
+
+    earlier = observed_values(previous)
+    later = observed_values(current)
+    directions = {
+        later[key] > earlier[key]
+        for key in earlier.keys() & later.keys()
+        if later[key] != earlier[key]
+    }
+    return len(directions) > 1
+
+
+def _revision_trigger_value(value: float, *, signed: bool = False) -> str:
+    rounded = f"{value:+.2f}" if signed else f"{value:.2f}"
+    if float(rounded) == value:
+        return rounded
+    return f"{value:+.12g}" if signed else f"{value:.12g}"
+
+
 def _revision_summary(
     component: str,
     previous: float | None,
@@ -3439,11 +3468,11 @@ def _revision_summary(
     if previous is None or current is None:
         return f"{label} trigger values unavailable"
 
-    summary = f"{label} {_number(previous)} -> {_number(current)}"
-    if not isinstance(stored_delta, (int, float)) or not isfinite(stored_delta):
+    summary = f"{label} {_revision_trigger_value(previous)} -> {_revision_trigger_value(current)}"
+    if type(stored_delta) not in (int, float) or not isfinite(stored_delta):
         return f"{summary} (stored delta unavailable)"
     unit = "score points" if unit_verified else "unit unverified"
-    summary = f"{summary} ({_signed(stored_delta)} {unit})"
+    summary = f"{summary} ({_revision_trigger_value(stored_delta, signed=True)} {unit})"
     if not isclose(current - previous, stored_delta, rel_tol=1e-9, abs_tol=1e-9):
         summary += " · Stored delta differs from the retained component values"
     return summary
