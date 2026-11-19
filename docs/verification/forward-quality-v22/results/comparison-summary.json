@@ -1,0 +1,357 @@
+{
+  "admission_interpretation": "Conditional policy simulation with valid-shaped shared provenance; not retained production admission evidence",
+  "models": {
+    "fundamentals_v2.1": "b919aaea0ed470f293fce0f9abe82173a934b77736722349eb0a8563863b69e1",
+    "fundamentals_v2.2": "eecc43d64ca72568fe7fe7d0f16b49d31b9170ac87e4b91e335f29bbb623e025"
+  },
+  "latest": {
+    "companies": 111,
+    "sectors": 15,
+    "score_distributions": {
+      "old_forward": {
+        "mean": 9.912624324324325,
+        "median": 10.0,
+        "min": 5.0,
+        "max": 10.0
+      },
+      "new_forward": {
+        "mean": 6.806505405405406,
+        "median": 7.188,
+        "min": 0.625,
+        "max": 9.8214
+      },
+      "old_fundamental": {
+        "mean": 6.88751981981982,
+        "median": 6.8599,
+        "min": 4.4009,
+        "max": 9.2364
+      },
+      "new_fundamental": {
+        "mean": 6.63902972972973,
+        "median": 6.6591,
+        "min": 3.8816,
+        "max": 8.8993
+      },
+      "difference": {
+        "mean": -0.2484900900900901,
+        "median": -0.2221,
+        "min": -0.6107,
+        "max": 0.0
+      }
+    },
+    "subcomponent_availability": {
+      "net_income_growth": {
+        "count": 108,
+        "rate": 0.972972972972973
+      },
+      "revenue_comparison": {
+        "count": 110,
+        "rate": 0.990990990990991
+      },
+      "profitability": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "cash_comparison": {
+        "count": 101,
+        "rate": 0.9099099099099099
+      },
+      "capex_sustainability": {
+        "count": 78,
+        "rate": 0.7027027027027027
+      },
+      "analyst_rating": {
+        "count": 110,
+        "rate": 0.990990990990991
+      }
+    },
+    "classifications": {
+      "old": {
+        "Clean compounder": 18,
+        "Mixed but interesting": 8,
+        "Value trap risk": 60,
+        "Quality risk": 9,
+        "High-quality quant": 16
+      },
+      "new": {
+        "Clean compounder": 12,
+        "Mixed but interesting": 11,
+        "Value trap risk": 60,
+        "Quality risk": 10,
+        "High-quality quant": 18
+      },
+      "changes": [
+        "ZGN",
+        "TXRH",
+        "ULTA",
+        "ZETA",
+        "TMO",
+        "SLDE",
+        "MANH",
+        "CTAS",
+        "V",
+        "FAST",
+        "GEO"
+      ]
+    },
+    "coverage": {
+      "old_overall_coverage": {
+        "mean": 0.9516396396396396,
+        "median": 0.962,
+        "min": 0.7848,
+        "max": 0.9873
+      },
+      "new_overall_coverage": {
+        "mean": 0.9503234234234235,
+        "median": 0.9605,
+        "min": 0.7763,
+        "max": 0.9868
+      },
+      "old_forward_coverage": {
+        "mean": 0.9459459459459459,
+        "median": 1.0,
+        "min": 0.125,
+        "max": 1.0
+      },
+      "new_forward_coverage": {
+        "mean": 0.954954954954955,
+        "median": 1.0,
+        "min": 0.6,
+        "max": 1.0
+      }
+    },
+    "conditional_admission": {
+      "old": {
+        "INCLUDED": 108,
+        "UNDECIDED": 3
+      },
+      "new": {
+        "INCLUDED": 109,
+        "UNDECIDED": 2
+      },
+      "changes": [
+        {
+          "ticker": "COKE",
+          "old": "UNDECIDED",
+          "new": "INCLUDED",
+          "old_reasons": [
+            "component_coverage_below_minimum"
+          ],
+          "new_reasons": [
+            "classified_investment_or_strategy_warning",
+            "noncritical_missing_with_bounded_component_support"
+          ]
+        }
+      ]
+    },
+    "largest_increases": [],
+    "largest_decreases": [
+      {
+        "ticker": "CINF",
+        "difference": -0.6107,
+        "old_forward": 8.2592,
+        "new_forward": 0.625
+      },
+      {
+        "ticker": "SPG",
+        "difference": -0.5551,
+        "old_forward": 10.0,
+        "new_forward": 3.0612
+      },
+      {
+        "ticker": "AMZN",
+        "difference": -0.554,
+        "old_forward": 10.0,
+        "new_forward": 3.0744
+      },
+      {
+        "ticker": "FRPT",
+        "difference": -0.5359,
+        "old_forward": 10.0,
+        "new_forward": 3.3008
+      },
+      {
+        "ticker": "WTRG",
+        "difference": -0.5193,
+        "old_forward": 10.0,
+        "new_forward": 3.5079
+      }
+    ],
+    "other_component_mismatches": 0,
+    "penalty_mismatches": 0,
+    "max_abs_raw_delta": 0.6107360000000001
+  },
+  "older": {
+    "companies": 16,
+    "sectors": 7,
+    "score_distributions": {
+      "old_forward": {
+        "mean": 6.70586875,
+        "median": 7.12695,
+        "min": 1.1163,
+        "max": 10.0
+      },
+      "new_forward": {
+        "mean": 3.99003125,
+        "median": 4.2224,
+        "min": 1.1111,
+        "max": 6.9286
+      },
+      "old_fundamental": {
+        "mean": 4.33138125,
+        "median": 4.4193999999999996,
+        "min": 0.4879,
+        "max": 6.3264
+      },
+      "new_fundamental": {
+        "mean": 4.1141125,
+        "median": 4.1404,
+        "min": 0.4874,
+        "max": 6.048
+      },
+      "difference": {
+        "mean": -0.21726875,
+        "median": -0.2327,
+        "min": -0.5132,
+        "max": 0.1384
+      }
+    },
+    "subcomponent_availability": {
+      "net_income_growth": {
+        "count": 16,
+        "rate": 1.0
+      },
+      "revenue_comparison": {
+        "count": 15,
+        "rate": 0.9375
+      },
+      "profitability": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "cash_comparison": {
+        "count": 16,
+        "rate": 1.0
+      },
+      "capex_sustainability": {
+        "count": 7,
+        "rate": 0.4375
+      },
+      "analyst_rating": {
+        "count": 16,
+        "rate": 1.0
+      }
+    },
+    "classifications": {
+      "old": {
+        "Value trap risk": 12,
+        "Mixed but interesting": 2,
+        "Quality risk": 2
+      },
+      "new": {
+        "Value trap risk": 12,
+        "Mixed but interesting": 2,
+        "Quality risk": 2
+      },
+      "changes": []
+    },
+    "coverage": {
+      "old_overall_coverage": {
+        "mean": 0.91061875,
+        "median": 0.9304,
+        "min": 0.7089,
+        "max": 0.9494
+      },
+      "new_overall_coverage": {
+        "mean": 0.90790625,
+        "median": 0.9276500000000001,
+        "min": 0.6974,
+        "max": 0.9474
+      },
+      "old_forward_coverage": {
+        "mean": 0.9765625,
+        "median": 1.0,
+        "min": 0.875,
+        "max": 1.0
+      },
+      "new_forward_coverage": {
+        "mean": 0.98125,
+        "median": 1.0,
+        "min": 0.8,
+        "max": 1.0
+      }
+    },
+    "conditional_admission": {
+      "old": {
+        "INCLUDED": 11,
+        "UNDECIDED": 5
+      },
+      "new": {
+        "INCLUDED": 11,
+        "UNDECIDED": 5
+      },
+      "changes": []
+    },
+    "largest_increases": [
+      {
+        "ticker": "BBIO",
+        "difference": 0.1384,
+        "old_forward": 2.8962,
+        "new_forward": 4.6266
+      },
+      {
+        "ticker": "ROIV",
+        "difference": 0.0738,
+        "old_forward": 2.8962,
+        "new_forward": 3.8182
+      }
+    ],
+    "largest_decreases": [
+      {
+        "ticker": "APO",
+        "difference": -0.5132,
+        "old_forward": 10.0,
+        "new_forward": 3.5853
+      },
+      {
+        "ticker": "KHC",
+        "difference": -0.3682,
+        "old_forward": 9.7115,
+        "new_forward": 5.1097
+      },
+      {
+        "ticker": "SLG",
+        "difference": -0.3558,
+        "old_forward": 6.1654,
+        "new_forward": 1.7188
+      },
+      {
+        "ticker": "VAC",
+        "difference": -0.3489,
+        "old_forward": 10.0,
+        "new_forward": 5.6376
+      },
+      {
+        "ticker": "ELAN",
+        "difference": -0.3351,
+        "old_forward": 10.0,
+        "new_forward": 5.8113
+      }
+    ],
+    "other_component_mismatches": 0,
+    "penalty_mismatches": 0,
+    "max_abs_raw_delta": 0.513176
+  },
+  "older_scan": {
+    "files_scanned": 8,
+    "selected": {
+      "turnaround": 8,
+      "loss_making": 8
+    }
+  },
+  "timing_seconds_single_pass": {
+    "old": 0.7512077998835593,
+    "new": 0.5651445998810232,
+    "rows": 127
+  }
+}

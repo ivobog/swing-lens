@@ -1,0 +1,9 @@
+{
+  "rows": 111,
+  "batch_repetitions": 5,
+  "scope": "forward component only; local advisory measurement, not certification",
+  "median_microseconds_per_row": {
+    "fundamentals_v2.1": 246.35315315315316,
+    "fundamentals_v2.2": 610.7279279279279
+  }
+}

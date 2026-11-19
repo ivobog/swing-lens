@@ -69,18 +69,18 @@ def _fundamental(ticker, score, label="High-quality quant"):
     )
 
 
-def _bounded_partial_fundamental():
-    ratio = round(78 / 79, 4)
+def _bounded_partial_fundamental(model="fundamentals_v2.1", total=79):
+    ratio = round((total - 1) / total, 4)
     return certified_fundamental(
         ticker="AAPL",
         fundamental_score=8,
         fundamental_label="High-quality quant",
-        scoring_model_version="fundamentals_v2.1",
+        scoring_model_version=model,
         missing_data_penalty=0.05,
         debug_json={
             "coverage": {
-                "available_scoring_fields": 78,
-                "total_scoring_fields": 79,
+                "available_scoring_fields": total - 1,
+                "total_scoring_fields": total,
                 "coverage_ratio": ratio,
                 "data_coverage_score": round(ratio * 10, 4),
                 "missing_fields_by_priority": {
@@ -132,10 +132,11 @@ def test_fundamental_advisory_warning_is_eligible_but_missing_data_is_excluded()
         (FundamentalAdmissionMode.ACTIVE, True, "consumer"),
     ],
 )
+@pytest.mark.parametrize("model,total", [("fundamentals_v2.1", 79), ("fundamentals_v2.2", 76)])
 def test_bounded_fundamental_switch_is_durable_and_legacy_compatible(
-    monkeypatch, mode, expected_included, persist_name
+    monkeypatch, mode, expected_included, persist_name, model, total
 ):
-    fundamental = _bounded_partial_fundamental()
+    fundamental = _bounded_partial_fundamental(model, total)
     fundamental.calculation_evidence.calculated_at = datetime(2026, 10, 13, 9, 30, tzinfo=UTC)
     transaction = object()
     recorded = []
@@ -175,6 +176,7 @@ def test_bounded_fundamental_switch_is_durable_and_legacy_compatible(
     assert permission["orthogonal_decision"]["eligibility"] == "INCLUDED"
     assert permission["orthogonal_decision"]["authoritative"] is expected_included
     assert recorded[0][0] == persist_name
+    assert recorded[0][1].policy_version == permission["orthogonal_decision"]["policy_version"]
 
 
 def test_active_default_flows_bounded_fundamental_through_combined_ranking_and_winner() -> None:

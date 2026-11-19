@@ -566,7 +566,6 @@ def record_fundamental_admission(
     )
     from app.services.eligibility_policy import ConsumerEligibilityOutcome
     from app.services.fundamental_admission_policy import (
-        FUNDAMENTAL_ADMISSION_SHADOW_POLICY_VERSION,
         evaluate_fundamental_admission,
         fundamental_input_from_frozen_row,
     )
@@ -595,7 +594,7 @@ def record_fundamental_admission(
                 upload_run_id=evidence.run_id,
                 ticker=evidence.ticker,
                 consumer_edge=decision.consumer_edge,
-                policy_version=FUNDAMENTAL_ADMISSION_SHADOW_POLICY_VERSION,
+                policy_version=decision.policy_version,
                 source_identity_fingerprint=evidence.calculation_identity_fingerprint,
                 decision_cutoff=decision.decision_cutoff,
                 legacy_outcome=ConsumerEligibilityOutcome(permission["legacy_outcome"]),

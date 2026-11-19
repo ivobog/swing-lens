@@ -1,0 +1,59 @@
+{
+  "baseline_commit": "c015e1d",
+  "frozen_admission": {
+    "32": {
+      "rows": 258,
+      "decisions_compared": 516,
+      "all_decisions_identical": true,
+      "fixture_sha256": "a7c8e5f3b026816390dc2079750ae66e7d68580e795fe4fe5ce4adfcee1656d9",
+      "fixture_unchanged": true
+    },
+    "33": {
+      "rows": 118,
+      "decisions_compared": 236,
+      "all_decisions_identical": true,
+      "fixture_sha256": "e13a6d1a2db4f0ff3ef45c1e771ca040e49d557e49e5a8cfd3fbc19b857f8be2",
+      "fixture_unchanged": true
+    }
+  },
+  "unchanged_component_AST": {
+    "growth_quality_score": "ff2666ac8a245cf20d9b8d948b70b1eae1e334dde321ca98f30099ae32049320",
+    "profitability_quality_score": "0aa3dbd682f3ecad0e818d762f91569f4074ae74dc1c433a544ac24e16e3d39d",
+    "fcf_quality_score": "b4d97403f8769e6a867fdb089d6c0175b7d677c65789368a301cd12c0b6970b4",
+    "earnings_quality_score": "309fa4c4679b67f68a2bc15ee79e8ef7dd6cd62bb7930ab7139bce6473e863ad",
+    "capital_efficiency_score": "7de799a90d978edf85986546fd472d3fdd78a1ef324c7933febf39b5a79d1c83",
+    "balance_sheet_quality_score": "e4454ae13a8f864feeaf37a821909515da800e83198c50a7d6bb5caa4ae22498",
+    "valuation_quality_score": "7d855d6a04f45e0bd44a7f40ec158d888b68c9169a2a4328b32cf7d8205444bf",
+    "shareholder_quality_score": "88fd22123d53ab90729d377ff5d412b36489bf041c9dcf2e5a9447adef447582",
+    "liquidity_risk_score": "2d16fb8e02631b3c46873d26e751af8b0cc011a0271c1ac4f31eb0d00da0a221"
+  },
+  "frozen_readiness_registration": {
+    "ACTIVE": {
+      "identical": true,
+      "semantic_hash": "624b0bc12e0fca373338875042a356c228df9682b638bc8d7907c60312e39db3",
+      "resolution_hash": "b3800edf6d5539af74837fbdef39c566db06c758e59775fee5907f65a6376ff1"
+    },
+    "SHADOW": {
+      "identical": true,
+      "semantic_hash": "9e4e8dfe35b846f6a978e59ba0f915ee3fdceeb9f52b315f95b6be37dd31de88",
+      "resolution_hash": "81ed6114009f675a225ed406af92497892c752b6c0af531a55a0976a633dc9fc"
+    },
+    "LEGACY": {
+      "identical": true,
+      "semantic_hash": "a4f5d50531e45237f8ab61fa3e0e983caed06725d9bc438b6407e3df104e46e0",
+      "resolution_hash": "5536a39927959761dfbc76c5667f43fd61b75e7e6387362e452a4140037c7b46"
+    }
+  },
+  "v21_forward_formula_AST_identical": true,
+  "unchanged_protected_files": [
+    "app/services/fundamental_warning_service.py",
+    "app/services/fundamental_coverage_service.py",
+    "app/services/numeric_parser.py",
+    "config/column_aliases.yaml"
+  ],
+  "unchanged_ranker_functions": {
+    "_label_for_score": true,
+    "_weighted_score": true,
+    "_clamp": true
+  }
+}

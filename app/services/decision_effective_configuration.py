@@ -535,11 +535,17 @@ def resolve_readiness_policy_configuration(policy):
         "RANKING",
     }:
         mode = get_settings().fundamental_admission_mode
-    return _resolve_readiness_policy_configuration(policy, mode.value)
+    fundamental_model = None
+    if mode is not FundamentalAdmissionMode.LEGACY:
+        from app.services.fundamental_ranker_v2 import load_fundamentals_v2_config
+
+        # The loader uses retained Core configuration during frozen delivery.
+        fundamental_model = load_fundamentals_v2_config()["model_version"]
+    return _resolve_readiness_policy_configuration(policy, mode.value, fundamental_model)
 
 
 @lru_cache(maxsize=64)
-def _resolve_readiness_policy_configuration(policy, admission_mode):
+def _resolve_readiness_policy_configuration(policy, admission_mode, fundamental_model=None):
     producer = getattr(policy, "producer", "TECHNICAL")
     module = getattr(policy, "module", None)
     namespace = "decision.readiness." + producer.lower() + "." + policy.consumer.lower()
@@ -563,6 +569,9 @@ def _resolve_readiness_policy_configuration(policy, admission_mode):
         from app.services.fundamental_admission_policy import (
             FUNDAMENTAL_ADMISSION_POLICY_VERSION,
             FUNDAMENTAL_ADMISSION_SHADOW_POLICY_VERSION,
+            FUNDAMENTAL_V22_ADMISSION_POLICY_VERSION,
+            FUNDAMENTAL_V22_ADMISSION_SHADOW_POLICY_VERSION,
+            SUPPORTED_MODEL_FIELD_COUNTS,
         )
 
         if admission_mode != "LEGACY":
@@ -571,6 +580,15 @@ def _resolve_readiness_policy_configuration(policy, admission_mode):
                 "policy_version": FUNDAMENTAL_ADMISSION_POLICY_VERSION,
                 "shadow_policy_version": FUNDAMENTAL_ADMISSION_SHADOW_POLICY_VERSION,
             }
+            if fundamental_model == "fundamentals_v2.2":
+                values["fundamental_admission"].update(
+                    policy_version=FUNDAMENTAL_V22_ADMISSION_POLICY_VERSION,
+                    shadow_policy_version=FUNDAMENTAL_V22_ADMISSION_SHADOW_POLICY_VERSION,
+                    supported_model_field_counts=[
+                        {"model_version": model, "field_count": count}
+                        for model, count in SUPPORTED_MODEL_FIELD_COUNTS.items()
+                    ],
+                )
     return freeze_decision_configuration(
         namespace,
         values,

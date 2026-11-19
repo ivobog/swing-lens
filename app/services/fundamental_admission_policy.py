@@ -1,8 +1,8 @@
 """Bounded Fundamental admission policy with explicit evidence dependencies.
 
-The contract is intentionally tied to ``fundamentals_v2.1``.  A scoring
-configuration change must produce a new policy version rather than silently
-broadening the set of incomplete scores admitted to consumers.
+Coverage is certified separately for ``fundamentals_v2.1`` and ``fundamentals_v2.2``.
+Historical v2.1 decisions retain policy v3; v2.2 registers policy v4 with the same
+eligibility requirements and its explicitly certified formula dependencies.
 """
 
 from __future__ import annotations
@@ -28,6 +28,12 @@ FUNDAMENTAL_ADMISSION_POLICY_VERSION = "fundamental-admission-v3"
 FUNDAMENTAL_ADMISSION_SHADOW_POLICY_VERSION = "fundamental-admission-shadow-v3"
 FUNDAMENTAL_SCORING_MODEL_VERSION = "fundamentals_v2.1"
 FUNDAMENTAL_SCORING_FIELD_COUNT = 79
+SUPPORTED_MODEL_FIELD_COUNTS = {
+    "fundamentals_v2.1": 79,
+    "fundamentals_v2.2": 76,
+}
+FUNDAMENTAL_V22_ADMISSION_POLICY_VERSION = "fundamental-admission-v4"
+FUNDAMENTAL_V22_ADMISSION_SHADOW_POLICY_VERSION = "fundamental-admission-shadow-v4"
 MINIMUM_OVERALL_COVERAGE = 0.65
 MINIMUM_COMPONENT_COVERAGE = 0.50
 FUNDAMENTAL_COMPONENTS = frozenset(
@@ -150,7 +156,12 @@ def evaluate_fundamental_admission(
     if value.fundamental_label not in VALID_FUNDAMENTAL_LABELS:
         reasons.append("fundamental_label_invalid")
         blocking = True
-    if value.scoring_model_version != FUNDAMENTAL_SCORING_MODEL_VERSION:
+    expected_field_count = (
+        SUPPORTED_MODEL_FIELD_COUNTS.get(value.scoring_model_version)
+        if isinstance(value.scoring_model_version, str)
+        else None
+    )
+    if expected_field_count is None:
         reasons.append("scoring_model_version_unsupported")
         blocking = True
     source_identity_valid = _valid_sha256(value.source_identity_fingerprint)
@@ -211,8 +222,11 @@ def evaluate_fundamental_admission(
         reasons.append("low_priority_field_not_certified")
         blocking = True
 
-    available = _nonnegative_int(value.coverage.get("available_scoring_fields"))
-    total = _nonnegative_int(value.coverage.get("total_scoring_fields"))
+    strict_counts = value.scoring_model_version == "fundamentals_v2.2"
+    available = _nonnegative_int(
+        value.coverage.get("available_scoring_fields"), strict=strict_counts
+    )
+    total = _nonnegative_int(value.coverage.get("total_scoring_fields"), strict=strict_counts)
     ratio = _finite_float(value.coverage.get("coverage_ratio"))
     coverage_score = _finite_float(value.coverage.get("data_coverage_score"))
     expected_ratio = (
@@ -220,7 +234,8 @@ def evaluate_fundamental_admission(
     )
     if (
         available is None
-        or total != FUNDAMENTAL_SCORING_FIELD_COUNT
+        or expected_field_count is None
+        or total != expected_field_count
         or available > total
         or ratio is None
         or expected_ratio is None
@@ -269,15 +284,22 @@ def evaluate_fundamental_admission(
     if not reasons:
         reasons.append("complete_score_evidence")
 
+    policy_version = (
+        FUNDAMENTAL_ADMISSION_POLICY_VERSION
+        if authoritative
+        else FUNDAMENTAL_ADMISSION_SHADOW_POLICY_VERSION
+    )
+    if value.scoring_model_version == "fundamentals_v2.2":
+        policy_version = (
+            FUNDAMENTAL_V22_ADMISSION_POLICY_VERSION
+            if authoritative
+            else FUNDAMENTAL_V22_ADMISSION_SHADOW_POLICY_VERSION
+        )
     return OrthogonalConsumerDecision(
         producer="FUNDAMENTAL",
         consumer=value.consumer_edge.removeprefix("FUNDAMENTAL_TO_"),
         consumer_edge=value.consumer_edge,
-        policy_version=(
-            FUNDAMENTAL_ADMISSION_POLICY_VERSION
-            if authoritative
-            else FUNDAMENTAL_ADMISSION_SHADOW_POLICY_VERSION
-        ),
+        policy_version=policy_version,
         source_identity_fingerprint=value.source_identity_fingerprint,
         source_evidence_id=value.source_evidence_id,
         decision_cutoff=value.decision_cutoff,
@@ -344,9 +366,13 @@ def _finite_number(value: Any) -> bool:
     return number.is_finite() and math.isfinite(float(number))
 
 
-def _nonnegative_int(value: Any) -> int | None:
+def _nonnegative_int(value: Any, *, strict: bool = False) -> int | None:
     if isinstance(value, bool):
         return None
+    if strict:
+        finite = _finite_float(value)
+        if finite is None or not finite.is_integer():
+            return None
     try:
         number = int(value)
     except (TypeError, ValueError):

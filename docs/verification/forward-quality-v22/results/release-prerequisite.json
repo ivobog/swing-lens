@@ -1,0 +1,23 @@
+{
+  "command": "python -m scripts.qa.check_certification_registry --check --diff-base c7be7e9",
+  "exit_code": 1,
+  "stdout": {
+    "registry_valid": false,
+    "error": "golden provenance prerequisite: PROVENANCE_ARTIFACT_HASH_MISMATCH: config/fundamentals_v2.yaml",
+    "pipeline_result": "NOT_EVALUATED"
+  },
+  "stderr": "",
+  "certification_claim": "NONE",
+  "additional_static_checks": {
+    "ruff_check_app_tests_scripts": "PASS",
+    "route_inventory": {
+      "correct_isolated_command": "python -m scripts.docs.check_route_inventory",
+      "exit_code": 0,
+      "stdout": "",
+      "isolated_app_path": "C:\\Users\\Ivica\\Documents\\SwingLens\\.worktrees\\forward-quality-v22\\app\\__init__.py",
+      "direct_script_import_probe": "C:\\Users\\Ivica\\Documents\\SwingLens\\app\\__init__.py",
+      "initial_direct_script_exit_code": 1,
+      "explanation": "Reused root virtual environment editable install resolves the dirty original checkout when script-directory sys.path excludes the isolated checkout root. Module invocation binds the intended isolated source."
+    }
+  }
+}
