@@ -1,0 +1,578 @@
+{
+  "assessment_date": "2026-11-19",
+  "baseline_commit": "c015e1d26e67f31bc63acbfe1049660ec44e342d",
+  "status": "BLOCKED",
+  "implementation_performed": false,
+  "sources": [
+    {
+      "filename": "20261118_222945_77d1ca43_money money_2026-11-18 _1_.csv",
+      "sha256": "2247b49dc3f4e8fd88a1f96d50d095b1c17b8ba30a06ae6d2822bf199d532331",
+      "row_count": 111,
+      "sectors": {
+        "Commercial services": 8,
+        "Consumer non-durables": 6,
+        "Consumer services": 4,
+        "Distribution services": 2,
+        "Electronic technology": 8,
+        "Finance": 28,
+        "Health services": 5,
+        "Health technology": 11,
+        "Industrial services": 2,
+        "Process industries": 7,
+        "Producer manufacturing": 5,
+        "Retail trade": 7,
+        "Technology services": 10,
+        "Transportation": 3,
+        "Utilities": 5
+      },
+      "date_or_period_headers": [
+        "Upcoming earnings date"
+      ],
+      "fields": {
+        "net_income_ttm": {
+          "mapped_header": "Net income, Trailing 12 months",
+          "numeric_available": 111,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 111
+          }
+        },
+        "net_income_estimate_ntm": {
+          "mapped_header": "Net income estimate, Next 12 months",
+          "numeric_available": 108,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 108,
+            "unavailable": 3
+          }
+        },
+        "total_revenue_ttm": {
+          "mapped_header": "Total revenue, Trailing 12 months",
+          "numeric_available": 111,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 111
+          }
+        },
+        "revenue_estimate_annual": {
+          "mapped_header": "Revenue estimate, Annual",
+          "numeric_available": 110,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 110,
+            "unavailable": 1
+          }
+        },
+        "net_margin_ttm": {
+          "mapped_header": "Net margin %, Trailing 12 months",
+          "numeric_available": 111,
+          "ratings": null,
+          "currency_counts": null
+        },
+        "eps_estimate_annual": {
+          "mapped_header": "Earnings per share estimate, Annual",
+          "numeric_available": 110,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 110,
+            "unavailable": 1
+          }
+        },
+        "eps_estimate_quarterly": {
+          "mapped_header": "Earnings per share estimate, Quarterly",
+          "numeric_available": 110,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 110,
+            "unavailable": 1
+          }
+        },
+        "ebit_estimate_ntm": {
+          "mapped_header": "EBIT estimate, Next 12 months",
+          "numeric_available": 108,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 108,
+            "unavailable": 3
+          }
+        },
+        "capex_ttm": {
+          "mapped_header": "Capital expenditures, Trailing 12 months",
+          "numeric_available": 111,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 111
+          }
+        },
+        "capex_estimate_ntm": {
+          "mapped_header": "Capital expenditures estimate, Next 12 months",
+          "numeric_available": 79,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 79,
+            "unavailable": 32
+          }
+        },
+        "cash_short_term_investments_annual": {
+          "mapped_header": "Cash and short-term investments, Annual",
+          "numeric_available": 104,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 104,
+            "unavailable": 7
+          }
+        },
+        "cash_short_term_investments_estimate_annual": {
+          "mapped_header": "Cash and short term investments estimate, Annual",
+          "numeric_available": 104,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 104,
+            "unavailable": 7
+          }
+        },
+        "analyst_rating": {
+          "mapped_header": "Analyst rating",
+          "numeric_available": null,
+          "ratings": {
+            "Neutral": 8,
+            "Buy": 66,
+            "Strong buy": 36,
+            "No rating": 1
+          },
+          "currency_counts": null
+        }
+      }
+    },
+    {
+      "filename": "20261118_103717_49ba0072_money money_2026-11-18.csv",
+      "sha256": "1e32c9aa982cb3ce9df966aea3cd164daeed3bc1a21477db32807f6b83f7092e",
+      "row_count": 109,
+      "sectors": {
+        "Commercial services": 8,
+        "Consumer durables": 1,
+        "Consumer non-durables": 5,
+        "Consumer services": 8,
+        "Distribution services": 2,
+        "Electronic technology": 6,
+        "Energy minerals": 1,
+        "Finance": 29,
+        "Health services": 7,
+        "Health technology": 9,
+        "Industrial services": 2,
+        "Process industries": 7,
+        "Producer manufacturing": 4,
+        "Retail trade": 5,
+        "Technology services": 6,
+        "Transportation": 3,
+        "Utilities": 6
+      },
+      "date_or_period_headers": [
+        "Upcoming earnings date"
+      ],
+      "fields": {
+        "net_income_ttm": {
+          "mapped_header": "Net income, Trailing 12 months",
+          "numeric_available": 109,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 109
+          }
+        },
+        "net_income_estimate_ntm": {
+          "mapped_header": "Net income estimate, Next 12 months",
+          "numeric_available": 106,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 106,
+            "unavailable": 3
+          }
+        },
+        "total_revenue_ttm": {
+          "mapped_header": "Total revenue, Trailing 12 months",
+          "numeric_available": 109,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 109
+          }
+        },
+        "revenue_estimate_annual": {
+          "mapped_header": "Revenue estimate, Annual",
+          "numeric_available": 108,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 108,
+            "unavailable": 1
+          }
+        },
+        "net_margin_ttm": {
+          "mapped_header": "Net margin %, Trailing 12 months",
+          "numeric_available": 109,
+          "ratings": null,
+          "currency_counts": null
+        },
+        "eps_estimate_annual": {
+          "mapped_header": "Earnings per share estimate, Annual",
+          "numeric_available": 109,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 109
+          }
+        },
+        "eps_estimate_quarterly": {
+          "mapped_header": "Earnings per share estimate, Quarterly",
+          "numeric_available": 109,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 109
+          }
+        },
+        "ebit_estimate_ntm": {
+          "mapped_header": "EBIT estimate, Next 12 months",
+          "numeric_available": 106,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 106,
+            "unavailable": 3
+          }
+        },
+        "capex_ttm": {
+          "mapped_header": "Capital expenditures, Trailing 12 months",
+          "numeric_available": 109,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 109
+          }
+        },
+        "capex_estimate_ntm": {
+          "mapped_header": "Capital expenditures estimate, Next 12 months",
+          "numeric_available": 77,
+          "ratings": null,
+          "currency_counts": {
+            "unavailable": 32,
+            "USD": 77
+          }
+        },
+        "cash_short_term_investments_annual": {
+          "mapped_header": "Cash and short-term investments, Annual",
+          "numeric_available": 95,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 95,
+            "unavailable": 14
+          }
+        },
+        "cash_short_term_investments_estimate_annual": {
+          "mapped_header": "Cash and short term investments estimate, Annual",
+          "numeric_available": 101,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 101,
+            "unavailable": 8
+          }
+        },
+        "analyst_rating": {
+          "mapped_header": "Analyst rating",
+          "numeric_available": null,
+          "ratings": {
+            "Strong buy": 31,
+            "Buy": 69,
+            "Neutral": 9
+          },
+          "currency_counts": null
+        }
+      }
+    },
+    {
+      "filename": "20261117_121504_b49ee374_money money_2026-11-17.csv",
+      "sha256": "ea0e5333fb5548c1f400c85a3b6bf80e59073cf7b14386226cb06fee265cf116",
+      "row_count": 136,
+      "sectors": {
+        "Commercial services": 6,
+        "Communications": 1,
+        "Consumer non-durables": 8,
+        "Consumer services": 8,
+        "Distribution services": 1,
+        "Electronic technology": 3,
+        "Energy minerals": 3,
+        "Finance": 52,
+        "Health services": 2,
+        "Health technology": 9,
+        "Industrial services": 2,
+        "Miscellaneous": 1,
+        "Process industries": 8,
+        "Producer manufacturing": 6,
+        "Retail trade": 6,
+        "Technology services": 7,
+        "Transportation": 6,
+        "Utilities": 7
+      },
+      "date_or_period_headers": [
+        "Upcoming earnings date"
+      ],
+      "fields": {
+        "net_income_ttm": {
+          "mapped_header": "Net income, Trailing 12 months",
+          "numeric_available": 136,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 136
+          }
+        },
+        "net_income_estimate_ntm": {
+          "mapped_header": "Net income estimate, Next 12 months",
+          "numeric_available": 129,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 129,
+            "unavailable": 7
+          }
+        },
+        "total_revenue_ttm": {
+          "mapped_header": "Total revenue, Trailing 12 months",
+          "numeric_available": 136,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 136
+          }
+        },
+        "revenue_estimate_annual": {
+          "mapped_header": "Revenue estimate, Annual",
+          "numeric_available": 134,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 134,
+            "unavailable": 2
+          }
+        },
+        "net_margin_ttm": {
+          "mapped_header": "Net margin %, Trailing 12 months",
+          "numeric_available": 136,
+          "ratings": null,
+          "currency_counts": null
+        },
+        "eps_estimate_annual": {
+          "mapped_header": "Earnings per share estimate, Annual",
+          "numeric_available": 135,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 135,
+            "unavailable": 1
+          }
+        },
+        "eps_estimate_quarterly": {
+          "mapped_header": "Earnings per share estimate, Quarterly",
+          "numeric_available": 135,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 135,
+            "unavailable": 1
+          }
+        },
+        "ebit_estimate_ntm": {
+          "mapped_header": "EBIT estimate, Next 12 months",
+          "numeric_available": 129,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 129,
+            "unavailable": 7
+          }
+        },
+        "capex_ttm": {
+          "mapped_header": "Capital expenditures, Trailing 12 months",
+          "numeric_available": 136,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 136
+          }
+        },
+        "capex_estimate_ntm": {
+          "mapped_header": "Capital expenditures estimate, Next 12 months",
+          "numeric_available": 77,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 77,
+            "unavailable": 59
+          }
+        },
+        "cash_short_term_investments_annual": {
+          "mapped_header": "Cash and short-term investments, Annual",
+          "numeric_available": 103,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 103,
+            "unavailable": 33
+          }
+        },
+        "cash_short_term_investments_estimate_annual": {
+          "mapped_header": "Cash and short term investments estimate, Annual",
+          "numeric_available": 122,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 122,
+            "unavailable": 14
+          }
+        },
+        "analyst_rating": {
+          "mapped_header": "Analyst rating",
+          "numeric_available": null,
+          "ratings": {
+            "Buy": 84,
+            "Neutral": 15,
+            "Strong buy": 36,
+            "No rating": 1
+          },
+          "currency_counts": null
+        }
+      }
+    },
+    {
+      "filename": "20261114_115845_6c59f35d_skimmer 2_2026-11-14.csv",
+      "sha256": "cd0cda608f68d0264e68a11038acd920034d5efa64d2acc37b7e54c9276ab7b9",
+      "row_count": 447,
+      "sectors": {
+        "Commercial services": 22,
+        "Consumer durables": 14,
+        "Consumer non-durables": 25,
+        "Consumer services": 32,
+        "Distribution services": 8,
+        "Electronic technology": 14,
+        "Energy minerals": 8,
+        "Finance": 130,
+        "Health services": 19,
+        "Health technology": 36,
+        "Industrial services": 8,
+        "Miscellaneous": 1,
+        "Process industries": 17,
+        "Producer manufacturing": 27,
+        "Retail trade": 24,
+        "Technology services": 39,
+        "Transportation": 14,
+        "Utilities": 9
+      },
+      "date_or_period_headers": [
+        "Upcoming earnings date"
+      ],
+      "fields": {
+        "net_income_ttm": {
+          "mapped_header": "Net income, Trailing 12 months",
+          "numeric_available": 446,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 446,
+            "unavailable": 1
+          }
+        },
+        "net_income_estimate_ntm": {
+          "mapped_header": "Net income estimate, Next 12 months",
+          "numeric_available": 435,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 435,
+            "unavailable": 12
+          }
+        },
+        "total_revenue_ttm": {
+          "mapped_header": "Total revenue, Trailing 12 months",
+          "numeric_available": 446,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 446,
+            "unavailable": 1
+          }
+        },
+        "revenue_estimate_annual": {
+          "mapped_header": "Revenue estimate, Annual",
+          "numeric_available": 444,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 444,
+            "unavailable": 3
+          }
+        },
+        "net_margin_ttm": {
+          "mapped_header": "Net margin %, Trailing 12 months",
+          "numeric_available": 446,
+          "ratings": null,
+          "currency_counts": null
+        },
+        "eps_estimate_annual": {
+          "mapped_header": "Earnings per share estimate, Annual",
+          "numeric_available": 445,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 445,
+            "unavailable": 2
+          }
+        },
+        "eps_estimate_quarterly": {
+          "mapped_header": "Earnings per share estimate, Quarterly",
+          "numeric_available": 445,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 445,
+            "unavailable": 2
+          }
+        },
+        "ebit_estimate_ntm": {
+          "mapped_header": "EBIT estimate, Next 12 months",
+          "numeric_available": 430,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 430,
+            "unavailable": 17
+          }
+        },
+        "capex_ttm": {
+          "mapped_header": "Capital expenditures, Trailing 12 months",
+          "numeric_available": 444,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 444,
+            "unavailable": 3
+          }
+        },
+        "capex_estimate_ntm": {
+          "mapped_header": "Capital expenditures estimate, Next 12 months",
+          "numeric_available": 303,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 303,
+            "unavailable": 144
+          }
+        },
+        "cash_short_term_investments_annual": {
+          "mapped_header": "Cash and short-term investments, Annual",
+          "numeric_available": 377,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 377,
+            "unavailable": 70
+          }
+        },
+        "cash_short_term_investments_estimate_annual": {
+          "mapped_header": "Cash and short term investments estimate, Annual",
+          "numeric_available": 410,
+          "ratings": null,
+          "currency_counts": {
+            "USD": 410,
+            "unavailable": 37
+          }
+        },
+        "analyst_rating": {
+          "mapped_header": "Analyst rating",
+          "numeric_available": null,
+          "ratings": {
+            "Buy": 267,
+            "Strong buy": 80,
+            "No rating": 2,
+            "Neutral": 95,
+            "Strong sell": 1,
+            "Sell": 2
+          },
+          "currency_counts": null
+        }
+      }
+    }
+  ]
+}

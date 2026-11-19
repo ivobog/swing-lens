@@ -142,7 +142,9 @@ def test_source_backed_fixture_uses_real_csv_parser_and_preserves_threshold_scor
         "model_version",
     ):
         assert row.debug_json[key] == calculated.debug[key]
-    assert row.debug_json["coverage"]["available_scoring_fields"] == 79
+    assert row.debug_json["model_version"] == "fundamentals_v2.2"
+    assert row.debug_json["coverage"]["available_scoring_fields"] == 76
+    assert row.debug_json["forward_financial_evidence_available"] is True
     assert row.fundamental_score == 7.9999
     assert source["producer_score"] != source["consumer_score"]
     projected, permission = contextual_decision_input(row, FUNDAMENTAL_TO_COMBINED)

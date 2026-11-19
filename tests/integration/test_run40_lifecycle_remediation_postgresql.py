@@ -160,8 +160,15 @@ def _seed_universe(
         )
     )
     db.flush()
+    aliases = configs[0].values["column_aliases"]
     for index, ticker in enumerate(tickers, 1):
-        raw = {"Symbol": ticker, **_quality_values()}
+        # Controlled fixture facts for the current Fundamental forecast contract.
+        raw = {
+            "Symbol": ticker,
+            **_quality_values(),
+            aliases["net_income_ttm_currency"][0]: "USD",
+            aliases["net_income_estimate_ntm_currency"][0]: "USD",
+        }
         if winner_config is not None:
             from test_t14c_decision_writer_postgresql import _native_liquidity_source
 

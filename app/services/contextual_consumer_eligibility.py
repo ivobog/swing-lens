@@ -1,6 +1,6 @@
 """Contextual source permission, evaluated against exact frozen producer evidence."""
 
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -200,7 +200,9 @@ def contextual_decision_input(
         frozen["orthogonal_decision"] = Canonical.canonicalize(
             orthogonal_decision.canonical_payload()
         )
-        frozen["fundamental_admission_input"] = Canonical.canonicalize(asdict(policy_input))
+        frozen["fundamental_admission_input"] = Canonical.canonicalize(
+            policy_input.canonical_payload()
+        )
         frozen["legacy_outcome"] = legacy_outcome.value
     if not included:
         return None, frozen
@@ -356,6 +358,15 @@ def _fundamental_frozen_input(evidence: CoreCalculationEvidence) -> dict[str, An
         "component_coverage": debug.get("component_coverage") or {},
         "parse_diagnostics": debug.get("parse_diagnostics") or {},
         "v2_warning_flags_json": payload.get("v2_warning_flags_json") or {},
+        **(
+            {
+                "forward_financial_evidence_available": debug.get(
+                    "forward_financial_evidence_available"
+                )
+            }
+            if payload.get("scoring_model_version") == "fundamentals_v2.2"
+            else {}
+        ),
     }
 
 
@@ -566,7 +577,6 @@ def record_fundamental_admission(
     )
     from app.services.eligibility_policy import ConsumerEligibilityOutcome
     from app.services.fundamental_admission_policy import (
-        FUNDAMENTAL_ADMISSION_SHADOW_POLICY_VERSION,
         evaluate_fundamental_admission,
         fundamental_input_from_frozen_row,
     )
@@ -595,12 +605,12 @@ def record_fundamental_admission(
                 upload_run_id=evidence.run_id,
                 ticker=evidence.ticker,
                 consumer_edge=decision.consumer_edge,
-                policy_version=FUNDAMENTAL_ADMISSION_SHADOW_POLICY_VERSION,
+                policy_version=decision.policy_version,
                 source_identity_fingerprint=evidence.calculation_identity_fingerprint,
                 decision_cutoff=decision.decision_cutoff,
                 legacy_outcome=ConsumerEligibilityOutcome(permission["legacy_outcome"]),
                 proposed_decision=decision,
-                frozen_input=asdict(policy_input),
+                frozen_input=policy_input.canonical_payload(),
             ),
         )
         return

@@ -1,0 +1,8 @@
+{
+  "retained_rows": 100,
+  "sealed_parent_payloads_verified": 100,
+  "old_validator_refusals": 100,
+  "corrected_validator_passes": 100,
+  "dump_sha256": "189f3eb8fc8b8398f571e2a053f34487db93751d8380788f88a30158d4f15ffa",
+  "scope": "Read-only verification of captured synthetic native failure; no data or expected values authored"
+}

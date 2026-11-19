@@ -192,7 +192,7 @@ def test_run37_admission_loading_contract_and_mode_matrix_on_fresh_postgresql_se
             producer = db.get(CoreCalculationEvidence, active["pins"]["ACME"]["fundamental"])
             assert fundamental.evidence_id == producer.id
             assert fundamental.data_coverage_score == 10
-            assert fundamental.scoring_model_version == "fundamentals_v2.1"
+            assert fundamental.scoring_model_version == "fundamentals_v2.2"
             assert producer.calculated_at == active["cutoff"].cutoff_at
             assert producer.calculation_identity_fingerprint
             # Direct lazy='raise' access is unsupported; explicit evidence lookup is supported.

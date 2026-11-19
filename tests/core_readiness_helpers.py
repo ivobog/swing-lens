@@ -80,7 +80,9 @@ def populate_fundamental_source(row, *, raw_row=None, raw_values=None):
     from app.services.upload_service import _fundamental_score_from_v2
 
     if raw_values is None:
-        source = Path(__file__).parent / "e2e/single_run_certification/golden/v3/universe.csv"
+        # Current consumer-boundary specimens need explicitly declared currencies.
+        # v3 inputs intentionally remain immutable and lack that metadata.
+        source = Path(__file__).parent / "e2e/single_run_certification/golden/v6/universe.csv"
         with source.open(newline="", encoding="utf-8-sig") as handle:
             raw = dict(next(csv.DictReader(handle)))
         raw["Symbol"] = row.ticker

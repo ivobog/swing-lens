@@ -65,7 +65,9 @@ class SeedResult:
     pre_run_counts: dict[str, int]
 
 
-def write_canonical_csv(path: Path) -> str:
+def write_canonical_csv(
+    path: Path, *, forward_currency_metadata: dict[str, str] | None = None
+) -> str:
     headers = [
         "Symbol",
         "Description",
@@ -321,6 +323,8 @@ def write_canonical_csv(path: Path) -> str:
     complete_financials = json.loads(
         Path(__file__).with_name("financial_inputs.json").read_text(encoding="utf-8")
     )
+    # Explicit current positive-scenario facts; the retained default is unchanged.
+    complete_financials.update(forward_currency_metadata or {})
     supplements = {
         aliases[key][0]: value
         for key, value in complete_financials.items()

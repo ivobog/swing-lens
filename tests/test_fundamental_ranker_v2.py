@@ -22,7 +22,7 @@ def test_score_row_v2_returns_debug_contract_and_is_deterministic() -> None:
     second = score_rows_v2([row])[0]
 
     assert first == second
-    assert first.debug["model_version"] == "fundamentals_v2.1"
+    assert first.debug["model_version"] == "fundamentals_v2.2"
     assert len(first.debug["config_hash"]) == 64
     assert set(first.debug["component_scores"]) == {
         "growth_quality_score",

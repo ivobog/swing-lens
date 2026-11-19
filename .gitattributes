@@ -17,6 +17,7 @@ docs/testing/golden-provenance/a05b-r5/** -text
 /config/ceri_catalyst_taxonomy.yaml -text
 /config/column_aliases.yaml -text
 /config/fundamentals_v2.yaml -text
+/config/fundamentals_v2_2.yaml -text
 /config/ib_market_intelligence.yaml -text
 /config/ib_market_intelligence_v1_0_2.yaml -text
 /config/market_regime_command_center.yaml -text
@@ -35,3 +36,7 @@ docs/testing/golden-provenance/a05b-r5/** -text
 /docs/remediation/ceri-context-116/** -text -whitespace
 /artifacts/ceri-context-116-remediation/** -text -whitespace
 /docs/remediation/ceri-context-116-publication/** -text -whitespace
+
+# Preserve the independently authored forward-quality candidate review bytes.
+/docs/verification/forward-quality-v22/release/golden-v6/** -text
+/docs/verification/forward-quality-v22/release/golden-v7/** -text

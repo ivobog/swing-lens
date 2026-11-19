@@ -67,7 +67,7 @@ def test_recalculate_run_fundamentals_replaces_scores_from_stored_raw_rows() -> 
     assert len(scores) == 1
     assert isinstance(db.added[0], FundamentalScore)
     assert db.added[0].ticker == "MSFT"
-    assert db.added[0].scoring_model_version == "fundamentals_v2.1"
+    assert db.added[0].scoring_model_version == "fundamentals_v2.2"
     assert raw_row.raw_json == original_raw_json
 
 

@@ -229,7 +229,20 @@ def certification_environment(
         csv_hash = _write_live_canary_csv(csv_path)
         certification_tickers = LIVE_CANARY_TICKERS
     else:
-        csv_hash = write_canonical_csv(csv_path)
+        # The current positive Winner scenario requires usable financial evidence.
+        # Reuse explicit controlled USD facts from the reviewed v2.2 specimen.
+        financial_source = json.loads(
+            (Path(__file__).parent / "golden/v7/financial-source.json").read_text(
+                encoding="utf-8"
+            )
+        )["canonical"]
+        csv_hash = write_canonical_csv(
+            csv_path,
+            forward_currency_metadata={
+                key: financial_source[key]
+                for key in ("net_income_ttm_currency", "net_income_estimate_ntm_currency")
+            },
+        )
         certification_tickers = CANONICAL_TICKERS
     # This positive path freezes an enabled native profile, alongside the flags.
     winner_profile = yaml.safe_load((REPO_ROOT / "config/winner_probability.yaml").read_text())

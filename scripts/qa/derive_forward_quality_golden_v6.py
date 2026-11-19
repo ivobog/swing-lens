@@ -1,0 +1,447 @@
+"""Author a new, unapproved v6 proposal using independent literal arithmetic.
+
+Financial calculations import no application scoring code and never read actual
+comparison outputs. Unchanged reviewed v3 vectors are inherited, not regenerated.
+The final packaging step uses the existing provenance verifier only for metadata.
+This does not change active oracle pins or confer approval/activation authority.
+"""
+
+import argparse
+import copy
+import csv
+import hashlib
+import json
+from decimal import ROUND_HALF_EVEN, Decimal
+from pathlib import Path
+
+import yaml
+
+BASE = Path("tests/e2e/single_run_certification/golden/v3")
+CANDIDATE = Path("tests/e2e/single_run_certification/golden/v6")
+ARCHIVE = Path("docs/verification/forward-quality-v22/release/golden-v6")
+PROPOSAL = Path("docs/testing/golden-update-proposal.json")
+INPUT_VERSION = "a05-v6"
+EXPECTATION_VERSION = "a05b-r6"
+
+
+def read(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def digest_file(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def write(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def d(value):
+    return Decimal(str(value))
+
+
+def q(value):
+    return value.quantize(Decimal(".0001"), rounding=ROUND_HALF_EVEN)
+
+
+def fq(value):
+    return Decimal(str(round(float(value), 4)))
+
+
+def average(values):
+    return fq(sum(float(v) for v in values) / len(values))
+
+
+def label(score, thresholds):
+    if score >= d(thresholds["strong_candidate_min_score"]):
+        return "Strong candidate"
+    if score >= d(thresholds["candidate_min_score"]):
+        return "Candidate"
+    if score >= d(thresholds["watch_min_score"]):
+        return "Watchlist"
+    return "Avoid"
+
+
+def independent_financial_derivation():
+    """Use only raw specimen facts, approved equations, and reviewed v3 literals."""
+    config = read(BASE / "configuration.json")
+    source = read(BASE / "financial-source.json")
+    values = source["canonical"]
+    income_growth = 100 * (d(values["net_income_estimate_ntm"]) / d(values["net_income_ttm"]) - 1)
+    revenue_growth = 100 * (
+        d(values["revenue_estimate_annual"]) / d(values["total_revenue_ttm"]) - 1
+    )
+    cash_growth = 100 * (
+        d(values["cash_short_term_investments_estimate_annual"])
+        / d(values["cash_short_term_investments_annual"])
+        - 1
+    )
+    capex_growth = 100 * (abs(d(values["capex_estimate_ntm"])) / abs(d(values["capex_ttm"])) - 1)
+    # The new controlled specimen explicitly declares USD for these pairs.
+    # This is authored test metadata, not recovered historical vendor provenance.
+    terms = [
+        ("net_income_estimate_ntm", q(5 + 5 * income_growth / 30), d(".30")),
+        ("revenue_estimate_annual", q(5 + 5 * revenue_growth / 20), d(".25")),
+        ("cash_short_term_investments_estimate_annual", q(5 + 5 * cash_growth / 30), d(".10")),
+        ("capex_estimate_ntm", q(10 - max(d(0), capex_growth - income_growth) / 5), d(".10")),
+        ("analyst_rating", d("7.5"), d(".05")),
+    ]
+    numerator = sum(score * weight for _, score, weight in terms)
+    denominator = sum(weight for _, _, weight in terms)
+    forward = q(numerator / denominator)
+    worksheet = read(BASE / "fundamental-derivation.json")
+    worksheet["components"]["forward_quality_score"] = {
+        "bonus": "0",
+        "expected": str(forward),
+        "rounded_mean": str(forward),
+        "weight_sum": str(denominator),
+        "weighted_numerator": str(numerator),
+        "terms": [
+            {
+                "field": field,
+                "input": values[field],
+                "normalized": str(score),
+                "weight": str(weight),
+                "formula": "v2.2 approved literal; see DERIVATIONS.md",
+            }
+            for field, score, weight in terms
+        ],
+        "unavailable": {"profitability": "NTM income and annual revenue periods are incompatible"},
+    }
+    total = q(
+        sum(
+            d(c["expected"]) * d(worksheet["weights"][name])
+            for name, c in worksheet["components"].items()
+        )
+    )
+    worksheet["expected"] = str(total)
+    assert forward == d("7.3646") and total == d("8.9800")
+    assert worksheet["warnings"] == [] and worksheet["label"] == "Clean compounder"
+    return (
+        config,
+        source,
+        worksheet,
+        total,
+        {
+            "net_income_growth_percent": str(income_growth),
+            "annual_revenue_vs_ttm_percent": str(revenue_growth),
+            "annual_cash_comparison_percent": str(cash_growth),
+            "absolute_capex_growth_percent": str(capex_growth),
+            "pressure_percentage_points": str(max(d(0), capex_growth - income_growth)),
+            "normalized_scores": {field: str(score) for field, score, _ in terms},
+            "available_weight": str(denominator),
+            "forward": str(forward),
+            "total": str(total),
+            "production_outputs_used": False,
+        },
+    )
+
+
+def propagate(config, fundamental):
+    core = read(BASE / "oracle-completion/core-expected.json")
+    old_core = copy.deepcopy(core)
+    technical = {r["ticker"]: r for r in core["technical"]}
+    for row in core["combined"]:
+        t = technical[row["ticker"]]
+        penalty = d("1.5") if t["classification"] == "Overheated momentum" else d(0)
+        row["fundamental_score"] = str(fundamental)
+        score = q(fundamental * d(".55") + d(t["dual_score"]) * d(".45") - penalty)
+        row["final_score"] = str(score)
+        row["combined_decision"] = label(score, config["scoring_weights.yaml"]["labels"])
+        row["position_size_hint"] = (
+            "Half starter"
+            if row["combined_decision"] in {"Candidate", "Strong candidate"}
+            else "Small probe"
+        )
+    for i, row in enumerate(
+        sorted(core["combined"], key=lambda r: (-d(r["final_score"]), r["ticker"])), 1
+    ):
+        row["final_rank"] = i
+    arithmetic = []
+    for row in core["ranking"]:
+        p = config["ranking_profiles.yaml"]["profiles"][row["profile"]]
+        before = fq(
+            float(row["technical_profile_score"]) * p["weights"]["technical"]
+            + float(fundamental) * p["weights"]["fundamental"]
+        )
+        score = fq(float(before) - sum(float(v) for v in row["penalties"].values()))
+        row["profile_score"] = str(score)
+        row["decision_label"] = label(score, p["thresholds"])
+        arithmetic.append(
+            {
+                "ticker": row["ticker"],
+                "profile": row["profile"],
+                "technical_literal": row["technical_profile_score"],
+                "before_penalties": str(before),
+                "after_penalties": str(score),
+            }
+        )
+    for profile in config["ranking_profiles.yaml"]["profiles"]:
+        peers = [r for r in core["ranking"] if r["profile"] == profile]
+        peers.sort(
+            key=lambda r: (
+                3 if r["decision_label"] == "Avoid" else int(r["has_warning"]),
+                -d(r["profile_score"]),
+                -d(r["technical_profile_score"]),
+                r["ticker"],
+            )
+        )
+        for i, row in enumerate(peers, 1):
+            row["profile_rank"] = i
+    assert core["technical"] == old_core["technical"]
+    assert core["technical_contributions"] == old_core["technical_contributions"]
+    return core, arithmetic
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source-revision", required=True)
+    args = parser.parse_args()
+    if CANDIDATE.exists():
+        raise ValueError("Candidate already exists; never overwrite reviewed artifacts")
+    config, source, worksheet, fundamental, literals = independent_financial_derivation()
+    # Check the unchanged propagation equations against the prior independent oracle.
+    old_core, _ = propagate(config, d("9.1909"))
+    assert old_core == read(BASE / "oracle-completion/core-expected.json")
+    core, arithmetic = propagate(config, fundamental)
+    new_profile = yaml.safe_load(Path("config/fundamentals_v2_2.yaml").read_text())
+    assert new_profile["weights"] == config["fundamentals_v2.yaml"]["weights"]
+    config["fundamentals_v2_2.yaml"] = new_profile
+    CANDIDATE.mkdir(parents=True)
+    for path in BASE.rglob("*"):
+        if path.is_file():
+            dest = CANDIDATE / path.relative_to(BASE)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(path.read_bytes())
+    write(CANDIDATE / "configuration.json", config)
+    currency_fields = [
+        "net_income_ttm",
+        "net_income_estimate_ntm",
+        "total_revenue_ttm",
+        "revenue_estimate_annual",
+        "capex_ttm",
+        "capex_estimate_ntm",
+        "cash_short_term_investments_annual",
+        "cash_short_term_investments_estimate_annual",
+    ]
+    aliases = config["column_aliases.yaml"]
+    with (BASE / "universe.csv").open(encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    for field in currency_fields:
+        source["canonical"][field + "_currency"] = "USD"
+        header = aliases[field + "_currency"][0]
+        for row in rows:
+            row[header] = "USD"
+    with (CANDIDATE / "universe.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    source["candidate_currency_metadata"] = (
+        "Explicit controlled USD fixture facts for existing mapped columns; "
+        "not historical vendor claims"
+    )
+    write(CANDIDATE / "financial-source.json", source)
+    write(CANDIDATE / "fundamental-derivation.json", worksheet)
+    expected = read(BASE / "expected-results.json")
+    expected["version"] = INPUT_VERSION
+    for row in expected["domains"]["fundamental"]:
+        row["forward_quality_score"] = worksheet["components"]["forward_quality_score"]["expected"]
+        row["fundamental_score"] = str(fundamental)
+    write(CANDIDATE / "expected-results.json", expected)
+    write(CANDIDATE / "oracle-completion/core-expected.json", core)
+    context = read(BASE / "oracle-completion/context-expected.json")
+    sector = context["sector"][0]
+    default = [r for r in core["ranking"] if r["profile"] == "momentum_swing"]
+    sector["average_fundamental_score"] = str(fundamental)
+    sector["average_final_score"] = str(average([r["final_score"] for r in core["combined"]]))
+    sector["average_profile_score"] = str(average([r["profile_score"] for r in default]))
+    sector["component_scores"]["average_profile_score"] = sector["average_profile_score"]
+    score = q(
+        sum(
+            d(sector["component_scores"][key]) * d(weight)
+            for key, weight in config["sector_rotation.yaml"]["universe_score"]["weights"].items()
+        )
+    )
+    sector["sector_final_score"] = sector["universe_leadership_score"] = str(score)
+    write(CANDIDATE / "oracle-completion/context-expected.json", context)
+    downstream = read(BASE / "oracle-completion/downstream-expected.json")
+    combined = {r["ticker"]: r for r in core["combined"]}
+    for row in downstream["winner"]:
+        selected = min(
+            (r for r in core["ranking"] if r["ticker"] == row["ticker"]),
+            key=lambda r: (r["profile_rank"], r["profile"]),
+        )
+        features = row["features"]
+        features["fundamental_score"] = str(fundamental)
+        features["combined_score"] = combined[row["ticker"]]["final_score"]
+        features["ranking_profile"] = selected["profile"]
+        features["setup_family"] = selected["decision_label"]
+        features["screener_provenance"] = (
+            "CSV uploaded, raw rows stored, and fundamental scores calculated "
+            "with fundamentals_v2.2."
+        )
+        features["score_band"] = "8_plus" if d(features["combined_score"]) >= 8 else "6_5_to_8"
+    for row in downstream["setup"]:
+        selected = min(
+            (r for r in core["ranking"] if r["ticker"] == row["ticker"]),
+            key=lambda r: (r["profile_rank"], r["profile"]),
+        )
+        row["ranking_profile"] = selected["profile"]
+    write(CANDIDATE / "oracle-completion/downstream-expected.json", downstream)
+    ARCHIVE.mkdir(parents=True, exist_ok=True)
+    derivation = {
+        "method": "INDEPENDENT_FORMULA_REVIEW",
+        "production_outputs_used": False,
+        "literals": literals,
+        "ranking_arithmetic": arithmetic,
+        "inherited_oracle": "a05-v3 / a05b-r3; unchanged technical/CERI/remaining vectors",
+        "controlled_input_change": source["candidate_currency_metadata"],
+        "scope_approval": "User must review exact candidate head/digest; not yet authorized",
+    }
+    write(ARCHIVE / "independent-derivation.json", derivation)
+    (ARCHIVE / "authoring-record.py.txt").write_bytes(Path(__file__).read_bytes())
+    description = (
+        "# v6 forward-quality independent worksheet\n\n"
+        "No production scoring function, database result, or real-company comparison "
+        "authored these values.\n"
+        "Five available weighted terms: 7.0833*.30 + 7.5*.25 + 6.6667*.10 + 8.5*.10 + 7.5*.05.\n"
+        "Divide by .80 => 7.3646. Unchanged nine terms plus .08*7.3646 => 8.9800.\n"
+        "The 10 controlled CSV rows declare USD in eight existing mapped currency columns.\n"
+        "These are synthetic fixture facts, not recovered historical vendor metadata.\n"
+        "No financial amount, ticker, calendar, replay, CERI or technical vector changes.\n"
+        "v3 protected files and pending v4/v5 candidate artifacts remain byte-identical.\n"
+        "Combined .55/.45, profile parameters, sector means, and Winner copied features\n"
+        "are propagated through existing reviewed equations; no application policy changes.\n"
+        "Zero forecast evidence is covered by frozen-fact tests and the 127-company repeat.\n"
+        "See independent-derivation.json, the proposal diff, and authoring-record.py.txt.\n"
+        "Owner approval, current CI, and activation are not claimed.\n"
+    )
+    (ARCHIVE / "REVIEW.md").write_text(description, encoding="utf-8")
+    (CANDIDATE / "DERIVATIONS.md").write_text(description, encoding="utf-8")
+    (CANDIDATE / "oracle-completion/DERIVATIONS.md").write_text(description, encoding="utf-8")
+    completion = read(BASE / "oracle-completion/manifest.json")
+    completion["expectation_revision"] = EXPECTATION_VERSION
+    completion["artifacts"] = {
+        name: digest_file(CANDIDATE / "oracle-completion" / name)
+        for name in completion["artifacts"]
+    }
+    manifest = read(BASE / "manifest.json")
+    manifest["version"] = INPUT_VERSION
+    manifest["supersedes"] = (
+        "a05-v3; forward-quality v2.2 only, with explicit controlled currency metadata"
+    )
+    manifest["config_sources"]["config/fundamentals_v2_2.yaml"] = digest_file(
+        Path("config/fundamentals_v2_2.yaml")
+    )
+    manifest["historical_source_policy"] += (
+        " Candidate USD metadata are controlled fixture facts only."
+    )
+    manifest["artifacts"] = {name: digest_file(CANDIDATE / name) for name in manifest["artifacts"]}
+    write(CANDIDATE / "manifest.json", manifest)
+    identity = hashlib.sha256(
+        json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+    ).hexdigest()
+    completion["base_input_identity"] = identity
+    write(CANDIDATE / "oracle-completion/manifest.json", completion)
+    # Packaging/verification only; the arithmetic above never imports production code.
+    from scripts.qa.golden_provenance import (
+        _differences,
+        _require_candidate_complete,
+        inspect_proposal,
+        proposal_digest,
+        verify_baseline,
+    )
+
+    baseline = verify_baseline()
+    mappings = {
+        name: name.replace("/v3/", "/v6/")
+        for name in baseline["artifacts"]
+        if name.endswith(("/expected-results.json", "-expected.json"))
+    }
+    changes = [
+        {
+            "artifact": old,
+            "pointer": pointer,
+            "before": before,
+            "after": after,
+            "reason": (
+                "Approved v2.2 formula and direct propagation through unchanged reviewed policies; "
+                "see literal independent derivation"
+            ),
+        }
+        for old, new in mappings.items()
+        for pointer, (before, after) in _differences(read(Path(old)), read(Path(new))).items()
+    ]
+    artifacts = {p.as_posix(): digest_file(p) for p in CANDIDATE.rglob("*") if p.is_file()}
+    old_proposal = read(PROPOSAL)
+    (ARCHIVE / "previous-pending-v5-proposal.json").write_bytes(PROPOSAL.read_bytes())
+    assert old_proposal["candidate"]["input_version"] == "a05-v5"
+    proposal = {
+        "schema": "swinglens.golden-update-proposal.v1",
+        "previous": baseline["baseline"],
+        "candidate": {
+            "input_version": INPUT_VERSION,
+            "expectation_revision": EXPECTATION_VERSION,
+            "artifacts": artifacts,
+            "input_manifest": (CANDIDATE / "manifest.json").as_posix(),
+            "input_manifest_sha256": digest_file(CANDIDATE / "manifest.json"),
+            "input_identity": identity,
+            "completion_manifest": (CANDIDATE / "oracle-completion/manifest.json").as_posix(),
+            "completion_manifest_sha256": digest_file(
+                CANDIDATE / "oracle-completion/manifest.json"
+            ),
+            "expectation_artifacts": mappings,
+        },
+        "contract_change": {
+            "reason": (
+                "Forward quality v2.2 and approved financial-evidence guard only; "
+                "preserve v2.1 source seals, use a versioned current profile, and declare "
+                "controlled USD metadata in the candidate specimen. "
+                "Pending CERI proposal is archived, not adopted."
+            ),
+            "source_revision": args.source_revision,
+            "configuration_sha256": manifest["config_sources"],
+        },
+        "independent_derivation": {
+            "method": "INDEPENDENT_FORMULA_REVIEW",
+            "production_outputs_used": False,
+            "artifacts": {
+                p.as_posix(): digest_file(p)
+                for p in ARCHIVE.iterdir()
+                if p.name in {"independent-derivation.json", "authoring-record.py.txt", "REVIEW.md"}
+            },
+        },
+        "expectation_changes": changes,
+        "affected_obligations": old_proposal["affected_obligations"],
+        "historical_artifacts": baseline["artifacts"],
+        "review_request": {
+            "status": "PROPOSED",
+            "producer": "INDEPENDENT_FORMULA_AUTHOR",
+            "source_revision": args.source_revision,
+            "input_version": INPUT_VERSION,
+            "expectation_revision": EXPECTATION_VERSION,
+        },
+    }
+    proposal["review_request"]["candidate_digest"] = proposal_digest(proposal)
+    write(PROPOSAL, proposal)
+    content = inspect_proposal(proposal)
+    _require_candidate_complete(proposal, Path.cwd())
+    write(ARCHIVE / "proposal-content-verification.json", content)
+    print(
+        json.dumps(
+            {
+                "literal_forward": str(
+                    worksheet["components"]["forward_quality_score"]["expected"]
+                ),
+                "literal_fundamental": str(fundamental),
+                "expectation_changes": len(changes),
+                "proposal_verification": content,
+            },
+            indent=2,
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()

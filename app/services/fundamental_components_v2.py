@@ -1,6 +1,27 @@
+import math
+from decimal import Decimal
 from typing import Any
 
-from app.services.numeric_parser import parse_financial_number
+from app.services.numeric_parser import CURRENCY_CODES, parse_financial_number
+
+FORWARD_FORMULA_FIELDS_V21 = {
+    "eps_estimate_annual",
+    "eps_estimate_quarterly",
+    "revenue_estimate_annual",
+    "net_income_estimate_ntm",
+    "ebit_estimate_ntm",
+    "cash_short_term_investments_estimate_annual",
+    "capex_estimate_ntm",
+    "analyst_rating",
+}
+FORWARD_QUALITY_WEIGHTS = {
+    "net_income_growth": 0.30,
+    "revenue_comparison": 0.25,
+    "profitability": 0.20,
+    "cash_comparison": 0.10,
+    "capex_sustainability": 0.10,
+    "analyst_rating": 0.05,
+}
 
 COMPONENT_SCORE_KEYS = [
     "growth_quality_score",
@@ -97,12 +118,14 @@ COMPONENT_FORMULA_FIELDS = {
         "peg_ratio",
     },
     "forward_quality_score": {
-        "eps_estimate_annual",
-        "eps_estimate_quarterly",
+        "net_income_ttm",
         "revenue_estimate_annual",
         "net_income_estimate_ntm",
-        "ebit_estimate_ntm",
+        "total_revenue_ttm",
+        "net_margin_ttm",
+        "cash_short_term_investments_annual",
         "cash_short_term_investments_estimate_annual",
+        "capex_ttm",
         "capex_estimate_ntm",
         "analyst_rating",
     },
@@ -127,7 +150,12 @@ COMPONENT_FORMULA_FIELDS = {
 }
 
 
-def score_components_v2(values: dict[str, Any], thresholds: dict[str, Any]) -> dict[str, float]:
+def score_components_v2(
+    values: dict[str, Any],
+    thresholds: dict[str, Any],
+    *,
+    model_version: str = "fundamentals_v2.2",
+) -> dict[str, float]:
     return {
         "growth_quality_score": growth_quality_score(values),
         "profitability_quality_score": profitability_quality_score(values),
@@ -136,7 +164,7 @@ def score_components_v2(values: dict[str, Any], thresholds: dict[str, Any]) -> d
         "capital_efficiency_score": capital_efficiency_score(values, thresholds),
         "balance_sheet_quality_score": balance_sheet_quality_score(values, thresholds),
         "valuation_quality_score": valuation_quality_score(values),
-        "forward_quality_score": forward_quality_score(values),
+        "forward_quality_score": forward_quality_score(values, model_version=model_version),
         "shareholder_quality_score": shareholder_quality_score(values, thresholds),
         "liquidity_risk_score": liquidity_risk_score(values, thresholds),
     }
@@ -326,7 +354,120 @@ def valuation_quality_score(values: dict[str, Any]) -> float:
     )
 
 
-def forward_quality_score(values: dict[str, Any]) -> float:
+def forward_quality_score(
+    values: dict[str, Any], *, model_version: str = "fundamentals_v2.2"
+) -> float:
+    if model_version == "fundamentals_v2.1":
+        return _forward_quality_score_v21(values)
+    if model_version != "fundamentals_v2.2":
+        raise ValueError(f"Unsupported fundamental scoring model: {model_version}")
+    scores = forward_quality_subscores(values)
+    return _weighted_average_present(
+        [(scores[key], weight) for key, weight in FORWARD_QUALITY_WEIGHTS.items()]
+    )
+
+
+def forward_quality_subscores(values: dict[str, Any]) -> dict[str, float | None]:
+    """v2.2 mathematical availability, distinct from field-presence coverage."""
+    income = _forward_amount_pair(values, "net_income_ttm", "net_income_estimate_ntm")
+    income_growth = None
+    income_score = None
+    if income is not None:
+        historical, estimated = income
+        if historical <= 0:
+            income_score = 7.0 if estimated > 0 else 0.0
+        elif estimated <= 0:
+            income_score = 0.0
+        else:
+            income_growth = _forward_growth(historical, estimated)
+            income_score = _forward_growth_score(income_growth, positive=30, negative=25)
+
+    revenue = _forward_amount_pair(values, "total_revenue_ttm", "revenue_estimate_annual")
+    revenue_score = None
+    if revenue is not None and revenue[0] > 0 and revenue[1] >= 0:
+        revenue_score = _forward_growth_score(_forward_growth(*revenue), positive=20, negative=20)
+
+    cash = _forward_amount_pair(
+        values,
+        "cash_short_term_investments_annual",
+        "cash_short_term_investments_estimate_annual",
+    )
+    cash_score = None
+    if cash is not None and cash[0] > 0 and cash[1] >= 0:
+        cash_score = _forward_growth_score(_forward_growth(*cash), positive=30, negative=30)
+
+    capex = _forward_amount_pair(values, "capex_ttm", "capex_estimate_ntm")
+    capex_score = None
+    if capex is not None and capex[0] != 0:
+        expected_income = _forward_number(values.get("net_income_estimate_ntm"))
+        if expected_income is not None and expected_income <= 0:
+            capex_score = 0.0
+        elif income_growth is not None:
+            capex_growth = _forward_growth(abs(capex[0]), abs(capex[1]))
+            pressure = max(Decimal(0), capex_growth - income_growth)
+            capex_score = _clamp(float(Decimal(10) - pressure / 5))
+
+    return {
+        "net_income_growth": income_score,
+        "revenue_comparison": revenue_score,
+        # NTM income and annual revenue lack demonstrably identical forecast periods.
+        "profitability": None,
+        "cash_comparison": cash_score,
+        "capex_sustainability": capex_score,
+        "analyst_rating": _forward_analyst_rating_score(values.get("analyst_rating")),
+    }
+
+
+def _forward_number(value: Any) -> float | None:
+    try:
+        parsed = _number(value)
+    except (OverflowError, TypeError, ValueError):
+        return None
+    return parsed if parsed is not None and math.isfinite(parsed) else None
+
+
+def _forward_amount_pair(
+    values: dict[str, Any], historical_field: str, estimated_field: str
+) -> tuple[float, float] | None:
+    historical = _forward_number(values.get(historical_field))
+    estimated = _forward_number(values.get(estimated_field))
+    historical_currency = str(values.get(f"{historical_field}_currency", "")).strip().upper()
+    estimated_currency = str(values.get(f"{estimated_field}_currency", "")).strip().upper()
+    if (
+        historical is None
+        or estimated is None
+        or historical_currency not in CURRENCY_CODES
+        or estimated_currency != historical_currency
+    ):
+        return None
+    return historical, estimated
+
+
+def _forward_growth(historical: float, estimated: float) -> Decimal:
+    # Decimal keeps finite inputs finite even for subnormal denominators; it also
+    # avoids inf - inf when comparing extreme CAPEX and earnings growth rates.
+    return (Decimal(str(estimated)) / Decimal(str(historical)) - 1) * 100
+
+
+def _forward_growth_score(growth: Decimal, *, positive: int, negative: int) -> float:
+    threshold = positive if growth >= 0 else negative
+    return _clamp(float(Decimal(5) + 5 * growth / threshold))
+
+
+def _forward_analyst_rating_score(value: Any) -> float | None:
+    return {
+        "strong buy": 10.0,
+        "buy": 7.5,
+        "outperform": 7.5,
+        "hold": 5.0,
+        "neutral": 5.0,
+        "sell": 2.5,
+        "underperform": 2.5,
+        "strong sell": 0.0,
+    }.get(" ".join(str(value).strip().casefold().split()))
+
+
+def _forward_quality_score_v21(values: dict[str, Any]) -> float:
     base = _weighted_average_present(
         [
             (_positive_amount(values, "eps_estimate_annual"), 1.0),

@@ -1,0 +1,18 @@
+{
+  "source_parent": "eb8579d158c73d6b7301e32bf218598379011462",
+  "focused_cases_passed": 75,
+  "focused_seconds": 6.33,
+  "captured_parent_seals_verified": 100,
+  "captured_source_pins_accepted_without_changes": 100,
+  "repeat_comparison_records_identical": 127,
+  "ruff": "PASS",
+  "registry_valid": true,
+  "impact_status": "PLAN_READY",
+  "golden_proposal_digest_unchanged": "a60210567e3ca742972c49a0d93c39fb92fb6dd4ec45e930639c11c78720a1a3",
+  "new_head_owner_authorization": "PENDING_FRESH_ACK",
+  "source_sha256": {
+    "app/services/pipeline_executor.py": "f7b46dd45ee3950df506e853f0fd3753e43e13513ea1c3e386bfaac08f7d907f",
+    "tests/test_forward_quality_v22_resume.py": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3",
+    "tests/test_phase4_configuration_certification.py": "4cd3c30fdefd7237c82de0984c8479ddb293573141e989c1e01d994a191aa5c2"
+  }
+}

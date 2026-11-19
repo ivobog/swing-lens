@@ -12,6 +12,8 @@ from app.services.column_mapper import MappedCsvRow
 from app.services.fundamental_components_v2 import (
     COMPONENT_FORMULA_FIELDS,
     COMPONENT_SCORE_KEYS,
+    FORWARD_FORMULA_FIELDS_V21,
+    forward_quality_subscores,
     score_components_v2,
 )
 from app.services.fundamental_coverage_service import calculate_coverage_v2
@@ -113,7 +115,7 @@ class FundamentalScoreV2Result:
 def score_rows_v2(
     rows: list[MappedCsvRow], config: FundamentalsV2Config | Mapping[str, Any] | None = None
 ) -> list[FundamentalScoreV2Result]:
-    config = config if config is not None else load_fundamentals_v2_config()
+    config = _scoring_config(config)
     return [score_row_v2(row, config=config) for row in rows if row.ticker]
 
 
@@ -121,9 +123,11 @@ def score_row_v2(
     row: MappedCsvRow,
     config: FundamentalsV2Config | Mapping[str, Any] | None = None,
 ) -> FundamentalScoreV2Result:
-    config = config or load_fundamentals_v2_config()
+    config = _scoring_config(config)
     values = row.canonical
-    component_scores = score_components_v2(values, config["thresholds"])
+    component_scores = score_components_v2(
+        values, config["thresholds"], model_version=config["model_version"]
+    )
     coverage = calculate_coverage_v2(values, config)
     warning_flags = build_warning_flags_v2(
         values=values,
@@ -138,6 +142,13 @@ def score_row_v2(
     score = _clamp(score)
     label = _label_for_score(score, component_scores, warning_flags)
     explanation = _explain(label, component_scores, warning_flags, coverage.data_coverage_score)
+    forward_evidence = {}
+    if config["model_version"] == "fundamentals_v2.2":
+        forward_evidence["forward_financial_evidence_available"] = any(
+            score is not None
+            for name, score in forward_quality_subscores(values).items()
+            if name != "analyst_rating"
+        )
 
     return FundamentalScoreV2Result(
         ticker=row.ticker,
@@ -174,12 +185,13 @@ def score_row_v2(
             "warnings": warning_flags,
             "parse_diagnostics": coverage.parse_diagnostics,
             "canonical_fields_present": sorted(values.keys()),
+            **forward_evidence,
         },
     )
 
 
 def load_fundamentals_v2_config(
-    path: Path = Path("config/fundamentals_v2.yaml"),
+    path: Path = Path("config/fundamentals_v2_2.yaml"),
 ) -> FundamentalsV2Config:
     from app.services.configuration_delivery import current_delivery, delivered_native
 
@@ -196,6 +208,16 @@ def parse_fundamentals_v2_config(raw: Mapping[str, Any]) -> FundamentalsV2Config
     return FundamentalsV2Config(
         data=data,
         config_hash=fundamentals_v2_config_hash(data),
+    )
+
+
+def _scoring_config(
+    config: FundamentalsV2Config | Mapping[str, Any] | None,
+) -> FundamentalsV2Config:
+    if config is None:
+        config = load_fundamentals_v2_config()
+    return (
+        config if isinstance(config, FundamentalsV2Config) else parse_fundamentals_v2_config(config)
     )
 
 
@@ -275,13 +297,16 @@ def _config_hash(config: FundamentalsV2Config | Mapping[str, Any]) -> str:
 def _validate_config(config: dict[str, Any]) -> None:
     _require_keys(config, FUNDAMENTALS_V2_CONFIG_KEYS, "fundamentals_v2")
     _reject_unknown_keys(config, FUNDAMENTALS_V2_CONFIG_KEYS, "fundamentals_v2")
-    if not str(config["model_version"]).strip():
-        raise FundamentalsConfigError("fundamentals_v2.model_version is required")
+    if not isinstance(config["model_version"], str) or config["model_version"] not in {
+        "fundamentals_v2.1",
+        "fundamentals_v2.2",
+    }:
+        raise FundamentalsConfigError("Unsupported fundamentals_v2.model_version")
     _validate_weights(config["weights"])
     _validate_missing_data(config["missing_data"])
     _validate_thresholds(config["thresholds"])
     _validate_field_priorities(config["field_priorities"])
-    _validate_components(config["components"])
+    _validate_components(config["components"], config["model_version"])
     _validate_coverage_only(config)
 
 
@@ -347,7 +372,7 @@ def _validate_field_priorities(priorities: Any) -> None:
         _validate_string_list(fields, f"fundamentals_v2.field_priorities.{priority}")
 
 
-def _validate_components(components: Any) -> None:
+def _validate_components(components: Any, model_version: str) -> None:
     if not isinstance(components, dict):
         raise FundamentalsConfigError("fundamentals_v2.components must be a mapping")
     _require_keys(components, set(COMPONENT_SCORE_KEYS), "fundamentals_v2.components")
@@ -367,11 +392,22 @@ def _validate_components(components: Any) -> None:
             component_config["fields"],
             f"fundamentals_v2.components.{component}.fields",
         )
-        unsupported = sorted(set(fields) - COMPONENT_FORMULA_FIELDS[component])
+        formula_fields = COMPONENT_FORMULA_FIELDS[component]
+        if component == "forward_quality_score" and model_version == "fundamentals_v2.1":
+            formula_fields = FORWARD_FORMULA_FIELDS_V21
+        unsupported = sorted(set(fields) - formula_fields)
         if unsupported:
             raise FundamentalsConfigError(
                 f"fundamentals_v2.components.{component}.fields contains non-formula fields: "
                 f"{', '.join(unsupported)}"
+            )
+        if (
+            component == "forward_quality_score"
+            and model_version == "fundamentals_v2.2"
+            and set(fields) != formula_fields
+        ):
+            raise FundamentalsConfigError(
+                "v2.2 forward fields must declare all formula dependencies"
             )
 
 

@@ -1,0 +1,17 @@
+{
+  "comparison_rows": 127,
+  "unchanged_scores_penalties_classifications_and_coverage": true,
+  "admission_changes_vs_a2f134e": [
+    {
+      "ticker": "COKE",
+      "before": "INCLUDED",
+      "after": "UNDECIDED",
+      "reason_codes": [
+        "no_usable_forward_financial_forecast"
+      ]
+    }
+  ],
+  "formula_source_unchanged": true,
+  "historical_profile_sha256": "2f228e931f0ce2bdc545a06badfe07854c2f1dfdf038881473b745739eb22db3",
+  "owner_contract_scope_approval": "Explicit chat approval before implementation; not golden authorization"
+}
