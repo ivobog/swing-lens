@@ -231,7 +231,13 @@
                   {% else %}
                     <span>Admin disabled</span>
                   {% endif %}
-                  <details><summary>Technical details</summary><code>{{ alert.technical|tojson }}</code></details>
+                  <details data-ceri-alert-detail="/api/ceri/alerts/{{ alert.id }}/detail">
+                    <summary>Technical details</summary>
+                    <span data-ceri-detail-status aria-live="polite"></span>
+                    <pre data-ceri-detail-output hidden></pre>
+                    <button type="button" class="secondary" data-ceri-detail-retry hidden>Retry technical details</button>
+                    <noscript>Enable JavaScript to load technical details.</noscript>
+                  </details>
                 </td>
               </tr>
             {% endfor %}

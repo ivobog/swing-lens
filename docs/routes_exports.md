@@ -60,6 +60,7 @@ CI checks that the generated blocks below match runtime route introspection.
 | GET | `/` | `upload_page` |
 | GET | `/api/ceri/alerts` | `ceri_alerts` |
 | POST | `/api/ceri/alerts/{alert_id}/acknowledge` | `acknowledge_ceri_alert` |
+| GET | `/api/ceri/alerts/{alert_id}/detail` | `ceri_alert_detail` |
 | POST | `/api/ceri/alerts/{alert_id}/dismiss` | `dismiss_ceri_alert` |
 | POST | `/api/ceri/backfills` | `create_ceri_backfill` |
 | GET | `/api/ceri/changes` | `ceri_changes` |

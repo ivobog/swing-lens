@@ -1,5 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
   bindCeriAlertActions();
+  bindCeriAlertDetails();
   bindCeriJsonForms();
   document.querySelectorAll("[data-ceri-optional-numbers]").forEach((form) => {
     form.addEventListener("formdata", ({ formData }) => {
@@ -40,6 +41,55 @@ function bindCeriAlertActions() {
         button.disabled = false;
       }
     });
+  });
+}
+
+function bindCeriAlertDetails() {
+  document.querySelectorAll("[data-ceri-alert-detail]").forEach((detail) => {
+    const status = detail.querySelector("[data-ceri-detail-status]");
+    const output = detail.querySelector("[data-ceri-detail-output]");
+    const retry = detail.querySelector("[data-ceri-detail-retry]");
+    let loaded = false;
+    let pending;
+    const load = async () => {
+      if (!detail.open || pending || loaded) return;
+      pending = new AbortController();
+      detail.setAttribute("aria-busy", "true");
+      retry.hidden = true;
+      status.textContent = "Loading technical details…";
+      try {
+        const response = await fetch(detail.dataset.ceriAlertDetail, {
+          headers: { Accept: "application/json" },
+          signal: pending.signal,
+        });
+        if (response.status === 404) {
+          status.textContent = "Technical details are unavailable.";
+          loaded = true;
+          return;
+        }
+        if (!response.ok) throw new Error("Could not load alert details");
+        const payload = await response.json();
+        if (payload === null || Object.keys(payload).length === 0) {
+          status.textContent = "No technical details were retained.";
+        } else {
+          output.textContent = JSON.stringify(payload, null, 2);
+          output.hidden = false;
+          status.textContent = "Technical details loaded.";
+        }
+        loaded = true;
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          status.textContent = "Could not load technical details.";
+          retry.hidden = false;
+        }
+      } finally {
+        pending = undefined;
+        detail.removeAttribute("aria-busy");
+      }
+    };
+    detail.addEventListener("toggle", load);
+    retry.addEventListener("click", load);
+    window.addEventListener("pagehide", () => pending?.abort());
   });
 }
 

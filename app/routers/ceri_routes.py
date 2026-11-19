@@ -16,12 +16,15 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models.ceri_tables import (
     CeriAlertEvent,
+    CeriAlertRule,
     CeriCatalystEvent,
     CeriCatalystEventRevision,
+    CeriChangeEvent,
     CeriCompany,
     CeriManualReview,
     CeriProcessingRun,
     CeriPurgeAudit,
+    CeriScoreSnapshot,
 )
 from app.models.tables import BackgroundJob
 from app.routers.export_responses import attachment_response
@@ -1052,6 +1055,73 @@ def reprocess_ceri(
     job = _enqueue_job_once(db, job_type, payload, related_run_id=payload.get("run_id"))
     db.commit()
     return _job_response(job, coalesced=getattr(job, "_coalesced", False))
+
+
+@router.get("/api/ceri/alerts/{alert_id}/detail", dependencies=[Depends(_require_ceri_ui)])
+def ceri_alert_detail(alert_id: int, db: DbSession) -> dict[str, Any]:
+    """Return an allowlisted technical view of a single visible alert."""
+    row = db.execute(
+        select(
+            CeriAlertEvent.id,
+            CeriAlertEvent.source_change_event_id,
+            CeriAlertEvent.source_catalyst_revision_id,
+            CeriAlertRule.rule_id,
+            CeriAlertRule.config_version,
+            CeriAlertRule.cooldown_sessions,
+            CeriChangeEvent.change_type,
+            CeriChangeEvent.from_snapshot_id,
+            CeriChangeEvent.to_snapshot_id,
+            CeriChangeEvent.delta_json["freshness"]["semantic"].as_string().label(
+                "freshness_semantic"
+            ),
+        )
+        .outerjoin(CeriAlertRule, CeriAlertRule.id == CeriAlertEvent.alert_rule_id)
+        .outerjoin(CeriChangeEvent, CeriChangeEvent.id == CeriAlertEvent.source_change_event_id)
+        .where(CeriAlertEvent.id == alert_id, CeriAlertEvent.status != "INVALIDATED")
+    ).one_or_none()
+    if row is None or (
+        row.change_type in {"DATA_STALE", "DATA_REFRESHED"}
+        and row.freshness_semantic != "PROVIDER_FEED_FRESHNESS"
+    ):
+        raise _structured_http_error(
+            "CERI_ALERT_DETAIL_UNAVAILABLE",
+            "Alert detail is unavailable.",
+            status_code=404,
+        )
+    snapshot_ids = {row.from_snapshot_id, row.to_snapshot_id} - {None}
+    inputs = {}
+    if snapshot_ids:
+        snapshots = db.execute(
+            select(
+                CeriScoreSnapshot.id,
+                CeriScoreSnapshot.run_id,
+                CeriScoreSnapshot.as_of_session,
+                CeriScoreSnapshot.cutoff_at,
+            ).where(CeriScoreSnapshot.id.in_(snapshot_ids))
+        )
+        inputs = {
+            snapshot.id: {
+                "snapshot_id": snapshot.id,
+                "run_id": snapshot.run_id,
+                "as_of_session": snapshot.as_of_session,
+                "cutoff_at": snapshot.cutoff_at,
+            }
+            for snapshot in snapshots
+        }
+    return {
+        "alert_id": row.id,
+        "change_event_id": row.source_change_event_id,
+        "catalyst_revision_id": row.source_catalyst_revision_id,
+        "rule": {
+            "id": row.rule_id,
+            "version": row.config_version,
+            "cooldown_sessions": row.cooldown_sessions,
+        } if row.rule_id is not None else None,
+        "comparison_inputs": {
+            "from": inputs.get(row.from_snapshot_id),
+            "to": inputs.get(row.to_snapshot_id),
+        },
+    }
 
 
 @router.post("/api/ceri/alerts/{alert_id}/acknowledge")
