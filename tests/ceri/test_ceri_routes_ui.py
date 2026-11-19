@@ -96,6 +96,9 @@ def test_summary_uses_full_population_and_explicit_zero_risk_predicate(
     assert "31</strong>" in response.text
     assert "177 candidates" in response.text
     assert "Summary population 177" in response.text
+    assert "High opportunity / low assessed risk research candidates" in response.text
+    assert "Recent change events shown (max 25)" in response.text
+    assert "Stale / Conflicted" not in response.text
 
 
 def test_run_page_reuses_one_query_service_instance(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -22,7 +22,7 @@
   <div class="run-meta">
     <span class="badge badge-muted">Research only</span>
     <span>{{ page.total or 0 }} candidates</span>
-    <span>Summary population {{ summary.population_count or 0 }}</span>
+    <span>Summary population {{ summary.population_count or 0 }} matching candidates before pagination</span>
     {% if ui_error %}<span class="badge badge-warning">{{ ui_error.code }}: {{ ui_error.message }}</span>{% endif %}
   </div>
   {% if evidence_population %}
@@ -51,12 +51,11 @@
 </section>
 
 <section class="metric-grid section-gap ceri-metrics" aria-label="CERI summary">
-  <div class="metric"><span>High Opp / Low Risk</span><strong>{{ summary.high_opportunity_low_risk }}</strong></div>
-  <div class="metric"><span>Revision Leaders</span><strong>{{ summary.upward_revision_leaders }}</strong></div>
-  <div class="metric"><span>Guidance Raises</span><strong>{{ summary.guidance_raises }}</strong></div>
-  <div class="metric"><span>Binary Risks</span><strong>{{ summary.binary_risks }}</strong></div>
-  <div class="metric"><span>Stale / Conflicted</span><strong>{{ summary.stale_count }} / {{ summary.conflicted_count }}</strong></div>
-  <div class="metric"><span>Meaningful Changes</span><strong>{{ summary.meaningful_changes }}</strong></div>
+  <div class="metric"><span>High opportunity / low assessed risk research candidates</span><strong>{{ summary.high_opportunity_low_risk }}</strong></div>
+  <div class="metric"><span>Revision-up events in preview</span><strong>{{ summary.upward_revision_leaders }}</strong></div>
+  <div class="metric"><span>Guidance-raise events in preview</span><strong>{{ summary.guidance_raises }}</strong></div>
+  <div class="metric"><span>New binary-event flags in preview</span><strong>{{ summary.binary_risks }}</strong></div>
+  <div class="metric"><span>Recent change events shown (max 25)</span><strong>{{ summary.meaningful_changes }}</strong></div>
 </section>
 
 <section class="panel section-gap">
