@@ -94,8 +94,9 @@
             <strong>{{ change.ticker or "Unknown" }} · {{ change.title }}</strong>
             <span>{{ change.summary }}</span>
             {% if change.group in ["Upward revisions", "Downward revisions"] %}
+              {% if change.current.revision_windows %}<small>Supporting revision windows</small>{% endif %}
               {% for window in change.current.revision_windows %}
-                <small>{{ window.metric|replace("_DILUTED", "") }} {{ window.period_key|replace("_", " ")|title }} {{ window.window_days }}d · {{ "%+.2f"|format(window.pct_change) if window.pct_change is not none else "Unavailable" }}% · Breadth {{ "%+.2f"|format(window.net_breadth) if window.net_breadth is not none else "Unavailable" }} · Acceleration {{ "%+.2f"|format(window.acceleration) if window.acceleration is not none else "Unavailable" }}</small>
+                <small>{{ window.metric|replace("_DILUTED", "") }} {{ window.period_key|replace("_", " ")|title }} {{ window.window_days }}d · {% if window.pct_change is not none %}{{ "%+.2f"|format(window.pct_change) }}{{ "%" if window.pct_change_unit == "PERCENTAGE_POINTS" else " (unit unverified)" }}{% else %}Unavailable{% endif %} · Breadth {{ "%+.2f"|format(window.net_breadth) if window.net_breadth is not none else "Unavailable" }} · Acceleration {% if window.acceleration is not none %}{{ "%+.2f"|format(window.acceleration) }} {{ "percentage points/day" if window.acceleration_unit == "PERCENTAGE_POINTS_PER_DAY" else "(unit unverified)" }}{% else %}Unavailable{% endif %}</small>
               {% endfor %}
             {% elif change.group == "Guidance" %}
               <small>{{ change.previous.action or "No accepted guidance" }} -> {{ change.current.action }} · {{ change.current.metric or "Metric unavailable" }} · Confidence {{ change.current.confidence or "Unavailable" }}</small>

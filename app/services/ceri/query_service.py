@@ -6,6 +6,7 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
+from math import isclose, isfinite
 from typing import Any
 
 from sqlalchemy import (
@@ -54,6 +55,7 @@ from app.services.ceri.api_dtos import (
 )
 from app.services.ceri.change_semantics import (
     CHANGE_GROUP_BY_TYPE,
+    EVIDENCE_CONTRACT_VERSION,
     ChangeGroup,
     ComparisonState,
     change_dimensions,
@@ -3092,16 +3094,22 @@ def _semantic_change_values(
         component_name = "revision_acceleration" if "ACCELERAT" in kind else "revision_magnitude"
         old_value = _component_value_from_payload(prior, component_name)
         new_value = _component_value_from_payload(current, component_name)
-        unit = "pp/day" if component_name == "revision_acceleration" else "pp"
         previous_windows = _revision_window_values(prior, revision_features)
         current_windows = _revision_window_values(current, revision_features)
+        unit_verified = (
+            prior is not None
+            and current is not None
+            and prior.evidence_contract_version
+            == current.evidence_contract_version
+            == EVIDENCE_CONTRACT_VERSION
+            and prior.calculation_version == current.calculation_version
+        )
         summary = _revision_summary(
-            previous_windows,
-            current_windows,
-            fallback=(
-                f"{_component_label(component_name)} {_signed(old_value)}"
-                f" -> {_signed(new_value)} {unit}"
-            ),
+            component_name,
+            old_value,
+            new_value,
+            delta.get("delta"),
+            unit_verified=unit_verified,
         )
         threshold = (
             {"acceleration_delta": change_thresholds.get("acceleration_delta", 0.01)}
@@ -3278,8 +3286,12 @@ def _component_value_from_payload(snapshot: CeriScoreSnapshot | None, name: str)
     if snapshot is None:
         return None
     for component in (snapshot.component_json or {}).get("components") or []:
-        if component.get("name") == name and component.get("value") is not None:
-            return float(component["value"])
+        if component.get("name") == name:
+            try:
+                value = float(component["value"])
+            except (KeyError, TypeError, ValueError):
+                return None
+            return value if isfinite(value) else None
     return None
 
 
@@ -3326,44 +3338,25 @@ def _revision_window_values(
 
 
 def _revision_summary(
-    previous: list[dict[str, Any]],
-    current: list[dict[str, Any]],
+    component: str,
+    previous: float | None,
+    current: float | None,
+    stored_delta: Any,
     *,
-    fallback: str,
+    unit_verified: bool,
 ) -> str:
-    previous_by_key = {
-        (row["metric"], row["period_key"], row["window_days"]): row for row in previous
-    }
-    candidates = []
-    for row in current:
-        key = (row["metric"], row["period_key"], row["window_days"])
-        old = previous_by_key.get(key)
-        if old is not None and (
-            old.get("pct_change") is not None or row.get("pct_change") is not None
-        ):
-            candidates.append((key, old, row))
-    if not candidates:
-        return fallback
-    key, old, new = sorted(
-        candidates,
-        key=lambda item: (
-            item[0][2] != 30,
-            item[0][0] != "EPS_DILUTED",
-            item[0][1] != "CURRENT_QUARTER",
-            item[0],
-        ),
-    )[0]
-    metric = "EPS" if key[0] == "EPS_DILUTED" else _label(key[0], "Revision")
-    period = {
-        "CURRENT_QUARTER": "CQ",
-        "NEXT_QUARTER": "NQ",
-        "CURRENT_FISCAL_YEAR": "CFY",
-        "NEXT_FISCAL_YEAR": "NFY",
-    }.get(key[1], _label(key[1], "Period"))
-    return (
-        f"{metric} {period} {key[2]}d "
-        f"{_signed(old.get('pct_change'))}% -> {_signed(new.get('pct_change'))}%"
-    )
+    label = f"{component.replace('_', ' ').capitalize()} score"
+    if previous is None or current is None:
+        return f"{label} trigger values unavailable"
+
+    summary = f"{label} {_number(previous)} -> {_number(current)}"
+    if not isinstance(stored_delta, (int, float)) or not isfinite(stored_delta):
+        return f"{summary} (stored delta unavailable)"
+    unit = "score points" if unit_verified else "unit unverified"
+    summary = f"{summary} ({_signed(stored_delta)} {unit})"
+    if not isclose(current - previous, stored_delta, rel_tol=1e-9, abs_tol=1e-9):
+        summary += " · Stored delta differs from the retained component values"
+    return summary
 
 
 def _component_label(name: str) -> str:

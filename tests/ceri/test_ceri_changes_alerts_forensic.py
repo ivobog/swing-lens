@@ -363,6 +363,45 @@ def test_revision_dto_exposes_window_values_breadth_acceleration_and_threshold()
     assert payload["semantic"]["threshold"] == {"revision_pct_points": 2.0}
 
 
+def test_revision_trigger_uses_aggregate_instead_of_decreasing_window() -> None:
+    prior = _snapshot(1, opportunity=6.0, posture="Mixed")
+    current = _snapshot(2, opportunity=6.0, posture="Mixed")
+    prior.component_json = {
+        "components": [{"name": "revision_acceleration", "value": 4.0, "evidence_ids": [71]}]
+    }
+    current.component_json = {
+        "components": [{"name": "revision_acceleration", "value": 7.0, "evidence_ids": [72]}]
+    }
+    features = {
+        n: CeriRevisionFeature(
+            id=n, company_id=42, metric="EPS_DILUTED", period_key="CURRENT_QUARTER",
+            window_days=30, pct_change=value,
+        )
+        for n, value in ((71, 6.47), (72, -1.81))
+    }
+    change = _change("REVISION_ACCELERATED")
+    change.from_snapshot_id = 1
+    change.to_snapshot_id = 2
+    change.delta_json = {"delta": 3.0}
+
+    def project():
+        return _change_payload(
+            change, ticker="TEST", snapshots={1: prior, 2: current}, revision_features=features
+        )
+
+    payload = project()
+    assert payload["summary"] == "Revision acceleration score 4.00 -> 7.00 (+3.00 score points)"
+    assert payload["current"]["revision_windows"][0]["pct_change"] == -1.81
+    assert payload["delta"] == {"delta": 3.0}
+
+    change.delta_json = {"delta": 4.0}
+    assert "differs from the retained component values" in project()["summary"]
+    current.evidence_contract_version = "legacy"
+    assert "unit unverified" in project()["summary"]
+    current.component_json = None
+    assert "trigger values unavailable" in project()["summary"]
+
+
 def _snapshot(
     snapshot_id: int,
     *,
