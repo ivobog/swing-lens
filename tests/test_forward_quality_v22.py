@@ -597,3 +597,18 @@ def test_fact_is_read_from_frozen_evidence_not_mutable_serving_debug():
     )
     assert admitted_input.forward_financial_evidence_available is False
     assert evaluate_fundamental_admission(admitted_input).eligibility.value == "UNDECIDED"
+
+
+def test_v6_controlled_input_matches_independently_authored_literals():
+    import csv
+
+    from app.services.column_mapper import map_csv_rows
+
+    path = Path("tests/e2e/single_run_certification/golden/v6/universe.csv")
+    with path.open(encoding="utf-8", newline="") as handle:
+        raw = list(csv.DictReader(handle))
+    result = score_row_v2(map_csv_rows(raw)[0])
+    # Literal arithmetic was authored before production comparison; no snapshots.
+    assert result.forward_quality_score == 7.3646
+    assert result.fundamental_score == 8.9800
+    assert result.debug["forward_financial_evidence_available"] is True

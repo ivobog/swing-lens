@@ -11,6 +11,7 @@ from app.services.combined_ranking_identity import (
     build_technical_score_identity,
     embed_calculation_identity,
 )
+from app.services.core_effective_configuration import resolve_fundamental_configuration
 from app.services.fundamental_score_service import recalculate_run_fundamentals
 from app.services.market_clock_service import MarketCalculationCutoff
 
@@ -36,6 +37,10 @@ def _golden_pipeline_scenario():
         fixture["run_id"],
         market_cutoff=cutoff,
         pipeline_run_id=11,
+        # This retained Phase-3 fixture describes the v2.1 model, not today's default.
+        effective_configuration=resolve_fundamental_configuration(
+            Path("config/fundamentals_v2.yaml")
+        ),
     )
     from core_readiness_helpers import seal_core
 

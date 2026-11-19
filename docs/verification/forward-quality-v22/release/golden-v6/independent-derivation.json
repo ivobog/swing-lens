@@ -1,0 +1,377 @@
+{
+  "controlled_input_change": "Explicit controlled USD fixture facts for existing mapped columns; not historical vendor claims",
+  "inherited_oracle": "a05-v3 / a05b-r3; unchanged technical/CERI/remaining vectors",
+  "literals": {
+    "absolute_capex_growth_percent": "20.0",
+    "annual_cash_comparison_percent": "10.0",
+    "annual_revenue_vs_ttm_percent": "10.0",
+    "available_weight": "0.80",
+    "forward": "7.3646",
+    "net_income_growth_percent": "12.500",
+    "normalized_scores": {
+      "analyst_rating": "7.5",
+      "capex_estimate_ntm": "8.5000",
+      "cash_short_term_investments_estimate_annual": "6.6667",
+      "net_income_estimate_ntm": "7.0833",
+      "revenue_estimate_annual": "7.5000"
+    },
+    "pressure_percentage_points": "7.500",
+    "production_outputs_used": false,
+    "total": "8.9800"
+  },
+  "method": "INDEPENDENT_FORMULA_REVIEW",
+  "production_outputs_used": false,
+  "ranking_arithmetic": [
+    {
+      "after_penalties": "8.3077",
+      "before_penalties": "8.3077",
+      "profile": "clean_compounder_pullback",
+      "technical_literal": "7.059",
+      "ticker": "BHE"
+    },
+    {
+      "after_penalties": "5.8228",
+      "before_penalties": "8.3228",
+      "profile": "defensive_quality",
+      "technical_literal": "7.337",
+      "ticker": "BHE"
+    },
+    {
+      "after_penalties": "7.7207",
+      "before_penalties": "7.7207",
+      "profile": "early_rocket",
+      "technical_literal": "7.181",
+      "ticker": "BHE"
+    },
+    {
+      "after_penalties": "6.3747",
+      "before_penalties": "7.8747",
+      "profile": "momentum_swing",
+      "technical_literal": "6.9703",
+      "ticker": "BHE"
+    },
+    {
+      "after_penalties": "6.6328",
+      "before_penalties": "8.1328",
+      "profile": "quality_momentum",
+      "technical_literal": "7.0974",
+      "ticker": "BHE"
+    },
+    {
+      "after_penalties": "8.3081",
+      "before_penalties": "8.3081",
+      "profile": "clean_compounder_pullback",
+      "technical_literal": "7.0603",
+      "ticker": "BLLN"
+    },
+    {
+      "after_penalties": "8.3233",
+      "before_penalties": "8.3233",
+      "profile": "defensive_quality",
+      "technical_literal": "7.3383",
+      "ticker": "BLLN"
+    },
+    {
+      "after_penalties": "7.6841",
+      "before_penalties": "7.6841",
+      "profile": "early_rocket",
+      "technical_literal": "7.1287",
+      "ticker": "BLLN"
+    },
+    {
+      "after_penalties": "7.8536",
+      "before_penalties": "7.8536",
+      "profile": "momentum_swing",
+      "technical_literal": "6.932",
+      "ticker": "BLLN"
+    },
+    {
+      "after_penalties": "8.1183",
+      "before_penalties": "8.1183",
+      "profile": "quality_momentum",
+      "technical_literal": "7.0652",
+      "ticker": "BLLN"
+    },
+    {
+      "after_penalties": "8.306",
+      "before_penalties": "8.306",
+      "profile": "clean_compounder_pullback",
+      "technical_literal": "7.0543",
+      "ticker": "KLIC"
+    },
+    {
+      "after_penalties": "5.8209",
+      "before_penalties": "8.3209",
+      "profile": "defensive_quality",
+      "technical_literal": "7.3323",
+      "ticker": "KLIC"
+    },
+    {
+      "after_penalties": "7.7174",
+      "before_penalties": "7.7174",
+      "profile": "early_rocket",
+      "technical_literal": "7.1763",
+      "ticker": "KLIC"
+    },
+    {
+      "after_penalties": "6.3686",
+      "before_penalties": "7.8686",
+      "profile": "momentum_swing",
+      "technical_literal": "6.9593",
+      "ticker": "KLIC"
+    },
+    {
+      "after_penalties": "6.6293",
+      "before_penalties": "8.1293",
+      "profile": "quality_momentum",
+      "technical_literal": "7.0896",
+      "ticker": "KLIC"
+    },
+    {
+      "after_penalties": "8.3358",
+      "before_penalties": "8.3358",
+      "profile": "clean_compounder_pullback",
+      "technical_literal": "7.1393",
+      "ticker": "LSCC"
+    },
+    {
+      "after_penalties": "5.8877",
+      "before_penalties": "8.3877",
+      "profile": "defensive_quality",
+      "technical_literal": "7.4993",
+      "ticker": "LSCC"
+    },
+    {
+      "after_penalties": "7.7778",
+      "before_penalties": "7.7778",
+      "profile": "early_rocket",
+      "technical_literal": "7.2626",
+      "ticker": "LSCC"
+    },
+    {
+      "after_penalties": "6.5412",
+      "before_penalties": "8.0412",
+      "profile": "momentum_swing",
+      "technical_literal": "7.2731",
+      "ticker": "LSCC"
+    },
+    {
+      "after_penalties": "6.7396",
+      "before_penalties": "8.2396",
+      "profile": "quality_momentum",
+      "technical_literal": "7.3346",
+      "ticker": "LSCC"
+    },
+    {
+      "after_penalties": "8.2052",
+      "before_penalties": "8.2052",
+      "profile": "clean_compounder_pullback",
+      "technical_literal": "6.7664",
+      "ticker": "PDFS"
+    },
+    {
+      "after_penalties": "8.3258",
+      "before_penalties": "8.3258",
+      "profile": "defensive_quality",
+      "technical_literal": "7.3444",
+      "ticker": "PDFS"
+    },
+    {
+      "after_penalties": "7.3406",
+      "before_penalties": "7.3406",
+      "profile": "early_rocket",
+      "technical_literal": "6.638",
+      "ticker": "PDFS"
+    },
+    {
+      "after_penalties": "7.6767",
+      "before_penalties": "7.6767",
+      "profile": "momentum_swing",
+      "technical_literal": "6.6103",
+      "ticker": "PDFS"
+    },
+    {
+      "after_penalties": "7.9969",
+      "before_penalties": "7.9969",
+      "profile": "quality_momentum",
+      "technical_literal": "6.7954",
+      "ticker": "PDFS"
+    },
+    {
+      "after_penalties": "8.306",
+      "before_penalties": "8.306",
+      "profile": "clean_compounder_pullback",
+      "technical_literal": "7.0543",
+      "ticker": "ACMR"
+    },
+    {
+      "after_penalties": "5.8209",
+      "before_penalties": "8.3209",
+      "profile": "defensive_quality",
+      "technical_literal": "7.3323",
+      "ticker": "ACMR"
+    },
+    {
+      "after_penalties": "7.7174",
+      "before_penalties": "7.7174",
+      "profile": "early_rocket",
+      "technical_literal": "7.1763",
+      "ticker": "ACMR"
+    },
+    {
+      "after_penalties": "6.3686",
+      "before_penalties": "7.8686",
+      "profile": "momentum_swing",
+      "technical_literal": "6.9593",
+      "ticker": "ACMR"
+    },
+    {
+      "after_penalties": "6.6293",
+      "before_penalties": "8.1293",
+      "profile": "quality_momentum",
+      "technical_literal": "7.0896",
+      "ticker": "ACMR"
+    },
+    {
+      "after_penalties": "8.3417",
+      "before_penalties": "8.3417",
+      "profile": "clean_compounder_pullback",
+      "technical_literal": "7.1562",
+      "ticker": "RDVT"
+    },
+    {
+      "after_penalties": "8.3945",
+      "before_penalties": "8.3945",
+      "profile": "defensive_quality",
+      "technical_literal": "7.5162",
+      "ticker": "RDVT"
+    },
+    {
+      "after_penalties": "7.6996",
+      "before_penalties": "7.6996",
+      "profile": "early_rocket",
+      "technical_literal": "7.1508",
+      "ticker": "RDVT"
+    },
+    {
+      "after_penalties": "8.0023",
+      "before_penalties": "8.0023",
+      "profile": "momentum_swing",
+      "technical_literal": "7.2024",
+      "ticker": "RDVT"
+    },
+    {
+      "after_penalties": "8.2152",
+      "before_penalties": "8.2152",
+      "profile": "quality_momentum",
+      "technical_literal": "7.2804",
+      "ticker": "RDVT"
+    },
+    {
+      "after_penalties": "8.2081",
+      "before_penalties": "8.2081",
+      "profile": "clean_compounder_pullback",
+      "technical_literal": "6.7745",
+      "ticker": "AVT"
+    },
+    {
+      "after_penalties": "8.329",
+      "before_penalties": "8.329",
+      "profile": "defensive_quality",
+      "technical_literal": "7.3525",
+      "ticker": "AVT"
+    },
+    {
+      "after_penalties": "7.3463",
+      "before_penalties": "7.3463",
+      "profile": "early_rocket",
+      "technical_literal": "6.6461",
+      "ticker": "AVT"
+    },
+    {
+      "after_penalties": "7.6871",
+      "before_penalties": "7.6871",
+      "profile": "momentum_swing",
+      "technical_literal": "6.6293",
+      "ticker": "AVT"
+    },
+    {
+      "after_penalties": "8.003",
+      "before_penalties": "8.003",
+      "profile": "quality_momentum",
+      "technical_literal": "6.8089",
+      "ticker": "AVT"
+    },
+    {
+      "after_penalties": "8.2089",
+      "before_penalties": "8.2089",
+      "profile": "clean_compounder_pullback",
+      "technical_literal": "6.7769",
+      "ticker": "DVN"
+    },
+    {
+      "after_penalties": "8.33",
+      "before_penalties": "8.33",
+      "profile": "defensive_quality",
+      "technical_literal": "7.3549",
+      "ticker": "DVN"
+    },
+    {
+      "after_penalties": "7.3479",
+      "before_penalties": "7.3479",
+      "profile": "early_rocket",
+      "technical_literal": "6.6485",
+      "ticker": "DVN"
+    },
+    {
+      "after_penalties": "7.6901",
+      "before_penalties": "7.6901",
+      "profile": "momentum_swing",
+      "technical_literal": "6.6347",
+      "ticker": "DVN"
+    },
+    {
+      "after_penalties": "8.0048",
+      "before_penalties": "8.0048",
+      "profile": "quality_momentum",
+      "technical_literal": "6.8128",
+      "ticker": "DVN"
+    },
+    {
+      "after_penalties": "8.2075",
+      "before_penalties": "8.2075",
+      "profile": "clean_compounder_pullback",
+      "technical_literal": "6.7728",
+      "ticker": "JNJ"
+    },
+    {
+      "after_penalties": "8.3283",
+      "before_penalties": "8.3283",
+      "profile": "defensive_quality",
+      "technical_literal": "7.3508",
+      "ticker": "JNJ"
+    },
+    {
+      "after_penalties": "7.3451",
+      "before_penalties": "7.3451",
+      "profile": "early_rocket",
+      "technical_literal": "6.6444",
+      "ticker": "JNJ"
+    },
+    {
+      "after_penalties": "7.6848",
+      "before_penalties": "7.6848",
+      "profile": "momentum_swing",
+      "technical_literal": "6.6251",
+      "ticker": "JNJ"
+    },
+    {
+      "after_penalties": "8.0017",
+      "before_penalties": "8.0017",
+      "profile": "quality_momentum",
+      "technical_literal": "6.8059",
+      "ticker": "JNJ"
+    }
+  ],
+  "scope_approval": "User must review exact candidate head/digest; not yet authorized"
+}

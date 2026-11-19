@@ -1,0 +1,189 @@
+# Forward-quality release source/contract association review
+
+This is STATIC_INTENT, not measured coverage, owner approval or certification.
+
+Exact GUI profile-reader and immutable admission adapter ownership is added to the existing Core contract. No wildcard, selector removal, exception, tier promotion, threshold change or bypass is introduced. The current versioned profile is explicitly owned.
+
+All 171 new literal/guard cases below are required in the existing python-regressions lane whenever Core is affected. Native A04/A16, source integrity, financial derivation, all other existing tests and the four required protected-main checks remain mandatory.
+
+The current synthetic source helper selects the controlled currency-bearing v6 input while the retained v2.1 pipeline golden explicitly selects the immutable v2.1 profile. No old numerical golden is changed. The source-backed helper assertion changes only 79 to the approved 76 and adds model/frozen-forecast assertions. Existing associated cases were re-reviewed and their whole-file pins updated.
+
+Previous Core review digest: `41bb98606d6ce693af586d5e90b20cb7c419191e1d977097f6295a6a6ee69f25`. The unchanged historical review fields and previous addenda remain retained. Source implementation anchor: `80553eba6292f90f3ddc7955062f7fd81614dd50`.
+
+Required new cases:
+
+- `tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100-130-10]`
+- `tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100-120-8.3333]`
+- `tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100-110-6.6667]`
+- `tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100-100-5]`
+- `tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100-90-3]`
+- `tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100-75-0]`
+- `tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100--1-0]`
+- `tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100-0-0]`
+- `tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[0-100-7]`
+- `tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[-100-100-7]`
+- `tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[-100--50-0]`
+- `tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[0-0-0]`
+- `tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[-100-0-0]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-80-0]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-90-2.5]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-100-5]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-105-6.25]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-110-7.5]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-115-8.75]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-120-10]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-0-100-None]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue--100-100-None]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100--1-None]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-0-0]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash-100-70-0]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash-100-85-2.5]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash-100-100-5]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash-100-115-7.5]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash-100-130-10]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash-0-100-None]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash--1-100-None]`
+- `tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash-100--1-None]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-120-130-10]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-120-120-10]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-120-110-8]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-130-100-4]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-140-90-0]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-80-70-8]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-80-100-10]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-0-100-10]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-120-130-10]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-120-120-10]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-120-110-8]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-130-100-4]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-140-90-0]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-80-70-8]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-80-100-10]`
+- `tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-0-100-10]`
+- `tests/test_forward_quality_v22.py::test_capex_special_cases[-100-10-100-None]`
+- `tests/test_forward_quality_v22.py::test_capex_special_cases[0-10-100-None]`
+- `tests/test_forward_quality_v22.py::test_capex_special_cases[100--1-100-0]`
+- `tests/test_forward_quality_v22.py::test_capex_special_cases[None-0-100-0]`
+- `tests/test_forward_quality_v22.py::test_capex_special_cases[100-100-0-None]`
+- `tests/test_forward_quality_v22.py::test_capex_special_cases[100-100-None-None]`
+- `tests/test_forward_quality_v22.py::test_capex_special_cases[100-None-100-None]`
+- `tests/test_forward_quality_v22.py::test_capex_special_cases[100--1-0-None]`
+- `tests/test_forward_quality_v22.py::test_profitability_unavailable_even_when_amounts_and_margins_exist[-10]`
+- `tests/test_forward_quality_v22.py::test_profitability_unavailable_even_when_amounts_and_margins_exist[0]`
+- `tests/test_forward_quality_v22.py::test_profitability_unavailable_even_when_amounts_and_margins_exist[10]`
+- `tests/test_forward_quality_v22.py::test_profitability_unavailable_even_when_amounts_and_margins_exist[20]`
+- `tests/test_forward_quality_v22.py::test_profitability_unavailable_even_when_amounts_and_margins_exist[30]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[Strong Buy-10]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[  STRONG   sell -0]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[Buy-7.5]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[Outperform-7.5]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[Hold-5]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[Neutral-5]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[Sell-2.5]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[Underperform-2.5]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[No rating-None]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[buy now-None]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[not a strong buy-None]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[1-None]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[5-None]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[None-None]`
+- `tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[-None]`
+- `tests/test_forward_quality_v22.py::test_weights_partial_availability_and_neutral_fallback`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[None-net_income_ttm-net_income_estimate_ntm-net_income_growth]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[None-total_revenue_ttm-revenue_estimate_annual-revenue_comparison]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[None-cash_short_term_investments_annual-cash_short_term_investments_estimate_annual-cash_comparison]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[None-capex_ttm-capex_estimate_ntm-capex_sustainability]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[-net_income_ttm-net_income_estimate_ntm-net_income_growth]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[-total_revenue_ttm-revenue_estimate_annual-revenue_comparison]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[-cash_short_term_investments_annual-cash_short_term_investments_estimate_annual-cash_comparison]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[-capex_ttm-capex_estimate_ntm-capex_sustainability]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[EUR-net_income_ttm-net_income_estimate_ntm-net_income_growth]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[EUR-total_revenue_ttm-revenue_estimate_annual-revenue_comparison]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[EUR-cash_short_term_investments_annual-cash_short_term_investments_estimate_annual-cash_comparison]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[EUR-capex_ttm-capex_estimate_ntm-capex_sustainability]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[N/A-net_income_ttm-net_income_estimate_ntm-net_income_growth]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[N/A-total_revenue_ttm-revenue_estimate_annual-revenue_comparison]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[N/A-cash_short_term_investments_annual-cash_short_term_investments_estimate_annual-cash_comparison]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[N/A-capex_ttm-capex_estimate_ntm-capex_sustainability]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[ZZZ-net_income_ttm-net_income_estimate_ntm-net_income_growth]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[ZZZ-total_revenue_ttm-revenue_estimate_annual-revenue_comparison]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[ZZZ-cash_short_term_investments_annual-cash_short_term_investments_estimate_annual-cash_comparison]`
+- `tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[ZZZ-capex_ttm-capex_estimate_ntm-capex_sustainability]`
+- `tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[None]`
+- `tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[]`
+- `tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[invalid]`
+- `tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[True]`
+- `tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[nan]`
+- `tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[inf]`
+- `tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[-inf]`
+- `tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999]`
+- `tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000]`
+- `tests/test_forward_quality_v22.py::test_extreme_finite_growth_and_pressure_are_bounded_and_deterministic[5e-324-1e+308]`
+- `tests/test_forward_quality_v22.py::test_extreme_finite_growth_and_pressure_are_bounded_and_deterministic[1e+308-5e-324]`
+- `tests/test_forward_quality_v22.py::test_extreme_finite_growth_and_pressure_are_bounded_and_deterministic[1e+308-1e+308]`
+- `tests/test_forward_quality_v22.py::test_extreme_finite_growth_and_pressure_are_bounded_and_deterministic[1e-200-1e+308]`
+- `tests/test_forward_quality_v22.py::test_historical_v21_results_match_original_main_exactly[quality]`
+- `tests/test_forward_quality_v22.py::test_historical_v21_results_match_original_main_exactly[missing]`
+- `tests/test_forward_quality_v22.py::test_historical_v21_results_match_original_main_exactly[loss]`
+- `tests/test_forward_quality_v22.py::test_historical_v21_results_match_original_main_exactly[partial]`
+- `tests/test_forward_quality_v22.py::test_version_specific_formula_declarations_and_unchanged_configuration`
+- `tests/test_forward_quality_v22.py::test_only_forward_score_changes_and_penalty_is_identical[quality]`
+- `tests/test_forward_quality_v22.py::test_only_forward_score_changes_and_penalty_is_identical[missing]`
+- `tests/test_forward_quality_v22.py::test_only_forward_score_changes_and_penalty_is_identical[loss]`
+- `tests/test_forward_quality_v22.py::test_only_forward_score_changes_and_penalty_is_identical[partial]`
+- `tests/test_forward_quality_v22.py::test_wrong_formula_cannot_be_hidden_under_a_different_model_identity[fundamentals_v2.1]`
+- `tests/test_forward_quality_v22.py::test_wrong_formula_cannot_be_hidden_under_a_different_model_identity[fundamentals_v2.2]`
+- `tests/test_forward_quality_v22.py::test_wrong_formula_cannot_be_hidden_under_a_different_model_identity[unknown]`
+- `tests/test_forward_quality_v22.py::test_frozen_delivery_uses_its_own_model_and_hash[path0]`
+- `tests/test_forward_quality_v22.py::test_frozen_delivery_uses_its_own_model_and_hash[path1]`
+- `tests/test_forward_quality_v22.py::test_readiness_registration_respects_retained_fundamental_model[path0]`
+- `tests/test_forward_quality_v22.py::test_readiness_registration_respects_retained_fundamental_model[path1]`
+- `tests/test_forward_quality_v22.py::test_model_and_count_admission_matrix[fundamentals_v2.1-79-True]`
+- `tests/test_forward_quality_v22.py::test_model_and_count_admission_matrix[fundamentals_v2.1-76-False]`
+- `tests/test_forward_quality_v22.py::test_model_and_count_admission_matrix[fundamentals_v2.2-76-True]`
+- `tests/test_forward_quality_v22.py::test_model_and_count_admission_matrix[fundamentals_v2.2-79-False]`
+- `tests/test_forward_quality_v22.py::test_model_and_count_admission_matrix[unknown-76-False]`
+- `tests/test_forward_quality_v22.py::test_model_and_count_admission_matrix[unknown-79-False]`
+- `tests/test_forward_quality_v22.py::test_overall_coverage_boundary_and_impossible_exact_threshold[fundamentals_v2.1-79]`
+- `tests/test_forward_quality_v22.py::test_overall_coverage_boundary_and_impossible_exact_threshold[fundamentals_v2.2-76]`
+- `tests/test_forward_quality_v22.py::test_component_coverage_boundary[0.4999-False]`
+- `tests/test_forward_quality_v22.py::test_component_coverage_boundary[0.5-True]`
+- `tests/test_forward_quality_v22.py::test_component_coverage_boundary[0.5001-True]`
+- `tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides0-source_identity_invalid]`
+- `tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides1-source_identity_invalid]`
+- `tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides2-fundamental_score_missing_or_non_finite]`
+- `tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides3-fundamental_label_invalid]`
+- `tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides4-consumer_field_dependencies_not_certified]`
+- `tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides5-blocking_or_unclassified_warning]`
+- `tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides6-fundamental_parse_failure]`
+- `tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides7-field_coverage_contract_invalid]`
+- `tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides8-component_coverage_contract_invalid]`
+- `tests/test_forward_quality_v22.py::test_v22_rejects_malformed_counts_without_truncation[76.5]`
+- `tests/test_forward_quality_v22.py::test_v22_rejects_malformed_counts_without_truncation[inf]`
+- `tests/test_forward_quality_v22.py::test_v22_rejects_malformed_counts_without_truncation[nan]`
+- `tests/test_forward_quality_v22.py::test_v22_rejects_malformed_counts_without_truncation[True]`
+- `tests/test_forward_quality_v22.py::test_v22_rejects_malformed_counts_without_truncation[invalid]`
+- `tests/test_forward_quality_v22.py::test_nonstring_model_is_unsupported[None]`
+- `tests/test_forward_quality_v22.py::test_nonstring_model_is_unsupported[model1]`
+- `tests/test_forward_quality_v22.py::test_nonstring_model_is_unsupported[model2]`
+- `tests/test_forward_quality_v22.py::test_nonstring_model_is_unsupported[22]`
+- `tests/test_forward_quality_v22.py::test_maximum_raw_score_movement_is_exactly_eight_tenths`
+- `tests/test_forward_quality_v22.py::test_retired_formula_fields_keep_their_existing_warning_dependencies`
+- `tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[False]`
+- `tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[None]`
+- `tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[0]`
+- `tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[1]`
+- `tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[true]`
+- `tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[false]`
+- `tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[fact6]`
+- `tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[fact7]`
+- `tests/test_forward_quality_v22.py::test_v21_ignores_new_fact_and_preserves_its_frozen_input_shape`
+- `tests/test_forward_quality_v22.py::test_frozen_fact_distinguishes_valid_and_incompatible_forecasts_without_changing_math`
+- `tests/test_forward_quality_v22.py::test_zero_financial_subscore_is_usable_evidence_and_rating_alone_is_not`
+- `tests/test_forward_quality_v22.py::test_fact_is_read_from_frozen_evidence_not_mutable_serving_debug`
+- `tests/test_forward_quality_v22.py::test_v6_controlled_input_matches_independently_authored_literals`
+- `tests/test_operational_fundamental_admission.py::test_v22_admission_reads_frozen_forecast_fact_despite_mutable_serving_debug`
+
+Re-reviewed pre-existing cases:
+
+- `tests/test_core_readiness_helpers.py::test_future_source_cannot_satisfy_earlier_consumer_identity`

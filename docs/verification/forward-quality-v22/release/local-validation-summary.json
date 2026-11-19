@@ -1,0 +1,31 @@
+{
+  "producer_source": "80553eba6292f90f3ddc7955062f7fd81614dd50",
+  "scope": "Local validation only; not current-head CI or release certification",
+  "focused_formula_admission_config_tests": {
+    "passed": 283,
+    "seconds": 26.41
+  },
+  "additional_frozen_boundary_cases": {
+    "passed": 5,
+    "seconds": 1.85
+  },
+  "registered_legacy_golden_and_helper_tests": {
+    "passed": 23,
+    "seconds": 6.53
+  },
+  "golden_governance_and_registry_tests": {
+    "passed": 232,
+    "seconds": 366.94
+  },
+  "ruff": "PASS",
+  "architecture_registry": "PASS",
+  "route_inventory": "PASS",
+  "protected_baseline_provenance": "PASS",
+  "current_impact_plan": "PLAN_READY",
+  "required_python_selectors": 541,
+  "new_required_fast_cases": 171,
+  "independent_candidate_content": "PASS",
+  "independent_candidate_completeness": "PASS",
+  "owner_golden_authorization": "NOT_VERIFIED",
+  "activation_authorized": false
+}

@@ -1,0 +1,233 @@
+{
+  "absence": "No accepted reported earnings, guidance or issuer-verified catalyst; no causal price event. No prior certified target capture, so no financial score change. No eligible catalyst/guidance changes; alert population empty.",
+  "catalysts": "Payload omits issuer_relevance, subject/title and confidence. Normalize subtype launch into subject launch, confidence Normal, relevance null. Unverified relevance rejects scoring and change generation; PRODUCT is not binary.",
+  "freshness": "Operational ingestion completion remains live and later than fixed business cutoff. No completed provider checks are eligible at cutoff; feed freshness is unavailable, not stale or fabricated fresh. Source receipt timestamps remain independently known and eligible.",
+  "guidance": "The supplied SEC action RAISED is checked against prior guidance. No prior exists: native contract requires UNKNOWN/INSUFFICIENT, rejected GUIDANCE_ACTION_UNKNOWN. No accepted guidance derived feature or guidance change.",
+  "normalization": "Four immutable EPS observations per issuer; same-provider USD at unit scale; no corrections/supersession; refresh deduplicates source and normalized observations",
+  "ownership": "All pipeline feature/capture rows bind target ticker/company, post-acquisition CERI context at20:32, frozen config/version and semantic source keys. Generated IDs are resolved relationally.",
+  "per_ticker": {
+    "ACMR": {
+      "acceleration_formula": "pct7/elapsed7-pct90/elapsed90; other windows null",
+      "baseline_keys": {
+        "7": "ACMR-eps-7d",
+        "30": "ACMR-eps-7d",
+        "90": "ACMR-eps-90d"
+      },
+      "confidence_formula": "8*.25+0+1.25*.20+10*.15+9*.10+10*.10=5.65",
+      "confidence_ledger": {
+        "analyst_sample": "10",
+        "conflict_free_score": "10",
+        "estimate_coverage": "1.25",
+        "freshness": null,
+        "source_quality": "8",
+        "timestamp_quality": "9"
+      },
+      "opportunity_available_weights": ".25+.15+.10=.50 < .60; never zero-fill unavailable components",
+      "ownership_policy": "post-acquisition context has pipeline_run_idNone by construction; pipeline_id_for_cutoff therefore yieldsUNKNOWN; exact workflow payload/context/run relationship proves the owning pipeline",
+      "revision_formula": "100*(current-baseline)/abs(baseline)",
+      "storage_policy": "provider_registry.py:138-176 drops point; normalization_service.py persists binary_eligibleNone; catalyst feature computes binaryFalse; rejected guidance adds guidance_rows_rejected"
+    },
+    "AVT": {
+      "acceleration_formula": "pct7/elapsed7-pct90/elapsed90; other windows null",
+      "baseline_keys": {
+        "7": "AVT-eps-7d",
+        "30": "AVT-eps-7d",
+        "90": "AVT-eps-90d"
+      },
+      "confidence_formula": "8*.25+0+1.25*.20+10*.15+9*.10+10*.10=5.65",
+      "confidence_ledger": {
+        "analyst_sample": "10",
+        "conflict_free_score": "10",
+        "estimate_coverage": "1.25",
+        "freshness": null,
+        "source_quality": "8",
+        "timestamp_quality": "9"
+      },
+      "opportunity_available_weights": ".25+.15+.10=.50 < .60; never zero-fill unavailable components",
+      "ownership_policy": "post-acquisition context has pipeline_run_idNone by construction; pipeline_id_for_cutoff therefore yieldsUNKNOWN; exact workflow payload/context/run relationship proves the owning pipeline",
+      "revision_formula": "100*(current-baseline)/abs(baseline)",
+      "storage_policy": "provider_registry.py:138-176 drops point; normalization_service.py persists binary_eligibleNone; catalyst feature computes binaryFalse; rejected guidance adds guidance_rows_rejected"
+    },
+    "BHE": {
+      "acceleration_formula": "pct7/elapsed7-pct90/elapsed90; other windows null",
+      "baseline_keys": {
+        "7": "BHE-eps-7d",
+        "30": "BHE-eps-7d",
+        "90": "BHE-eps-90d"
+      },
+      "confidence_formula": "8*.25+0+1.25*.20+10*.15+9*.10+10*.10=5.65",
+      "confidence_ledger": {
+        "analyst_sample": "10",
+        "conflict_free_score": "10",
+        "estimate_coverage": "1.25",
+        "freshness": null,
+        "source_quality": "8",
+        "timestamp_quality": "9"
+      },
+      "opportunity_available_weights": ".25+.15+.10=.50 < .60; never zero-fill unavailable components",
+      "ownership_policy": "post-acquisition context has pipeline_run_idNone by construction; pipeline_id_for_cutoff therefore yieldsUNKNOWN; exact workflow payload/context/run relationship proves the owning pipeline",
+      "revision_formula": "100*(current-baseline)/abs(baseline)",
+      "storage_policy": "provider_registry.py:138-176 drops point; normalization_service.py persists binary_eligibleNone; catalyst feature computes binaryFalse; rejected guidance adds guidance_rows_rejected"
+    },
+    "BLLN": {
+      "acceleration_formula": "pct7/elapsed7-pct90/elapsed90; other windows null",
+      "baseline_keys": {
+        "7": "BLLN-eps-7d",
+        "30": "BLLN-eps-7d",
+        "90": "BLLN-eps-90d"
+      },
+      "confidence_formula": "8*.25+0+1.25*.20+10*.15+9*.10+10*.10=5.65",
+      "confidence_ledger": {
+        "analyst_sample": "10",
+        "conflict_free_score": "10",
+        "estimate_coverage": "1.25",
+        "freshness": null,
+        "source_quality": "8",
+        "timestamp_quality": "9"
+      },
+      "opportunity_available_weights": ".25+.15+.10=.50 < .60; never zero-fill unavailable components",
+      "ownership_policy": "post-acquisition context has pipeline_run_idNone by construction; pipeline_id_for_cutoff therefore yieldsUNKNOWN; exact workflow payload/context/run relationship proves the owning pipeline",
+      "revision_formula": "100*(current-baseline)/abs(baseline)",
+      "storage_policy": "provider_registry.py:138-176 drops point; normalization_service.py persists binary_eligibleNone; catalyst feature computes binaryFalse; rejected guidance adds guidance_rows_rejected"
+    },
+    "DVN": {
+      "acceleration_formula": "pct7/elapsed7-pct90/elapsed90; other windows null",
+      "baseline_keys": {
+        "7": "DVN-eps-7d",
+        "30": "DVN-eps-7d",
+        "90": "DVN-eps-90d"
+      },
+      "confidence_formula": "8*.25+0+1.25*.20+10*.15+9*.10+10*.10=5.65",
+      "confidence_ledger": {
+        "analyst_sample": "10",
+        "conflict_free_score": "10",
+        "estimate_coverage": "1.25",
+        "freshness": null,
+        "source_quality": "8",
+        "timestamp_quality": "9"
+      },
+      "opportunity_available_weights": ".25+.15+.10=.50 < .60; never zero-fill unavailable components",
+      "ownership_policy": "post-acquisition context has pipeline_run_idNone by construction; pipeline_id_for_cutoff therefore yieldsUNKNOWN; exact workflow payload/context/run relationship proves the owning pipeline",
+      "revision_formula": "100*(current-baseline)/abs(baseline)",
+      "storage_policy": "provider_registry.py:138-176 drops point; normalization_service.py persists binary_eligibleNone; catalyst feature computes binaryFalse; rejected guidance adds guidance_rows_rejected"
+    },
+    "JNJ": {
+      "acceleration_formula": "pct7/elapsed7-pct90/elapsed90; other windows null",
+      "baseline_keys": {
+        "7": "JNJ-eps-7d",
+        "30": "JNJ-eps-7d",
+        "90": "JNJ-eps-90d"
+      },
+      "confidence_formula": "8*.25+0+1.25*.20+10*.15+9*.10+10*.10=5.65",
+      "confidence_ledger": {
+        "analyst_sample": "10",
+        "conflict_free_score": "10",
+        "estimate_coverage": "1.25",
+        "freshness": null,
+        "source_quality": "8",
+        "timestamp_quality": "9"
+      },
+      "opportunity_available_weights": ".25+.15+.10=.50 < .60; never zero-fill unavailable components",
+      "ownership_policy": "post-acquisition context has pipeline_run_idNone by construction; pipeline_id_for_cutoff therefore yieldsUNKNOWN; exact workflow payload/context/run relationship proves the owning pipeline",
+      "revision_formula": "100*(current-baseline)/abs(baseline)",
+      "storage_policy": "provider_registry.py:138-176 drops point; normalization_service.py persists binary_eligibleNone; catalyst feature computes binaryFalse; rejected guidance adds guidance_rows_rejected"
+    },
+    "KLIC": {
+      "acceleration_formula": "pct7/elapsed7-pct90/elapsed90; other windows null",
+      "baseline_keys": {
+        "7": "KLIC-eps-7d",
+        "30": "KLIC-eps-7d",
+        "90": "KLIC-eps-90d"
+      },
+      "confidence_formula": "8*.25+0+1.25*.20+10*.15+9*.10+10*.10=5.65",
+      "confidence_ledger": {
+        "analyst_sample": "10",
+        "conflict_free_score": "10",
+        "estimate_coverage": "1.25",
+        "freshness": null,
+        "source_quality": "8",
+        "timestamp_quality": "9"
+      },
+      "opportunity_available_weights": ".25+.15+.10=.50 < .60; never zero-fill unavailable components",
+      "ownership_policy": "post-acquisition context has pipeline_run_idNone by construction; pipeline_id_for_cutoff therefore yieldsUNKNOWN; exact workflow payload/context/run relationship proves the owning pipeline",
+      "revision_formula": "100*(current-baseline)/abs(baseline)",
+      "storage_policy": "provider_registry.py:138-176 drops point; normalization_service.py persists binary_eligibleNone; catalyst feature computes binaryFalse; rejected guidance adds guidance_rows_rejected"
+    },
+    "LSCC": {
+      "acceleration_formula": "pct7/elapsed7-pct90/elapsed90; other windows null",
+      "baseline_keys": {
+        "7": "LSCC-eps-7d",
+        "30": "LSCC-eps-7d",
+        "90": "LSCC-eps-90d"
+      },
+      "confidence_formula": "8*.25+0+1.25*.20+10*.15+9*.10+10*.10=5.65",
+      "confidence_ledger": {
+        "analyst_sample": "10",
+        "conflict_free_score": "10",
+        "estimate_coverage": "1.25",
+        "freshness": null,
+        "source_quality": "8",
+        "timestamp_quality": "9"
+      },
+      "opportunity_available_weights": ".25+.15+.10=.50 < .60; never zero-fill unavailable components",
+      "ownership_policy": "post-acquisition context has pipeline_run_idNone by construction; pipeline_id_for_cutoff therefore yieldsUNKNOWN; exact workflow payload/context/run relationship proves the owning pipeline",
+      "revision_formula": "100*(current-baseline)/abs(baseline)",
+      "storage_policy": "provider_registry.py:138-176 drops point; normalization_service.py persists binary_eligibleNone; catalyst feature computes binaryFalse; rejected guidance adds guidance_rows_rejected"
+    },
+    "PDFS": {
+      "acceleration_formula": "pct7/elapsed7-pct90/elapsed90; other windows null",
+      "baseline_keys": {
+        "7": "PDFS-eps-7d",
+        "30": "PDFS-eps-7d",
+        "90": "PDFS-eps-90d"
+      },
+      "confidence_formula": "8*.25+0+1.25*.20+10*.15+9*.10+10*.10=5.65",
+      "confidence_ledger": {
+        "analyst_sample": "10",
+        "conflict_free_score": "10",
+        "estimate_coverage": "1.25",
+        "freshness": null,
+        "source_quality": "8",
+        "timestamp_quality": "9"
+      },
+      "opportunity_available_weights": ".25+.15+.10=.50 < .60; never zero-fill unavailable components",
+      "ownership_policy": "post-acquisition context has pipeline_run_idNone by construction; pipeline_id_for_cutoff therefore yieldsUNKNOWN; exact workflow payload/context/run relationship proves the owning pipeline",
+      "revision_formula": "100*(current-baseline)/abs(baseline)",
+      "storage_policy": "provider_registry.py:138-176 drops point; normalization_service.py persists binary_eligibleNone; catalyst feature computes binaryFalse; rejected guidance adds guidance_rows_rejected"
+    },
+    "RDVT": {
+      "acceleration_formula": "pct7/elapsed7-pct90/elapsed90; other windows null",
+      "baseline_keys": {
+        "7": "RDVT-eps-7d",
+        "30": "RDVT-eps-7d",
+        "90": "RDVT-eps-90d"
+      },
+      "confidence_formula": "8*.25+0+1.25*.20+10*.15+9*.10+10*.10=5.65",
+      "confidence_ledger": {
+        "analyst_sample": "10",
+        "conflict_free_score": "10",
+        "estimate_coverage": "1.25",
+        "freshness": null,
+        "source_quality": "8",
+        "timestamp_quality": "9"
+      },
+      "opportunity_available_weights": ".25+.15+.10=.50 < .60; never zero-fill unavailable components",
+      "ownership_policy": "post-acquisition context has pipeline_run_idNone by construction; pipeline_id_for_cutoff therefore yieldsUNKNOWN; exact workflow payload/context/run relationship proves the owning pipeline",
+      "revision_formula": "100*(current-baseline)/abs(baseline)",
+      "storage_policy": "provider_registry.py:138-176 drops point; normalization_service.py persists binary_eligibleNone; catalyst feature computes binaryFalse; rejected guidance adds guidance_rows_rejected"
+    }
+  },
+  "policy_sources": [
+    "point_in_time_query.py:154-314,498-521",
+    "revision_feature_service.py:194-396",
+    "guidance_comparison_service.py:17-25",
+    "normalization_service.py:252-272",
+    "catalyst_taxonomy.py:42-72",
+    "feature_rebuild_service.py:830-1020,1965-2034",
+    "opportunity_score_service.py:84-196",
+    "confidence_service.py:52-158",
+    "contextual_effective_configuration.py:585-594",
+    "change_detection_service.py:72-84,476-486"
+  ],
+  "precision": "revision columns half-even six places, compared exactly; component/score fields absolute1e-6; nulls and semantic membership exact"
+}

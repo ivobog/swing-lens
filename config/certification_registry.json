@@ -1118,6 +1118,18 @@
           {
             "path": "app/services/decision_effective_configuration.py",
             "symbol": "DecisionEffectiveConfiguration.setup_config"
+          },
+          {
+            "path": "app/services/fundamental_ranker_v2.py",
+            "symbol": "score_row_v2"
+          },
+          {
+            "path": "app/services/fundamental_admission_policy.py",
+            "symbol": "evaluate_fundamental_admission"
+          },
+          {
+            "path": "app/services/contextual_consumer_eligibility.py",
+            "symbol": "_fundamental_frozen_input"
           }
         ],
         "impact_patterns": [
@@ -1135,7 +1147,10 @@
           "app/services/warning_taxonomy.py",
           "app/services/ranking_profile_service.py",
           "docs/remediation/calculation-lineage/T14D_semantic_review_source_pins.json",
-          "tests/test_contextual_calculation_identity_adoption.py"
+          "tests/test_contextual_calculation_identity_adoption.py",
+          "app/routers/gui_routes.py",
+          "app/services/contextual_consumer_eligibility.py",
+          "config/fundamentals_v2_2.yaml"
         ],
         "tests": [
           {
@@ -1145,7 +1160,7 @@
             "lane": "python-regressions",
             "positive": "Known retained cutoff is derived exactly.",
             "negative": "Future source cannot satisfy earlier authority.",
-            "reviewed_test_sha256": "413e06fe51d84138f48bf109f4c51ac4d5df881409d58109a73a79aa92e97844"
+            "reviewed_test_sha256": "d02642db523b637cd5ba8af929f176fbeb720f36635d08a3bb8bebff77cb9e51"
           },
           {
             "id": "tests/integration/test_core_legacy_configuration_postgresql.py::test_core_legacy_config_noninheritance_after_native_authority",
@@ -1632,6 +1647,1545 @@
             "positive": "Repeated definitions retain their types, order and independently constructed native objects.",
             "negative": "A changed nested enum annotation is resolved anew on the next call; no stale schema or mutable output is reused.",
             "reviewed_test_sha256": "403902a8208dc3683bd9ff4f3a27d6cf06a3c6690d0629a48cb0fb53f7da170e"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100-130-10]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100-120-8.3333]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100-110-6.6667]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100-100-5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100-90-3]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100-75-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100--1-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[100-0-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[0-100-7]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[-100-100-7]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[-100--50-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[0-0-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_income_growth_and_profit_transitions[-100-0-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-80-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-90-2.5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-100-5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-105-6.25]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-110-7.5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-115-8.75]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-120-10]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-0-100-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue--100-100-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100--1-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[revenue-100-0-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash-100-70-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash-100-85-2.5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash-100-100-5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash-100-115-7.5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash-100-130-10]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash-0-100-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash--1-100-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_annual_revenue_and_cash_comparisons[cash-100--1-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-120-130-10]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-120-120-10]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-120-110-8]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-130-100-4]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-140-90-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-80-70-8]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-80-100-10]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[1-0-100-10]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-120-130-10]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-120-120-10]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-120-110-8]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-130-100-4]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-140-90-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-80-70-8]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-80-100-10]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_pressure_uses_spending_magnitudes[-1-0-100-10]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_special_cases[-100-10-100-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_special_cases[0-10-100-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_special_cases[100--1-100-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_special_cases[None-0-100-0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_special_cases[100-100-0-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_special_cases[100-100-None-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_special_cases[100-None-100-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_capex_special_cases[100--1-0-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_profitability_unavailable_even_when_amounts_and_margins_exist[-10]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_profitability_unavailable_even_when_amounts_and_margins_exist[0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_profitability_unavailable_even_when_amounts_and_margins_exist[10]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_profitability_unavailable_even_when_amounts_and_margins_exist[20]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_profitability_unavailable_even_when_amounts_and_margins_exist[30]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[Strong Buy-10]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[  STRONG   sell -0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[Buy-7.5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[Outperform-7.5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[Hold-5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[Neutral-5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[Sell-2.5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[Underperform-2.5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[No rating-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[buy now-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[not a strong buy-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[1-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[5-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[None-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_analyst_rating_exact_text_categories[-None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_weights_partial_availability_and_neutral_fallback",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[None-net_income_ttm-net_income_estimate_ntm-net_income_growth]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[None-total_revenue_ttm-revenue_estimate_annual-revenue_comparison]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[None-cash_short_term_investments_annual-cash_short_term_investments_estimate_annual-cash_comparison]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[None-capex_ttm-capex_estimate_ntm-capex_sustainability]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[-net_income_ttm-net_income_estimate_ntm-net_income_growth]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[-total_revenue_ttm-revenue_estimate_annual-revenue_comparison]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[-cash_short_term_investments_annual-cash_short_term_investments_estimate_annual-cash_comparison]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[-capex_ttm-capex_estimate_ntm-capex_sustainability]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[EUR-net_income_ttm-net_income_estimate_ntm-net_income_growth]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[EUR-total_revenue_ttm-revenue_estimate_annual-revenue_comparison]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[EUR-cash_short_term_investments_annual-cash_short_term_investments_estimate_annual-cash_comparison]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[EUR-capex_ttm-capex_estimate_ntm-capex_sustainability]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[N/A-net_income_ttm-net_income_estimate_ntm-net_income_growth]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[N/A-total_revenue_ttm-revenue_estimate_annual-revenue_comparison]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[N/A-cash_short_term_investments_annual-cash_short_term_investments_estimate_annual-cash_comparison]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[N/A-capex_ttm-capex_estimate_ntm-capex_sustainability]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[ZZZ-net_income_ttm-net_income_estimate_ntm-net_income_growth]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[ZZZ-total_revenue_ttm-revenue_estimate_annual-revenue_comparison]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[ZZZ-cash_short_term_investments_annual-cash_short_term_investments_estimate_annual-cash_comparison]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_currency_metadata_must_be_present_recognized_and_matching[ZZZ-capex_ttm-capex_estimate_ntm-capex_sustainability]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[invalid]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[True]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[nan]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[inf]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[-inf]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_invalid_and_nonfinite_inputs_are_locally_unavailable[10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_extreme_finite_growth_and_pressure_are_bounded_and_deterministic[5e-324-1e+308]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_extreme_finite_growth_and_pressure_are_bounded_and_deterministic[1e+308-5e-324]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_extreme_finite_growth_and_pressure_are_bounded_and_deterministic[1e+308-1e+308]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_extreme_finite_growth_and_pressure_are_bounded_and_deterministic[1e-200-1e+308]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_historical_v21_results_match_original_main_exactly[quality]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_historical_v21_results_match_original_main_exactly[missing]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_historical_v21_results_match_original_main_exactly[loss]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_historical_v21_results_match_original_main_exactly[partial]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_version_specific_formula_declarations_and_unchanged_configuration",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_only_forward_score_changes_and_penalty_is_identical[quality]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_only_forward_score_changes_and_penalty_is_identical[missing]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_only_forward_score_changes_and_penalty_is_identical[loss]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_only_forward_score_changes_and_penalty_is_identical[partial]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_wrong_formula_cannot_be_hidden_under_a_different_model_identity[fundamentals_v2.1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_wrong_formula_cannot_be_hidden_under_a_different_model_identity[fundamentals_v2.2]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_wrong_formula_cannot_be_hidden_under_a_different_model_identity[unknown]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_frozen_delivery_uses_its_own_model_and_hash[path0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_frozen_delivery_uses_its_own_model_and_hash[path1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_readiness_registration_respects_retained_fundamental_model[path0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_readiness_registration_respects_retained_fundamental_model[path1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_model_and_count_admission_matrix[fundamentals_v2.1-79-True]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_model_and_count_admission_matrix[fundamentals_v2.1-76-False]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_model_and_count_admission_matrix[fundamentals_v2.2-76-True]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_model_and_count_admission_matrix[fundamentals_v2.2-79-False]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_model_and_count_admission_matrix[unknown-76-False]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_model_and_count_admission_matrix[unknown-79-False]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_overall_coverage_boundary_and_impossible_exact_threshold[fundamentals_v2.1-79]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_overall_coverage_boundary_and_impossible_exact_threshold[fundamentals_v2.2-76]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_component_coverage_boundary[0.4999-False]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_component_coverage_boundary[0.5-True]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_component_coverage_boundary[0.5001-True]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides0-source_identity_invalid]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides1-source_identity_invalid]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides2-fundamental_score_missing_or_non_finite]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides3-fundamental_label_invalid]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides4-consumer_field_dependencies_not_certified]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides5-blocking_or_unclassified_warning]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides6-fundamental_parse_failure]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides7-field_coverage_contract_invalid]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_preserves_all_other_fail_closed_admission_requirements[overrides8-component_coverage_contract_invalid]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_rejects_malformed_counts_without_truncation[76.5]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_rejects_malformed_counts_without_truncation[inf]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_rejects_malformed_counts_without_truncation[nan]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_rejects_malformed_counts_without_truncation[True]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_rejects_malformed_counts_without_truncation[invalid]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_nonstring_model_is_unsupported[None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_nonstring_model_is_unsupported[model1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_nonstring_model_is_unsupported[model2]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_nonstring_model_is_unsupported[22]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_maximum_raw_score_movement_is_exactly_eight_tenths",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_retired_formula_fields_keep_their_existing_warning_dependencies",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[False]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[None]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[0]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[1]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[true]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[false]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[fact6]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v22_requires_a_literal_true_frozen_financial_evidence_fact[fact7]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v21_ignores_new_fact_and_preserves_its_frozen_input_shape",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_frozen_fact_distinguishes_valid_and_incompatible_forecasts_without_changing_math",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_zero_financial_subscore_is_usable_evidence_and_rating_alone_is_not",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_fact_is_read_from_frozen_evidence_not_mutable_serving_debug",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_forward_quality_v22.py::test_v6_controlled_input_matches_independently_authored_literals",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "77d866012a7f60edd4b01141b791367cbc030dd86d29ed6a02b65b6bd6d92e10"
+          },
+          {
+            "id": "tests/test_operational_fundamental_admission.py::test_v22_admission_reads_frozen_forecast_fact_despite_mutable_serving_debug",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Approved forward formula, preserved legacy dispatch, exact model/count and frozen-evidence guards remain valid as asserted by the named literal case.",
+            "negative": "Missing or incompatible forecasts, analyst-only evidence, malformed facts and cross-version contracts cannot gain permission; unrelated scores and historical v2.1 evidence remain unchanged.",
+            "reviewed_test_sha256": "7359472e0c2e8cbfe9e04923943f61e42eefbef96c433920dc0f4bfbe933ac6d"
           }
         ],
         "oracle": "A05B independent values and canonical immutable evidence; fixture helpers are not independent financial truth.",
@@ -1642,7 +3196,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "41bb98606d6ce693af586d5e90b20cb7c419191e1d977097f6295a6a6ee69f25",
+        "review_sha256": "7b9ddc1c596d5ce9dd36cf9e9d2946b4d6c184f5c7c3b12d4aacd80f8daf4039",
         "review_addenda": [
           {
             "task": "PIPELINE55-20261109",
@@ -1683,6 +3237,14 @@
             "inventory": "docs/remediation/ceri-context-116-publication/complete-impact-ownership-review.json",
             "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
             "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
+          },
+          {
+            "task": "FORWARD-QUALITY-V22-RELEASE",
+            "kind": "STATIC_EXACT_PATH_AND_ASSERTION_REVIEW",
+            "evidence": "docs/verification/forward-quality-v22/release/source-contract-review.md",
+            "scope": "Own exact GUI profile-reader and frozen admission adapter paths under Core; require all new forward-quality/guard cases. Existing 79 assertion is updated to the approved current 76-field model and strengthened with explicit v2.2 and sealed-forecast assertions. All old tests, tiers, native checks and thresholds remain.",
+            "previous_review_sha256": "41bb98606d6ce693af586d5e90b20cb7c419191e1d977097f6295a6a6ee69f25",
+            "claim": "STATIC_INTENT only; not execution, financial approval or release certification."
           }
         ]
       },
