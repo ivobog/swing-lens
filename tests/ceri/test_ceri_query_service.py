@@ -338,6 +338,36 @@ def test_list_detects_selected_revision_value_lineage_mismatch() -> None:
     assert row["warning_summary"]["severity"] == "BLOCKER"
 
 
+def test_revision_evidence_uses_only_the_snapshot_pinned_context() -> None:
+    snapshot = _snapshot(1, "MSFT", opportunity=8.0, confidence="Normal")
+    snapshot.calculation_context_id = 8
+    snapshot.opportunity_ledger_json = {
+        "components": [
+            {"name": "revision_magnitude", "available": True, "value": 5, "evidence_ids": [301]}
+        ]
+    }
+    common = {
+        "company_id": snapshot.company_id,
+        "metric": "EPS_DILUTED",
+        "period_key": "MSFT:FY",
+        "period_slot": "CURRENT_FISCAL_YEAR",
+        "as_of_session": snapshot.as_of_session,
+        "calculation_cutoff_at": snapshot.cutoff_at,
+        "window_days": 30,
+        "config_version": snapshot.config_version,
+        "config_hash": snapshot.config_hash,
+        "calculation_version": snapshot.calculation_version,
+        "pct_change_unit": "PERCENTAGE_POINTS",
+    }
+    pinned = CeriRevisionFeature(id=301, calculation_context_id=8, pct_change=5, **common)
+    another_context = CeriRevisionFeature(id=302, calculation_context_id=9, pct_change=9, **common)
+    db = FakeDb({CeriRevisionFeature: [pinned, another_context]})
+
+    evidence = _score_snapshot_payload(snapshot, db=db)["revision_evidence"]
+
+    assert evidence["eps_CURRENT_FISCAL_YEAR_30d"]["value"] == 5
+
+
 def test_snapshot_api_distinguishes_source_normalized_eligible_and_selected() -> None:
     snapshot = _snapshot(1, "MSFT", opportunity=None, confidence="Insufficient")
     snapshot.calculation_version = "ceri-1.2.0"

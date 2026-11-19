@@ -586,13 +586,9 @@ class CeriQueryService:
             for revision in revisions.values()
             if revision.catalyst_event_id is not None
         }
-        revision_feature_ids = {
-            int(feature_id)
-            for snapshot in snapshots.values()
-            for component in (snapshot.component_json or {}).get("components") or []
-            if str(component.get("name") or "").startswith("revision_")
-            for feature_id in component.get("evidence_ids") or []
-        }
+        revision_feature_ids = set().union(
+            *(_stored_revision_feature_ids(snapshot) for snapshot in snapshots.values())
+        )
         return {
             "snapshots": snapshots,
             "revisions": revisions,
@@ -2356,21 +2352,35 @@ def _earnings_surprise_features(db: Session, snapshot: CeriScoreSnapshot) -> lis
 
 
 def _current_revision_summary(db: Session, snapshot: CeriScoreSnapshot) -> dict[str, Any]:
-    features = [
-        feature
-        for feature in _rows_for_company(db, CeriRevisionFeature, snapshot.company_id)
-        if feature.as_of_session == snapshot.as_of_session
-        and feature.calculation_version == snapshot.calculation_version
-    ]
+    selected_ids = _stored_revision_feature_ids(snapshot)
+    if not selected_ids:
+        return {}
+    if _uses_fixture_collections(db):
+        features = _rows_for_company(db, CeriRevisionFeature, snapshot.company_id)
+    else:
+        features = list(
+            db.scalars(select(CeriRevisionFeature).where(CeriRevisionFeature.id.in_(selected_ids)))
+        )
     result: dict[str, Any] = {}
-    for feature in features:
-        if feature.metric is None:
+    for feature in sorted(features, key=lambda row: row.id or 0):
+        if (
+            feature.id not in selected_ids
+            or feature.metric is None
+            or not _matches_snapshot_revision(snapshot, feature)
+        ):
             continue
         metric = "eps" if feature.metric == "EPS_DILUTED" else feature.metric.lower()
         key = f"{metric}_{feature.period_slot or 'unresolved'}_{feature.window_days}d"
+        if key in result:
+            # Two pinned period identities may share a slot label. Show each
+            # through exact detail lineage rather than picking one as the headline.
+            result[key] = {"available": False, "breadth": None, "reason": "AMBIGUOUS_PINNED_SLOT"}
+            continue
+        unit_verified = feature.pct_change_unit == "PERCENTAGE_POINTS"
+        unit_suffix = "%" if unit_verified else " (unit unverified)"
         result[key] = {
             "value": _value(feature.pct_change),
-            "display_value": _format_signed(feature.pct_change, suffix="%"),
+            "display_value": _format_signed(feature.pct_change, suffix=unit_suffix),
             "unit": feature.pct_change_unit,
             "available": feature.pct_change is not None,
             "reason": feature.unavailable_reason,
@@ -3295,20 +3305,48 @@ def _component_value_from_payload(snapshot: CeriScoreSnapshot | None, name: str)
     return None
 
 
+def _stored_revision_feature_ids(snapshot: CeriScoreSnapshot) -> set[int]:
+    try:
+        if snapshot.opportunity_ledger_json:
+            return revision_feature_ids(snapshot)
+        return {
+            int(evidence_id)
+            for component in (snapshot.component_json or {}).get("components", [])
+            if component.get("name") in {
+                "revision_magnitude", "revision_breadth", "revision_acceleration",
+            }
+            for evidence_id in component.get("evidence_ids") or []
+        }
+    except (ValueError, TypeError):
+        return set()
+
+
+def _matches_snapshot_revision(snapshot: CeriScoreSnapshot, feature: CeriRevisionFeature) -> bool:
+    return (
+        feature.company_id == snapshot.company_id
+        and feature.as_of_session == snapshot.as_of_session
+        and snapshot.cutoff_at is not None
+        and feature.calculation_cutoff_at == snapshot.cutoff_at
+        and feature.calculation_context_id == snapshot.calculation_context_id
+        and feature.controlled_replay_id == snapshot.controlled_replay_id
+        and feature.config_version == snapshot.config_version
+        and feature.config_hash == snapshot.config_hash
+        and feature.calculation_version == snapshot.calculation_version
+        and (feature.known_at is None or feature.known_at <= snapshot.cutoff_at)
+        and not _is_invalidated(feature.warnings_json)
+    )
+
+
 def _revision_window_values(
     snapshot: CeriScoreSnapshot | None,
     features: dict[int, CeriRevisionFeature],
 ) -> list[dict[str, Any]]:
     if snapshot is None:
         return []
-    evidence_ids: set[int] = set()
-    for component in (snapshot.component_json or {}).get("components") or []:
-        if str(component.get("name") or "").startswith("revision_"):
-            evidence_ids.update(int(value) for value in component.get("evidence_ids") or [])
     rows = []
-    for feature_id in sorted(evidence_ids):
+    for feature_id in sorted(_stored_revision_feature_ids(snapshot)):
         feature = features.get(feature_id)
-        if feature is None:
+        if feature is None or not _matches_snapshot_revision(snapshot, feature):
             continue
         rows.append(
             {

@@ -70,9 +70,9 @@ def test_run_dashboard_renders_pagination_rated_coverage_and_safe_semantics(
     assert "Coverage 85%" in response.text
     assert "Risk evidence: Sufficient" in response.text
     assert "Source: Fresh" in response.text
-    assert "Normalized: 36" in response.text
-    assert "Eligible: 8" in response.text
-    assert "Selected: 3" in response.text
+    assert "Normalized estimate snapshots: 36" in response.text
+    assert "Usable same-session revision features: 8" in response.text
+    assert "Pinned revision feature IDs: 3" in response.text
     assert "+5.00%" in response.text
     assert "+0.71" in response.text
     assert "Breadth is (upward revisions - downward revisions)" in response.text
@@ -149,10 +149,10 @@ def test_ceri_ticker_detail_renders_provenance_and_warnings(
     assert "No event" not in response.text
     assert "Earnings Risk</span><strong>N/A" in response.text
     assert "Source: Fresh" in response.text
-    assert "Normalized: 36" in response.text
-    assert "Eligible: 8" in response.text
-    assert "Selected: 3" in response.text
-    assert "Blocker: none" in response.text
+    assert "Normalized estimate snapshots: 36" in response.text
+    assert "Usable same-session revision features: 8" in response.text
+    assert "Pinned revision feature IDs: 3" in response.text
+    assert "Blocker: none" not in response.text
     assert "Price Response" in response.text
 
 

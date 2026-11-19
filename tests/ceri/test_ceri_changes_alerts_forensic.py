@@ -323,6 +323,7 @@ def test_revision_dto_exposes_window_values_breadth_acceleration_and_threshold()
         metric="EPS_DILUTED",
         period_key="CURRENT_QUARTER",
         as_of_session=prior.as_of_session,
+        calculation_cutoff_at=prior.cutoff_at,
         window_days=30,
         pct_change=1.2,
         net_breadth=0.2,
@@ -337,6 +338,7 @@ def test_revision_dto_exposes_window_values_breadth_acceleration_and_threshold()
         metric="EPS_DILUTED",
         period_key="CURRENT_QUARTER",
         as_of_session=current.as_of_session,
+        calculation_cutoff_at=current.cutoff_at,
         window_days=30,
         pct_change=4.6,
         net_breadth=0.6,
@@ -374,10 +376,19 @@ def test_revision_trigger_uses_aggregate_instead_of_decreasing_window() -> None:
     }
     features = {
         n: CeriRevisionFeature(
-            id=n, company_id=42, metric="EPS_DILUTED", period_key="CURRENT_QUARTER",
-            window_days=30, pct_change=value,
+            id=n,
+            company_id=42,
+            metric="EPS_DILUTED",
+            period_key="CURRENT_QUARTER",
+            window_days=30,
+            pct_change=value,
+            as_of_session=owner.as_of_session,
+            calculation_cutoff_at=owner.cutoff_at,
+            config_version=owner.config_version,
+            config_hash=owner.config_hash,
+            calculation_version=owner.calculation_version,
         )
-        for n, value in ((71, 6.47), (72, -1.81))
+        for n, value, owner in ((71, 6.47, prior), (72, -1.81, current))
     }
     change = _change("REVISION_ACCELERATED")
     change.from_snapshot_id = 1

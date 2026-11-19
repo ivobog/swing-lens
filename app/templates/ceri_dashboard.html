@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/_ceri_evidence_facts.html" import facts with context %}
 
 {% block title %}CERI Dashboard{% endblock %}
 
@@ -132,7 +133,7 @@
               <td>{{ item.posture }}</td>
               <td>
                 {% set eps30 = item.revision_evidence.get('eps_CURRENT_QUARTER_30d') if item.revision_evidence is defined else none %}
-                <span>EPS CQ 30d {{ eps30.display_value if eps30 and eps30.available and eps30.display_value else "N/A" }}</span>
+                <span>EPS CQ 30d {{ eps30.display_value if eps30 and eps30.available and eps30.display_value else "Pinned evidence unavailable" }}</span>
                 <span class="muted-line" title="Breadth is (upward revisions - downward revisions) / total directional revisions; it ranges from -1.00 to +1.00.">Breadth {{ eps30.display_breadth if eps30 and eps30.breadth is not none else "N/A" }}</span>
               </td>
               <td>
@@ -142,8 +143,8 @@
               <td>
                 {% for dataset, state in ((item.freshness if item.freshness is defined else {}) or {}).items() %}<span>{{ dataset|title }}: {{ state.age_days if state.age_days is not none else "N/A" }}d · {{ state.status|lower }}</span>{% endfor %}
                 {% for dataset, state in ((item.evidence_diagnostics if item.evidence_diagnostics is defined else {}) or {}).items() %}
-                  <span>{{ dataset|title }} — Source: {{ state.source_status|title }}{% if state.source_age_days is not none %} · {{ state.source_age_days }}d{% endif %}</span>
-                  <span class="muted-line">Normalized: {{ state.normalized_count }} · Eligible: {{ state.eligible_count }} · Selected: {{ state.selected_count }} · {{ state.evidence_state or state.dominant_blocker or "No blocker" }}</span>
+                  <span>{{ dataset|title }}</span>
+                  {{ facts(dataset, state) }}
                 {% endfor %}
                 {% set evidence_counts = ((item.evidence_lineage or {}).get('evidence_counts') or {}) %}
                 <span class="muted-line">Evidence {{ evidence_counts.get('CONSIDERED', 0) }} considered / {{ item.lineage_reconciliation.selected_evidence_count if item.lineage_reconciliation is defined else evidence_counts.get('SELECTED_FOR_COMPONENT', 0) }} direct component evidence selected{% if item.lineage_reconciliation is defined and item.lineage_reconciliation.requires_rebuild %} · rebuild required{% endif %}</span>

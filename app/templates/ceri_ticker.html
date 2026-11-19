@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/_ceri_evidence_facts.html" import facts with context %}
 
 {% block title %}CERI {{ payload.ticker if payload else "Ticker" }}{% endblock %}
 
@@ -124,11 +125,7 @@
       {% for dataset, state in ((latest.evidence_diagnostics if latest.evidence_diagnostics is defined else {}) or {}).items() %}
         <div class="evidence-row">
           <strong>{{ dataset|title }}</strong>
-          <span>Source: {{ state.source_status|title }}{% if state.source_age_days is not none %} · {{ state.source_age_days }}d{% endif %}</span>
-          <span>Normalized: {{ state.normalized_count }}</span>
-          <span>Eligible: {{ state.eligible_count }}</span>
-          <span>Selected: {{ state.selected_count }}</span>
-          <span>Blocker: {{ state.dominant_blocker or "none" }}</span>
+          {{ facts(dataset, state) }}
         </div>
       {% else %}
         <p>No evidence-stage diagnostics are available.</p>
