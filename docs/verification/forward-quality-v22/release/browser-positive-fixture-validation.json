@@ -1,0 +1,13 @@
+{
+  "source_parent": "f30fa6e643d40cf0354053aca83a5a280a5581f2",
+  "focused_passed": 28,
+  "seconds": 3.32,
+  "retained_default_csv_sha256": "91300f83aab34215265dd1149f57e9e4b469362adadbd5584db3df6fd222cb22",
+  "retained_default_bytes_identical": true,
+  "bare_default_eligibility": "UNDECIDED",
+  "current_positive_eligibility": "INCLUDED",
+  "other_rows_currency_metadata_absent": true,
+  "ruff": "PASS",
+  "new_head_native_certification": "PENDING",
+  "new_head_owner_authorization": "PENDING"
+}

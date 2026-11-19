@@ -160,3 +160,64 @@ def test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority
         projection["debug_json"]["source_ids"]["raw_row_id"] = 999
     with pytest.raises(ValueError, match="source .*changed"):
         validate(db, projection, evidence)
+
+
+@pytest.mark.parametrize("current_positive", [False, True])
+def test_browser_positive_forecast_metadata_is_explicit_and_legacy_default_stays_bare(
+    tmp_path, current_positive
+):
+    import csv
+    import json
+    from datetime import UTC, datetime
+    from pathlib import Path
+
+    from single_run_certification.fixtures import write_canonical_csv
+
+    from app.services.column_mapper import map_csv_rows
+    from app.services.fundamental_admission_policy import (
+        FundamentalAdmissionInput,
+        evaluate_fundamental_admission,
+    )
+    from app.services.fundamental_ranker_v2 import score_rows_v2
+
+    canonical = json.loads(
+        Path("tests/e2e/single_run_certification/golden/v7/financial-source.json").read_text()
+    )["canonical"]
+    metadata = (
+        {
+            key: canonical[key]
+            for key in ("net_income_ttm_currency", "net_income_estimate_ntm_currency")
+        }
+        if current_positive
+        else None
+    )
+    path = tmp_path / "positive.csv"
+    write_canonical_csv(path, forward_currency_metadata=metadata)
+    with path.open(newline="") as handle:
+        rows = map_csv_rows(list(csv.DictReader(handle)))
+    scores = score_rows_v2(rows)
+    alfa = next(score for score in scores if score.ticker == "ALFA")
+    source = next(row for row in rows if row.ticker == "ALFA")
+    assert alfa.debug["forward_financial_evidence_available"] is current_positive
+    assert source.canonical.get("net_income_ttm_currency") == ("USD" if current_positive else None)
+    assert all(
+        not row.canonical.get("net_income_ttm_currency") for row in rows if row.ticker != "ALFA"
+    )
+    decision = evaluate_fundamental_admission(
+        FundamentalAdmissionInput(
+            consumer_edge="FUNDAMENTAL_TO_COMBINED",
+            source_identity_fingerprint="a" * 64,
+            source_evidence_id=1,
+            decision_cutoff=datetime(2026, 11, 19, tzinfo=UTC),
+            fundamental_score=alfa.fundamental_score,
+            fundamental_label=alfa.fundamental_label,
+            scoring_model_version=alfa.debug["model_version"],
+            coverage=alfa.debug["coverage"],
+            component_coverage=alfa.debug["component_coverage"],
+            parse_diagnostics=alfa.debug["parse_diagnostics"],
+            warning_codes=tuple(alfa.warning_flags),
+            forward_financial_evidence_available=alfa.debug["forward_financial_evidence_available"],
+        ),
+        authoritative=True,
+    )
+    assert decision.eligibility.value == ("INCLUDED" if current_positive else "UNDECIDED")

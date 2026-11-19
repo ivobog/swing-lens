@@ -5329,7 +5329,7 @@
             "lane": "browser-smoke",
             "positive": "Owned ALFA prediction reaches committed matured outcomes and GUI parity.",
             "negative": "Omitting maturation cannot satisfy the reached positive assertion.",
-            "reviewed_test_sha256": "76f4812f84d23a932abeca0718deb655f90d107a21518b4f89b3635c5c1793e7"
+            "reviewed_test_sha256": "c3e730ef1699f513cb3fee0dc4210220d78f4b8092e30bb1628e48ca1db4d11b"
           },
           {
             "id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_native_winner_fixture_preserves_v1_readiness_boundary[False]",
@@ -5369,7 +5369,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "c6e8bfc5809ec84813c30cb374fdc785e99a6a4bcf37de93e2e8212b8159a43f",
+        "review_sha256": "e6fa9ea0c21384824f644d8f046508ca68dab17c13365cb16b2e4c346dce0aa0",
         "review_addenda": [
           {
             "task": "FR02",
@@ -5404,6 +5404,15 @@
             "previous_review_sha256": "5218d2bd7483fa0596aa1c5d2eec7116ab6dda0f16456114b778d3eb7ab72ff2",
             "scope": "Use frozen CSV aliases for the two explicit USD currency headers; no value, assertion, selector or policy change.",
             "claim": "STATIC_INTENT; native execution remains mandatory"
+          },
+          {
+            "task": "FORWARD-QUALITY-V22-BROWSER-POSITIVE-SOURCE",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/verification/forward-quality-v22/release/browser-positive-fixture-review.md",
+            "source_revision": "f30fa6e643d40cf0354053aca83a5a280a5581f2",
+            "previous_review_sha256": "c6e8bfc5809ec84813c30cb374fdc785e99a6a4bcf37de93e2e8212b8159a43f",
+            "scope": "The existing comprehensive browser case keeps every assertion and uses explicit controlled currency metadata for its intended current positive source. Default CSV bytes and all CERI seeds retained.",
+            "claim": "STATIC_INTENT; fresh native browser execution and owner acknowledgement remain required"
           }
         ]
       },
@@ -5687,6 +5696,14 @@
           {
             "path": "app/services/pipeline_executor.py",
             "symbol": "_sealed_v22_fundamental_exclusion"
+          },
+          {
+            "path": "tests/e2e/single_run_certification/fixtures.py",
+            "symbol": "write_canonical_csv"
+          },
+          {
+            "path": "tests/e2e/single_run_certification/test_single_run_certification.py",
+            "symbol": "certification_environment"
           }
         ],
         "impact_patterns": [
@@ -6179,7 +6196,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_sealed_v22_invalid_evidence_remains_a_valid_recorded_omission[None]",
@@ -6188,7 +6205,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_sealed_v22_invalid_evidence_remains_a_valid_recorded_omission[0]",
@@ -6197,7 +6214,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_sealed_v22_invalid_evidence_remains_a_valid_recorded_omission[false]",
@@ -6206,7 +6223,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[legacy-model]",
@@ -6215,7 +6232,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[unknown-model]",
@@ -6224,7 +6241,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[old-policy]",
@@ -6233,7 +6250,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[unknown-policy]",
@@ -6242,7 +6259,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[shadow-mode]",
@@ -6251,7 +6268,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[non-authoritative]",
@@ -6260,7 +6277,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[included]",
@@ -6269,7 +6286,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[required-rejection]",
@@ -6278,7 +6295,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[unknown-outcome]",
@@ -6287,7 +6304,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[unrelated-reason]",
@@ -6296,7 +6313,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[usable-forecast]",
@@ -6305,7 +6322,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[wrong-source]",
@@ -6314,7 +6331,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[wrong-input-source]",
@@ -6323,7 +6340,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[boolean-source]",
@@ -6332,7 +6349,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[missing-retained-permission]",
@@ -6341,7 +6358,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[legacy-foreign-source]",
@@ -6350,7 +6367,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[changed-serving-admission]",
@@ -6359,7 +6376,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[changed-serving-input]",
@@ -6368,7 +6385,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[changed-serving-mode]",
@@ -6377,7 +6394,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[changed-serving-inclusion]",
@@ -6386,7 +6403,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[changed-serving-context-source]",
@@ -6395,7 +6412,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_v22_resume_omission_refuses_foreign_missing_changed_or_legacy_authority[changed-raw-source]",
@@ -6404,7 +6421,7 @@
             "lane": "python-regressions",
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
-            "reviewed_test_sha256": "0854b71439104f084327cca7c212cc11a32ad599f49f39ca5e238611194f82a3"
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           },
           {
             "id": "tests/test_phase4_configuration_certification.py::test_projection_normalization_cannot_conceal_changed_combined_source[False]",
@@ -6477,6 +6494,24 @@
             "positive": "A legitimate sealed v2.2 forecast omission keeps the exact certified producer source pin, while frozen configuration and historical policy behavior remain valid as asserted by the literal case.",
             "negative": "Foreign, mutated, missing, legacy, shadow, non-authoritative or wrongly included sources cannot satisfy resume authority; no business value or policy is normalized into permission.",
             "reviewed_test_sha256": "4cd3c30fdefd7237c82de0984c8479ddb293573141e989c1e01d994a191aa5c2"
+          },
+          {
+            "id": "tests/test_forward_quality_v22_resume.py::test_browser_positive_forecast_metadata_is_explicit_and_legacy_default_stays_bare[False]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The explicit current positive CSV has genuine usable forward evidence and INCLUDED admission.",
+            "negative": "The retained bare fixture remains UNDECIDED and sparse peer currencies remain absent; no implicit production currency fill is permitted.",
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
+          },
+          {
+            "id": "tests/test_forward_quality_v22_resume.py::test_browser_positive_forecast_metadata_is_explicit_and_legacy_default_stays_bare[True]",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The explicit current positive CSV has genuine usable forward evidence and INCLUDED admission.",
+            "negative": "The retained bare fixture remains UNDECIDED and sparse peer currencies remain absent; no implicit production currency fill is permitted.",
+            "reviewed_test_sha256": "6c85718c18e89472df95d42dce625b79e52eeec00f3110dda963e06d47489ed7"
           }
         ],
         "oracle": "Only original A04 finalizer plus A05B independent oracle; 13 required evidence seals.",
@@ -6488,7 +6523,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "76d4237cda68dd40279ffbd6f002a9ef3b9d7c8ab0802ac491dae9076b872ea0",
+        "review_sha256": "b3072e52da608deb3deb93edaa2ecae2bdbc1a1c2631ed8b70caa109e0ae32bb",
         "review_addenda": [
           {
             "task": "MSI-20261104-renderer",
@@ -6625,6 +6660,15 @@
             "previous_review_sha256": "c84c8710b0f122bdc105a014cbc4ecb8a78956a6acdb14ddb2961f35a04df51b",
             "scope": "Only the approved sealed v2.2 ACTIVE v5 forecast omission is recognized at the source-pin continuation boundary; all prior guards, selectors and native gates are retained. Frozen execution/Core fixture dependencies are explicit.",
             "claim": "STATIC_INTENT only; current native matrix and fresh owner acknowledgement remain required"
+          },
+          {
+            "task": "FORWARD-QUALITY-V22-BROWSER-POSITIVE-SOURCE",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/verification/forward-quality-v22/release/browser-positive-fixture-review.md",
+            "source_revision": "f30fa6e643d40cf0354053aca83a5a280a5581f2",
+            "previous_review_sha256": "76d4237cda68dd40279ffbd6f002a9ef3b9d7c8ab0802ac491dae9076b872ea0",
+            "scope": "Only explicit controlled income-pair currency metadata for the current positive browser scenario; legacy default CSV bytes, CERI seeds, all assertions and native requirements retained.",
+            "claim": "STATIC_INTENT only; current native/browser execution and fresh owner acknowledgement remain required"
           }
         ]
       },
