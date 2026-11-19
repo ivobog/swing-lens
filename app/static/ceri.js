@@ -59,6 +59,7 @@ function bindCeriAlertDetails() {
       status.textContent = "Loading technical details…";
       try {
         const response = await fetch(detail.dataset.ceriAlertDetail, {
+          cache: "no-store",
           headers: { Accept: "application/json" },
           signal: pending.signal,
         });

@@ -1058,7 +1058,7 @@ def reprocess_ceri(
 
 
 @router.get("/api/ceri/alerts/{alert_id}/detail", dependencies=[Depends(_require_ceri_ui)])
-def ceri_alert_detail(alert_id: int, db: DbSession) -> dict[str, Any]:
+def ceri_alert_detail(alert_id: int, db: DbSession, response: Response) -> dict[str, Any]:
     """Return an allowlisted technical view of a single visible alert."""
     row = db.execute(
         select(
@@ -1108,6 +1108,7 @@ def ceri_alert_detail(alert_id: int, db: DbSession) -> dict[str, Any]:
             }
             for snapshot in snapshots
         }
+    response.headers["Cache-Control"] = "no-store"
     return {
         "alert_id": row.id,
         "change_event_id": row.source_change_event_id,
