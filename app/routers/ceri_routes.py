@@ -38,7 +38,7 @@ from app.services.ceri.alert_service import CeriAlertService
 from app.services.ceri.backfill_service import CeriBackfillRequest, CeriBackfillService
 from app.services.ceri.change_semantics import ChangeGroup
 from app.services.ceri.evidence_population import evidence_population_summary
-from app.services.ceri.export_service import CeriExportService
+from app.services.ceri.export_service import CERI_EXPORT_ROW_LIMIT, CeriExportService
 from app.services.ceri.feature_flags import ceri_flags, require_flag
 from app.services.ceri.job_handlers import (
     CERI_ALERT_REBUILD,
@@ -742,7 +742,11 @@ def export_ceri_csv(
         output_format="csv",
     )
     content = result.to_csv()
-    _enforce_export_rows(_export_result_row_count(result, content), resource="CERI export")
+    _enforce_export_rows(
+        _export_result_row_count(result, content),
+        resource="CERI export",
+        hard_limit=CERI_EXPORT_ROW_LIMIT,
+    )
     return attachment_response(
         content,
         media_type="text/csv",
@@ -763,7 +767,11 @@ def export_ceri_json(
         output_format="json",
     )
     content = result.to_json()
-    _enforce_export_rows(_export_result_row_count(result, content), resource="CERI export")
+    _enforce_export_rows(
+        _export_result_row_count(result, content),
+        resource="CERI export",
+        hard_limit=CERI_EXPORT_ROW_LIMIT,
+    )
     return attachment_response(
         content,
         media_type="application/json",
@@ -1407,12 +1415,16 @@ def _job_response(job: BackgroundJob, *, coalesced: bool = False) -> JSONRespons
     )
 
 
-def _enforce_export_rows(row_count: int, *, resource: str) -> None:
-    settings = get_settings()
+def _enforce_export_rows(
+    row_count: int, *, resource: str, hard_limit: int | None = None
+) -> None:
+    limit = get_settings().max_export_rows
+    if hard_limit is not None:
+        limit = min(limit, hard_limit)
     try:
         enforce_row_limit(
             row_count,
-            settings.max_export_rows,
+            limit,
             resource=resource,
             code="EXPORT_ROW_LIMIT_EXCEEDED",
         )

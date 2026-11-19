@@ -69,6 +69,20 @@ def test_current_view_export_is_latest_canonical_row_per_ticker() -> None:
     assert [row["run_id"] for row in result.rows] == [2]
 
 
+def test_current_view_uses_cutoff_before_session_and_normalizes_ticker_case() -> None:
+    earlier = _snapshot("MSFT", run_id=1)
+    earlier.id = 1
+    earlier.as_of_session = date(2026, 9, 2)
+    earlier.cutoff_at = datetime(2026, 9, 2, 20, tzinfo=UTC)
+    later = _snapshot("msft", run_id=2)
+    later.id = 2
+    later.as_of_session = date(2026, 9, 1)
+    later.cutoff_at = datetime(2026, 9, 3, 20, tzinfo=UTC)
+
+    export = CeriExportService().current_view(FakeDb(), snapshots=[earlier, later])
+    assert [row["run_id"] for row in export.rows] == [2]
+
+
 def test_full_evidence_company_filter_uses_normalized_lineage() -> None:
     msft_source = CeriSourceRecord(
         id=10,

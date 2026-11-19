@@ -88,6 +88,8 @@ from app.services.ceri.legacy_alert_audit import (
     uses_legacy_freshness_semantics,
 )
 from app.services.ceri.provider_cost_ledger import ProviderCostLedger
+from app.services.ceri.snapshot_selection import latest_eligible_by_ticker
+from app.services.ceri.snapshot_selection import snapshot_recency_key as _snapshot_sort_tuple
 from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
@@ -206,11 +208,7 @@ class CeriQueryService:
     def latest(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
         self._validate(query)
         snapshots = self._filtered_snapshots(db, query.filters)
-        latest_by_ticker: dict[str, CeriScoreSnapshot] = {}
-        for snapshot in snapshots:
-            current = latest_by_ticker.get(snapshot.ticker.upper())
-            if current is None or _snapshot_sort_tuple(snapshot) > _snapshot_sort_tuple(current):
-                latest_by_ticker[snapshot.ticker.upper()] = snapshot
+        latest_by_ticker = latest_eligible_by_ticker(snapshots)
         payload = self._snapshot_page(
             list(latest_by_ticker.values()),
             db=db,
@@ -4247,14 +4245,6 @@ def _current_revision_by_event_id(db: Session) -> dict[int, CeriCatalystEventRev
         if revision.is_current:
             revisions[revision.catalyst_event_id] = revision
     return revisions
-
-
-def _snapshot_sort_tuple(snapshot: CeriScoreSnapshot) -> tuple:
-    return (
-        snapshot.cutoff_at or datetime.min.replace(tzinfo=UTC),
-        snapshot.as_of_session or date.min,
-        snapshot.id or 0,
-    )
 
 
 def _replace_filter(filters: CeriQueryFilters, **changes) -> CeriQueryFilters:

@@ -14,8 +14,8 @@
     <div class="actions">
       <a class="button-link secondary" href="/ceri/changes">Changes</a>
       <a class="button-link secondary" href="/ceri/operations">Operations</a>
-      <a class="button-link secondary" href="/ceri/export.csv{% if run_id %}?run_id={{ run_id }}{% endif %}">CSV</a>
-      <a class="button-link secondary" href="/ceri/export.json{% if run_id %}?run_id={{ run_id }}{% endif %}">JSON</a>
+      <a class="button-link secondary" href="/ceri/export.csv{% if run_id %}?run_id={{ run_id }}{% endif %}" aria-label="Export unfiltered {% if run_id %}run{% else %}current view{% endif %} as CSV">Unfiltered CSV</a>
+      <a class="button-link secondary" href="/ceri/export.json{% if run_id %}?run_id={{ run_id }}{% endif %}" aria-label="Export unfiltered {% if run_id %}run{% else %}current view{% endif %} as JSON">Unfiltered JSON</a>
     </div>
   </div>
   <div class="run-meta">

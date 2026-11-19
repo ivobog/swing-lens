@@ -6,7 +6,7 @@ from datetime import date
 from typing import Any
 
 from sqlalchemy import func, or_, select, union_all
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.models.ceri_tables import (
     CeriCatalystEvent,
@@ -21,8 +21,14 @@ from app.models.ceri_tables import (
     CeriSourceRecord,
 )
 from app.services.ceri.config import CeriConfig, load_ceri_config
-from app.services.ceri.evidence_eligibility import filter_eligible_snapshots
+from app.services.ceri.evidence_eligibility import (
+    EXCLUDED,
+    effective_disposition_subquery,
+    eligible_snapshot_select,
+    filter_eligible_snapshots,
+)
 from app.services.ceri.export_policy import CeriExportPolicyRegistry
+from app.services.ceri.snapshot_selection import latest_eligible_by_ticker, snapshot_recency_order
 from app.services.csv_export import write_csv
 
 CERI_EXPORT_SCHEMA_ID = "swinglens.ceri.export.v1"
@@ -71,49 +77,69 @@ class CeriExportService:
         snapshots: list[CeriScoreSnapshot] | None = None,
     ) -> CeriExportResult:
         tickers_set = {ticker.upper() for ticker in tickers or []}
-        if snapshots is not None:
-            candidate_rows = snapshots
-        elif isinstance(db, Session):
-            statement = select(CeriScoreSnapshot)
-            if run_id is not None:
-                statement = statement.where(CeriScoreSnapshot.run_id == run_id)
-            if tickers_set:
-                statement = statement.where(func.upper(CeriScoreSnapshot.ticker).in_(tickers_set))
+        ticker_key = func.upper(CeriScoreSnapshot.ticker)
+        scope = [ticker_key.in_(tickers_set)] if tickers_set else []
+        if snapshots is None and isinstance(db, Session):
             if run_id is None:
-                ranked = select(
-                    CeriScoreSnapshot.id.label("snapshot_id"),
+                # Materialize the cheap exclusion first so the exact owner predicate
+                # does not examine explicitly excluded snapshots or their payloads.
+                disposition = effective_disposition_subquery("export_dispositions")
+                prefiltered = (
+                    select(
+                        CeriScoreSnapshot.id,
+                        CeriScoreSnapshot.run_id,
+                        CeriScoreSnapshot.calculation_context_id,
+                        CeriScoreSnapshot.ticker,
+                        CeriScoreSnapshot.cutoff_at,
+                        CeriScoreSnapshot.as_of_session,
+                    )
+                    .outerjoin(disposition, disposition.c.ceri_snapshot_id == CeriScoreSnapshot.id)
+                    .where(disposition.c.disposition.is_distinct_from(EXCLUDED), *scope)
+                    .cte("export_potentially_eligible")
+                    .prefix_with("MATERIALIZED", dialect="postgresql")
+                )
+                source = aliased(CeriScoreSnapshot, prefiltered)
+                ranked = eligible_snapshot_select(
+                    source.id.label("snapshot_id"),
                     func.row_number()
                     .over(
-                        partition_by=func.upper(CeriScoreSnapshot.ticker),
-                        order_by=(
-                            CeriScoreSnapshot.as_of_session.desc(),
-                            CeriScoreSnapshot.cutoff_at.desc(),
-                            CeriScoreSnapshot.id.desc(),
-                        ),
+                        partition_by=func.upper(source.ticker),
+                        order_by=snapshot_recency_order(source),
                     )
                     .label("row_number"),
+                    snapshot=source,
+                    name="export_ceri_dispositions",
+                ).subquery("ranked_ceri_export_snapshots")
+                statement = (
+                    select(CeriScoreSnapshot)
+                    .join(ranked, ranked.c.snapshot_id == CeriScoreSnapshot.id)
+                    .where(ranked.c.row_number == 1)
+                    .order_by(ticker_key)
                 )
-                if tickers_set:
-                    ranked = ranked.where(func.upper(CeriScoreSnapshot.ticker).in_(tickers_set))
-                ranked = ranked.subquery("ranked_ceri_export_snapshots")
-                statement = select(CeriScoreSnapshot).join(
-                    ranked,
-                    (ranked.c.snapshot_id == CeriScoreSnapshot.id)
-                    & (ranked.c.row_number == 1),
+            else:
+                statement = (
+                    eligible_snapshot_select(name="export_run_ceri_dispositions")
+                    .where(CeriScoreSnapshot.run_id == run_id, *scope)
+                    .order_by(CeriScoreSnapshot.id)
                 )
-            statement = statement.order_by(CeriScoreSnapshot.id).limit(CERI_EXPORT_ROW_LIMIT)
-            candidate_rows = list(db.scalars(statement))
+            # Include one extra row so the route can reject an oversized result.
+            candidates = list(db.scalars(statement.limit(CERI_EXPORT_ROW_LIMIT + 1)))
         else:
-            candidate_rows = _fixture_rows(db, CeriScoreSnapshot)
-        candidates = filter_eligible_snapshots(db, candidate_rows)
-        if run_id is None:
-            candidates = _latest_snapshot_rows(candidates)
+            supplied = snapshots if snapshots is not None else _fixture_rows(db, CeriScoreSnapshot)
+            candidates = filter_eligible_snapshots(
+                db,
+                (
+                    row
+                    for row in supplied
+                    if (run_id is None or row.run_id == run_id)
+                    and (not tickers_set or row.ticker.upper() in tickers_set)
+                ),
+            )
+            if run_id is None:
+                latest = latest_eligible_by_ticker(candidates)
+                candidates = [latest[ticker] for ticker in sorted(latest)]
         rows = []
         for snapshot in candidates:
-            if run_id is not None and snapshot.run_id != run_id:
-                continue
-            if tickers_set and snapshot.ticker.upper() not in tickers_set:
-                continue
             rows.append(
                 self.policy.export_row(
                     {
@@ -334,24 +360,6 @@ def _catalyst_rows(db: Session, as_of_session: date | None) -> list[dict[str, An
 
 def _is_invalidated(flags: list[str] | None) -> bool:
     return PURGE_INVALIDATION_FLAG in set(flags or [])
-
-
-def _latest_snapshot_rows(snapshots: list[CeriScoreSnapshot]) -> list[CeriScoreSnapshot]:
-    latest: dict[str, CeriScoreSnapshot] = {}
-    for snapshot in snapshots:
-        key = snapshot.ticker.upper()
-        current = latest.get(key)
-        if current is None or _snapshot_sort_key(snapshot) > _snapshot_sort_key(current):
-            latest[key] = snapshot
-    return sorted(latest.values(), key=lambda row: row.ticker.upper())
-
-
-def _snapshot_sort_key(snapshot: CeriScoreSnapshot) -> tuple[Any, Any, int]:
-    return (
-        snapshot.as_of_session or date.min,
-        snapshot.cutoff_at.isoformat() if snapshot.cutoff_at else "",
-        snapshot.id or 0,
-    )
 
 
 def _source_company_ids(db: Session) -> dict[int, set[int]]:
