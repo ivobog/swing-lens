@@ -410,7 +410,7 @@ class CeriQueryService:
             },
         )
         payload["comparison_context"] = _comparison_context(
-            items, snapshots.values(), filters=query.filters
+            payload["items"], snapshots.values(), filters=query.filters
         )
         payload["read_mode"] = "CURRENT_PROJECTION_COMPARISON"
         return payload
@@ -532,32 +532,12 @@ class CeriQueryService:
                 "limit": query.limit,
                 "read_mode": "CURRENT_PROJECTION_COMPARISON",
             }
-        pair = (query.filters.from_run_id, query.filters.to_run_id)
-        if pair == (None, None):
-            pair_row = db.execute(
-                joined(
-                    select(
-                        prior.run_id, current.run_id, func.count().label("pair_count")
-                    ).select_from(CeriChangeEvent)
-                )
-                .where(*predicates, prior.run_id.is_not(None), current.run_id.is_not(None))
-                .group_by(prior.run_id, current.run_id)
-                .order_by(func.count().desc(), prior.run_id.asc(), current.run_id.asc())
-                .limit(1)
-            ).first()
-            pair = (pair_row[0], pair_row[1]) if pair_row is not None else (None, None)
-        excluded = _excluded_referenced_snapshot_count(db)
         payload = _page_payload(items, total=total, query=query)
-        payload["comparison_context"] = {
-            "from_run_id": pair[0],
-            "to_run_id": pair[1],
-            "label": (
-                f"Comparing Run {pair[0]} -> Run {pair[1]}"
-                if pair[0] is not None and pair[1] is not None
-                else "Mixed change history"
-            ),
-            "excluded_non_comparable": excluded,
-        }
+        payload["comparison_context"] = _comparison_context(
+            items,
+            filters=query.filters,
+            excluded_non_comparable=_excluded_referenced_snapshot_count(db),
+        )
         return payload
 
     def _change_page_context(
@@ -2974,6 +2954,10 @@ def _change_payload(
         "history_scope": "CURRENT" if is_current else "HISTORICAL",
         "technical": {
             "change_event_id": change.id,
+            "comparison_inputs": {
+                "from": _comparison_input(prior),
+                "to": _comparison_input(current),
+            },
             "from_snapshot_id": change.from_snapshot_id,
             "to_snapshot_id": change.to_snapshot_id,
             "catalyst_revision_id": change.catalyst_revision_id,
@@ -3677,40 +3661,64 @@ def _excluded_referenced_snapshot_count(db: Session) -> int:
     )
 
 
+def _comparison_input(snapshot: CeriScoreSnapshot | None) -> dict[str, Any]:
+    if snapshot is None:
+        return {}
+    return {
+        "run_id": snapshot.run_id,
+        "as_of_session": _value(snapshot.as_of_session),
+        "cutoff_at": _value(snapshot.cutoff_at),
+    }
+
+
 def _comparison_context(
     items: list[dict[str, Any]],
-    snapshots: Any,
+    snapshots=(),
     *,
     filters: CeriQueryFilters | None = None,
+    excluded_non_comparable: int | None = None,
 ) -> dict[str, Any]:
-    pairs = Counter(
-        (
-            (item.get("previous") or {}).get("run_id"),
-            (item.get("current") or {}).get("run_id"),
+    old = filters.from_run_id if filters else None
+    new = filters.to_run_id if filters else None
+    if old is not None and new is not None:
+        label = f"Comparing Run {old} -> Run {new}"
+    elif old is not None:
+        label = f"From Run {old}"
+    elif new is not None:
+        label = f"To Run {new}"
+    else:
+        pairs = set()
+        unknown = False
+        for item in items:
+            inputs = (item.get("technical") or {}).get("comparison_inputs") or {}
+            left = (inputs.get("from") or {}).get("run_id")
+            right = (inputs.get("to") or {}).get("run_id")
+            if left is None or right is None:
+                unknown = True
+            else:
+                pairs.add((left, right))
+        if len(pairs) > 1:
+            label = "Mixed run comparisons"
+        elif len(pairs) == 1 and not unknown:
+            old, new = pairs.pop()
+            label = f"Shown page: Run {old} -> Run {new}"
+        elif items:
+            label = "Run comparison unavailable for some shown events"
+        else:
+            label = "No run comparison shown"
+
+    if excluded_non_comparable is None:
+        excluded_non_comparable = sum(
+            1
+            for snapshot in snapshots
+            if snapshot.comparison_state
+            and snapshot.comparison_state != ComparisonState.COMPARABLE.value
         )
-        for item in items
-        if item.get("previous") and item.get("current")
-    )
-    requested_pair = (
-        (filters.from_run_id, filters.to_run_id)
-        if filters and (filters.from_run_id is not None or filters.to_run_id is not None)
-        else None
-    )
-    pair = requested_pair or (pairs.most_common(1)[0][0] if pairs else (None, None))
-    snapshot_rows = list(snapshots)
-    excluded = sum(
-        1
-        for snapshot in snapshot_rows
-        if snapshot.comparison_state
-        and snapshot.comparison_state != ComparisonState.COMPARABLE.value
-    )
     return {
-        "from_run_id": pair[0],
-        "to_run_id": pair[1],
-        "label": f"Comparing Run {pair[0]} -> Run {pair[1]}"
-        if pair[0] is not None and pair[1] is not None
-        else "Mixed change history",
-        "excluded_non_comparable": excluded,
+        "from_run_id": old,
+        "to_run_id": new,
+        "label": label,
+        "excluded_non_comparable": excluded_non_comparable,
     }
 
 

@@ -18,10 +18,12 @@
     </div>
   </div>
   <div class="run-meta">
-    <span>{{ page.total or 0 }} changes</span>
+    <span>{{ page.total or 0 }} matching changes</span>
     <span>{{ alerts|length }} alerts visible</span>
     <span>{{ comparison.get("label", "No comparable run pair selected") }}</span>
-    <span>{{ comparison.get("excluded_non_comparable", 0) }} excluded as non-comparable</span>
+    {% if comparison.get("excluded_non_comparable") is not none %}
+      <span>{{ comparison.excluded_non_comparable }} referenced snapshots marked non-comparable across retained change history</span>
+    {% endif %}
     {% if ui_error %}<span class="badge badge-warning">{{ ui_error.code }}: {{ ui_error.message }}</span>{% endif %}
   </div>
 </section>
@@ -93,6 +95,16 @@
           <article class="evidence-row">
             <strong>{{ change.ticker or "Unknown" }} · {{ change.title }}</strong>
             <span>{{ change.summary }}</span>
+            {% set inputs = (change.technical|default({})).get("comparison_inputs", {}) %}
+            {% if inputs %}
+              {% set earlier = inputs["from"] %}
+              {% set later = inputs["to"] %}
+              <small>Run {{ earlier.run_id|default("unavailable", true) }} → Run {{ later.run_id|default("unavailable", true) }} · {{ change.comparison_state|replace("_", " ")|title }}</small>
+              {% if earlier or later %}
+                <small>Sessions {{ earlier.as_of_session|default("unavailable", true) }} → {{ later.as_of_session|default("unavailable", true) }}</small>
+                <small>Cutoffs {{ earlier.cutoff_at|default("unavailable", true) }} → {{ later.cutoff_at|default("unavailable", true) }}</small>
+              {% endif %}
+            {% endif %}
             {% if change.group in ["Upward revisions", "Downward revisions"] %}
               {% if change.current.revision_windows %}<small>Supporting revision windows</small>{% endif %}
               {% for window in change.current.revision_windows %}

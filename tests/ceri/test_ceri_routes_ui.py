@@ -252,7 +252,7 @@ def test_ceri_changes_template_tolerates_missing_comparison_context(
 
     assert response.status_code == 200
     assert "No comparable run pair selected" in response.text
-    assert "0 excluded as non-comparable" in response.text
+    assert "referenced snapshots marked non-comparable" not in response.text
 
 
 def test_ceri_operations_render_health_checkpoints_and_preview_only_purge(

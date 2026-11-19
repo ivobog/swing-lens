@@ -27,6 +27,7 @@ from app.services.ceri.query_service import (
     CeriQueryFilters,
     _change_matches_filters,
     _change_payload,
+    _comparison_context,
 )
 
 
@@ -411,6 +412,24 @@ def test_revision_trigger_uses_aggregate_instead_of_decreasing_window() -> None:
     assert "unit unverified" in project()["summary"]
     current.component_json = None
     assert "trigger values unavailable" in project()["summary"]
+
+
+def test_comparison_header_uses_shown_pairs_and_explicit_bounds() -> None:
+    items = [
+        {"technical": {"comparison_inputs": {"from": {"run_id": old}, "to": {"run_id": new}}}}
+        for old, new in ((3, 4), (3, 4), (4, 5))
+    ]
+
+    assert _comparison_context(items, [])["label"] == "Mixed run comparisons"
+    assert _comparison_context(items[:1], [])["label"] == "Shown page: Run 3 -> Run 4"
+    assert _comparison_context([], [])["label"] == "No run comparison shown"
+    from_only = _comparison_context(items, [], filters=CeriQueryFilters(from_run_id=3))
+    assert from_only["label"] == "From Run 3"
+    assert from_only["to_run_id"] is None
+    to_only = _comparison_context(items, [], filters=CeriQueryFilters(to_run_id=5))
+    assert to_only["label"] == "To Run 5"
+    explicit = _comparison_context(items, [], filters=CeriQueryFilters(from_run_id=3, to_run_id=5))
+    assert explicit["label"] == "Comparing Run 3 -> Run 5"
 
 
 def _snapshot(
