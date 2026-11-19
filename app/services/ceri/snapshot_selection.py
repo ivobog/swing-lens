@@ -3,7 +3,10 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import UTC, date, datetime
 
+from sqlalchemy import and_, func
+
 from app.models.ceri_tables import CeriScoreSnapshot
+from app.services.ceri.constants import PURGE_INVALIDATION_FLAG
 
 
 def snapshot_recency_key(snapshot: CeriScoreSnapshot) -> tuple[datetime, date, int]:
@@ -32,3 +35,15 @@ def latest_eligible_by_ticker(
         if previous is None or snapshot_recency_key(snapshot) > snapshot_recency_key(previous):
             latest[ticker] = snapshot
     return latest
+
+def current_projection_snapshot_scope():
+    return and_(
+        CeriScoreSnapshot.controlled_replay_id.is_(None),
+        ~func.coalesce(CeriScoreSnapshot.warnings_json, []).contains([PURGE_INVALIDATION_FLAG]),
+    )
+
+
+def current_projection_contains(snapshot: CeriScoreSnapshot) -> bool:
+    return snapshot.controlled_replay_id is None and PURGE_INVALIDATION_FLAG not in (
+        snapshot.warnings_json or []
+    )

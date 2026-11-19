@@ -91,7 +91,11 @@ from app.services.ceri.legacy_alert_audit import (
     uses_legacy_freshness_semantics,
 )
 from app.services.ceri.provider_cost_ledger import ProviderCostLedger
-from app.services.ceri.snapshot_selection import latest_eligible_by_ticker
+from app.services.ceri.snapshot_selection import (
+    current_projection_contains,
+    current_projection_snapshot_scope,
+    latest_eligible_by_ticker,
+)
 from app.services.ceri.snapshot_selection import snapshot_recency_key as _snapshot_sort_tuple
 from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.core_calculation_evidence import (
@@ -1696,8 +1700,10 @@ class CeriQueryService:
             predicates = []
             if filters.run_id is not None:
                 predicates.append(CeriScoreSnapshot.run_id == filters.run_id)
+            else:
+                predicates.append(current_projection_snapshot_scope())
             if filters.ticker:
-                predicates.append(CeriScoreSnapshot.ticker == _ticker(filters.ticker))
+                predicates.append(func.upper(CeriScoreSnapshot.ticker) == _ticker(filters.ticker))
             snapshot_rows = list(
                 db.scalars(
                     eligible_snapshot_select(name="filtered_ceri_dispositions").where(*predicates)
@@ -1705,6 +1711,10 @@ class CeriQueryService:
             )
         else:
             snapshot_rows = filter_eligible_snapshots(db, _load(db, CeriScoreSnapshot))
+            if filters.run_id is None:
+                snapshot_rows = [
+                    row for row in snapshot_rows if current_projection_contains(row)
+                ]
         self._remember_snapshots(snapshot_rows)
         snapshots = []
         catalyst_company_ids: set[int] | None = None

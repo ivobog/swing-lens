@@ -28,7 +28,12 @@ from app.services.ceri.evidence_eligibility import (
     filter_eligible_snapshots,
 )
 from app.services.ceri.export_policy import CeriExportPolicyRegistry
-from app.services.ceri.snapshot_selection import latest_eligible_by_ticker, snapshot_recency_order
+from app.services.ceri.snapshot_selection import (
+    current_projection_contains,
+    current_projection_snapshot_scope,
+    latest_eligible_by_ticker,
+    snapshot_recency_order,
+)
 from app.services.csv_export import write_csv
 
 CERI_EXPORT_SCHEMA_ID = "swinglens.ceri.export.v1"
@@ -94,7 +99,11 @@ class CeriExportService:
                         CeriScoreSnapshot.as_of_session,
                     )
                     .outerjoin(disposition, disposition.c.ceri_snapshot_id == CeriScoreSnapshot.id)
-                    .where(disposition.c.disposition.is_distinct_from(EXCLUDED), *scope)
+                    .where(
+                        disposition.c.disposition.is_distinct_from(EXCLUDED),
+                        current_projection_snapshot_scope(),
+                        *scope,
+                    )
                     .cte("export_potentially_eligible")
                     .prefix_with("MATERIALIZED", dialect="postgresql")
                 )
@@ -132,6 +141,7 @@ class CeriExportService:
                     row
                     for row in supplied
                     if (run_id is None or row.run_id == run_id)
+                    and (run_id is not None or current_projection_contains(row))
                     and (not tickers_set or row.ticker.upper() in tickers_set)
                 ),
             )
