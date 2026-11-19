@@ -10,9 +10,9 @@
   {% elif dataset == "guidance" %}
     <span class="muted-line">Normalized guidance records: {{ state.normalized_count }} · Marked accepted for scoring: {{ state.eligible_count }} · Pinned guidance event IDs: {{ state.selected_count }}</span>
   {% elif dataset == "catalysts" %}
-    <span class="muted-line">Normalized event revisions: {{ state.normalized_count }} · Issuer-relevant non-rejected revisions: {{ state.eligible_count }} · Pinned catalyst revision IDs: {{ state.selected_count }}</span>
+    <span class="muted-line">Normalized event revisions: {{ state.normalized_count }} · Issuer-relevant non-rejected revisions: {{ state.eligible_count }} · Pinned catalyst event IDs: {{ state.selected_count }}</span>
   {% elif dataset == "price_response" %}
-    <span class="muted-line">Derived company features: {{ state.normalized_count }} · Features with quality recorded: {{ state.eligible_count }} · Pinned price response feature IDs: {{ state.selected_count }}</span>
+    <span class="muted-line">Derived company features: {{ state.normalized_count }} · Features with quality recorded: {{ state.eligible_count }} · Pinned parent event IDs: {{ state.selected_count }}</span>
     <span class="muted-line">Depends on an accepted event and an elapsed price window.</span>
   {% endif %}
 {% endmacro %}
