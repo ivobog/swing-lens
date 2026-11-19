@@ -44,6 +44,9 @@ def test_ceri_dashboard_renders_full_data_and_filters(
     assert "Low" in response.text
     assert "1 warning" in response.text
     assert "Provider Freshness" in response.text
+    assert "Latest eligible snapshot per ticker" in response.text
+    assert "Snapshot age uses calendar days" in response.text
+    assert "No shown candidates meet the CERI recommendation evidence policy." in response.text
     assert "Evidence 7 considered / 1 direct component evidence selected" in response.text
     assert fake_service.latest_queries[-1].filters.opportunity_min == 7
     assert fake_service.latest_queries[-1].filters.risk_max == 3

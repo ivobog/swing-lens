@@ -4,6 +4,7 @@ import hashlib
 import json
 from dataclasses import asdict
 from datetime import UTC, date, datetime
+from types import SimpleNamespace
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -34,6 +35,7 @@ from app.services.background_job_service import (
     enqueue_job,
     request_job_cancel,
 )
+from app.services.ceri.actionability import CeriConsumer, evaluate_ceri_actionability
 from app.services.ceri.alert_service import CeriAlertService
 from app.services.ceri.backfill_service import CeriBackfillRequest, CeriBackfillService
 from app.services.ceri.change_semantics import ChangeGroup
@@ -130,6 +132,7 @@ def ceri_dashboard_page(
             "active_nav": "ceri",
             "items": latest.get("items", []),
             "page": latest,
+            **_dashboard_scope(latest.get("items", [])),
             "summary": _dashboard_summary(
                 latest.get("items", []),
                 changes.get("items", []),
@@ -190,6 +193,7 @@ def ceri_run_page(
             "run_id": run_id,
             "items": payload.get("items", []),
             "page": payload,
+            **_dashboard_scope(payload.get("items", [])),
             "summary": _dashboard_summary(
                 payload.get("items", []),
                 changes.get("items", []),
@@ -1188,6 +1192,45 @@ def _ui_payload_or_empty(callback) -> tuple[dict[str, Any], dict[str, str] | Non
             "code": "INVALID_FILTER",
             "message": redact_text(str(exc)),
         }
+
+
+def _dashboard_scope(items: list[dict[str, Any]]) -> dict[str, Any]:
+    reference_date = datetime.now(UTC).date()
+    projected = {}
+    for item in items:
+        session = item.get("as_of_session")
+        age_days = (reference_date - date.fromisoformat(session)).days if session else None
+        ledger = (item.get("ledgers") or {}).get("confidence") or {}
+        opportunity = item.get("opportunity") or {}
+        risk = item.get("event_risk") or {}
+        snapshot = SimpleNamespace(
+            data_confidence=item.get("data_confidence"),
+            opportunity_score=item.get("opportunity_score"),
+            opportunity_coverage_pct=opportunity.get("coverage_pct"),
+            opportunity_unrated_reason=opportunity.get("unrated_reason"),
+            confidence_ledger_json=ledger,
+        )
+        policy = evaluate_ceri_actionability(
+            snapshot,
+            consumer=CeriConsumer.RECOMMENDATION,
+            evidence_eligible=True,
+            require_opportunity=True,
+            require_risk_evidence=True,
+            risk_evidence_accepted=risk.get("evidence_state") == "SUFFICIENT",
+        )
+        reasons = policy.reason_codes if not policy.allowed else ()
+        if "caps" not in ledger:
+            reasons = (*reasons, "confidence_ledger_unavailable")
+        projected[item["id"]] = {
+            "age_days": age_days,
+            "qualified": not reasons,
+            "reasons": [reason.replace("_", " ").capitalize() for reason in reasons],
+        }
+    return {
+        "reference_utc_date": reference_date.isoformat(),
+        "candidate_scope": projected,
+        "page_has_qualified_candidates": any(row["qualified"] for row in projected.values()),
+    }
 
 
 def _dashboard_summary(
