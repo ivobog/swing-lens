@@ -65,7 +65,7 @@ def test_scoring_weights_include_earnings_risk_gate_defaults() -> None:
 
 def test_fundamentals_v2_config_is_normalized_and_mapped() -> None:
     aliases = yaml.safe_load(Path("config/column_aliases.yaml").read_text(encoding="utf-8"))
-    config = yaml.safe_load(Path("config/fundamentals_v2.yaml").read_text(encoding="utf-8"))
+    config = yaml.safe_load(Path("config/fundamentals_v2_2.yaml").read_text(encoding="utf-8"))
 
     assert config["model_version"] == "fundamentals_v2.2"
     assert sum(config["weights"].values()) == 1.0

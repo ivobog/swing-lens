@@ -584,6 +584,7 @@ def _resolve_readiness_policy_configuration(policy, admission_mode, fundamental_
                 values["fundamental_admission"].update(
                     policy_version=FUNDAMENTAL_V22_ADMISSION_POLICY_VERSION,
                     shadow_policy_version=FUNDAMENTAL_V22_ADMISSION_SHADOW_POLICY_VERSION,
+                    requires_forward_financial_evidence=True,
                     supported_model_field_counts=[
                         {"model_version": model, "field_count": count}
                         for model, count in SUPPORTED_MODEL_FIELD_COUNTS.items()

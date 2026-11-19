@@ -143,7 +143,7 @@ Nonpositive expected margin would score zero. This calculation is not activated.
 
 v2.1 retains 79 distinct scoring fields and policy `fundamental-admission-v3` /
 `fundamental-admission-shadow-v3`. v2.2 has exactly 76 fields and registers policy
-v4 / shadow-v4. The certified field count is resolved from the actual model using
+v5 / shadow-v5. The certified field count is resolved from the actual model using
 an explicit two-entry mapping. Unknown versions and cross-version counts fail closed.
 v2.2 also rejects fractional/non-finite count evidence rather than truncating it.
 All pre-existing consistency, identity, warning, edge, and threshold checks remain.
@@ -158,14 +158,27 @@ Coverage-only fields remain in priority penalties, not the component-field union
 
 Frozen Core model selection determines both formula dispatch and readiness-policy
 registration. Retained v2.1 readiness configuration remains exactly v3; v2.2 records
-the v4 compatibility registration. Shadow ledgers record the evaluated policy's
+the v5 compatibility registration. Shadow ledgers record the evaluated policy's
 actual version. No hashing, retained evidence, or temporal validation is weakened.
 
-Field-presence coverage is different from mathematical availability: historical
-values can support the forward coverage gate while every forecast subscore is
-unavailable. The offline comparison identified COKE as a new conditional admission
-with a neutral forward score and no usable forward subcomponents. This requires
-release review; no new gate or eligibility rule has been added to force parity.
+Field-presence coverage is different from mathematical availability. Policy v5
+requires the producer's frozen `debug_json.forward_financial_evidence_available`
+boolean to be literal true for v2.2. It is computed from available financial
+subcomponents of the accepted formula, excluding analyst rating. A financial score
+of zero is usable evidence; false, missing, or invalid facts remain UNDECIDED. This
+additive evidence fact was explicitly approved before implementation. Its content
+is sealed by the existing evidence mechanism; historical payloads are not rewritten.
+v2.1 ignores the new fact and retains its original serialized admission input shape.
+
+The repeat comparison restores COKE to UNDECIDED without altering its neutral 5.0
+score, any penalty, or any of the other 126 admission outcomes. The 65%/50% coverage
+thresholds remain unchanged. Existing v2.2 policy-v4 candidate payloads lacking the
+new fact fail closed under the revised v5 policy.
+
+The sealed `config/fundamentals_v2.yaml` remains the byte-identical v2.1 profile.
+New computations and the GUI load `config/fundamentals_v2_2.yaml`; frozen delivery
+continues to use its retained model. This keeps historical protected source hashes
+valid while giving v2.2 its own explicit source profile.
 
 For identical inputs, raw total-score change is exactly
 `0.08 * (new_forward - old_forward)`, with absolute maximum 0.8. Existing total-score

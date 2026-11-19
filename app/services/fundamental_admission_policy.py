@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -32,8 +32,8 @@ SUPPORTED_MODEL_FIELD_COUNTS = {
     "fundamentals_v2.1": 79,
     "fundamentals_v2.2": 76,
 }
-FUNDAMENTAL_V22_ADMISSION_POLICY_VERSION = "fundamental-admission-v4"
-FUNDAMENTAL_V22_ADMISSION_SHADOW_POLICY_VERSION = "fundamental-admission-shadow-v4"
+FUNDAMENTAL_V22_ADMISSION_POLICY_VERSION = "fundamental-admission-v5"
+FUNDAMENTAL_V22_ADMISSION_SHADOW_POLICY_VERSION = "fundamental-admission-shadow-v5"
 MINIMUM_OVERALL_COVERAGE = 0.65
 MINIMUM_COMPONENT_COVERAGE = 0.50
 FUNDAMENTAL_COMPONENTS = frozenset(
@@ -138,6 +138,13 @@ class FundamentalAdmissionInput:
     component_coverage: Mapping[str, Any]
     parse_diagnostics: Mapping[str, Any]
     warning_codes: tuple[str, ...] = ()
+    forward_financial_evidence_available: bool | None = None
+
+    def canonical_payload(self) -> dict[str, Any]:
+        values = asdict(self)
+        if self.scoring_model_version != "fundamentals_v2.2":
+            values.pop("forward_financial_evidence_available")
+        return values
 
 
 def evaluate_fundamental_admission(
@@ -271,6 +278,14 @@ def evaluate_fundamental_admission(
         reasons.append("component_coverage_below_minimum")
         blocking = True
 
+    if value.scoring_model_version == "fundamentals_v2.2":
+        if value.forward_financial_evidence_available is False:
+            reasons.append("no_usable_forward_financial_forecast")
+            blocking = True
+        elif value.forward_financial_evidence_available is not True:
+            reasons.append("forward_financial_evidence_missing_or_invalid")
+            blocking = True
+
     warnings = classify_warnings(value.warning_codes)
     warning_blocks = any(item.blocks_integrity_readiness for item in warnings)
     if warning_blocks:
@@ -355,6 +370,7 @@ def fundamental_input_from_frozen_row(
         component_coverage=row.get("component_coverage") or {},
         parse_diagnostics=row.get("parse_diagnostics") or {},
         warning_codes=tuple(flags.get("flags") or ()),
+        forward_financial_evidence_available=row.get("forward_financial_evidence_available"),
     )
 
 

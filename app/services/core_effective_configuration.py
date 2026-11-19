@@ -259,7 +259,7 @@ def _file_sources(values: dict[str, Any], identifier: str | None) -> dict[str, C
 
 
 def resolve_fundamental_configuration(
-    path: Path = Path("config/fundamentals_v2.yaml"),
+    path: Path = Path("config/fundamentals_v2_2.yaml"),
     *,
     source_identifier: str | None = None,
     alias_path: Path = Path("config/column_aliases.yaml"),

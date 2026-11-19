@@ -55,6 +55,9 @@ def _admission(score, fingerprint):
         component_coverage=score.debug["component_coverage"],
         parse_diagnostics=score.debug["parse_diagnostics"],
         warning_codes=tuple(score.warning_flags),
+        forward_financial_evidence_available=score.debug.get(
+            "forward_financial_evidence_available"
+        ),
     )
     return evaluate_fundamental_admission(value, authoritative=True)
 
@@ -239,6 +242,9 @@ def main():
                     values, "capex_ttm", "capex_estimate_ntm", magnitude=True
                 ),
                 "subscores": forward_quality_subscores(values),
+                "forward_financial_evidence_available": new.debug[
+                    "forward_financial_evidence_available"
+                ],
                 "old_forward": old.forward_quality_score,
                 "new_forward": new.forward_quality_score,
                 "old_fundamental": old.fundamental_score,

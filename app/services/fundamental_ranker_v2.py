@@ -13,6 +13,7 @@ from app.services.fundamental_components_v2 import (
     COMPONENT_FORMULA_FIELDS,
     COMPONENT_SCORE_KEYS,
     FORWARD_FORMULA_FIELDS_V21,
+    forward_quality_subscores,
     score_components_v2,
 )
 from app.services.fundamental_coverage_service import calculate_coverage_v2
@@ -141,6 +142,13 @@ def score_row_v2(
     score = _clamp(score)
     label = _label_for_score(score, component_scores, warning_flags)
     explanation = _explain(label, component_scores, warning_flags, coverage.data_coverage_score)
+    forward_evidence = {}
+    if config["model_version"] == "fundamentals_v2.2":
+        forward_evidence["forward_financial_evidence_available"] = any(
+            score is not None
+            for name, score in forward_quality_subscores(values).items()
+            if name != "analyst_rating"
+        )
 
     return FundamentalScoreV2Result(
         ticker=row.ticker,
@@ -177,12 +185,13 @@ def score_row_v2(
             "warnings": warning_flags,
             "parse_diagnostics": coverage.parse_diagnostics,
             "canonical_fields_present": sorted(values.keys()),
+            **forward_evidence,
         },
     )
 
 
 def load_fundamentals_v2_config(
-    path: Path = Path("config/fundamentals_v2.yaml"),
+    path: Path = Path("config/fundamentals_v2_2.yaml"),
 ) -> FundamentalsV2Config:
     from app.services.configuration_delivery import current_delivery, delivered_native
 

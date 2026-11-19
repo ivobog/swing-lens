@@ -151,7 +151,7 @@ def _settings_groups(settings) -> list[dict[str, object]]:
 
 
 def _scoring_model() -> dict[str, Any]:
-    fundamentals = _load_yaml(Path("config/fundamentals_v2.yaml"))
+    fundamentals = _load_yaml(Path("config/fundamentals_v2_2.yaml"))
     combined = _load_yaml(Path("config/scoring_weights.yaml"))
     return {
         "model_version": fundamentals.get("model_version", "fundamentals_v2.1"),

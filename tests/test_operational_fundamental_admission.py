@@ -78,6 +78,10 @@ def _bounded_partial_fundamental(model="fundamentals_v2.1", total=79):
         scoring_model_version=model,
         missing_data_penalty=0.05,
         debug_json={
+            **(
+                {"forward_financial_evidence_available": True}
+                if model == "fundamentals_v2.2" else {}
+            ),
             "coverage": {
                 "available_scoring_fields": total - 1,
                 "total_scoring_fields": total,
@@ -608,3 +612,21 @@ def test_alert_context_fallback_cannot_restore_omitted_regime():
     )
     row.signals_json = {**row.signals_json, "market_regime": {"value": "RISK_ON"}}
     assert _event_market_regime(SetupLifecycleEvent(evidence_json={}), row) is None
+
+
+def test_v22_admission_reads_frozen_forecast_fact_despite_mutable_serving_debug():
+    template = _bounded_partial_fundamental("fundamentals_v2.2", 76)
+    debug = deepcopy(template.debug_json)
+    debug["forward_financial_evidence_available"] = False
+    row = certified_fundamental(
+        ticker="TEST", fundamental_score=8, scoring_model_version="fundamentals_v2.2",
+        debug_json=debug,
+    )
+    row.debug_json = {**row.debug_json, "forward_financial_evidence_available": True}
+    projected, permission = contextual_decision_input(row, FUNDAMENTAL_TO_COMBINED)
+    assert projected is None
+    frozen = permission["fundamental_admission_input"]
+    assert frozen["forward_financial_evidence_available"] is False
+    assert "no_usable_forward_financial_forecast" in (
+        permission["orthogonal_decision"]["reason_codes"]
+    )

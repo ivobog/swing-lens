@@ -1,0 +1,21 @@
+{
+  "scope": "Read-only proposal simulation; no admission implementation changed",
+  "baseline": "a2f134e203f185edba8c28d9e83f172906c842e1",
+  "rows": 127,
+  "zero_usable_financial_forecasts": [
+    "COKE"
+  ],
+  "proposed_changes": [
+    {
+      "ticker": "COKE",
+      "before": "INCLUDED",
+      "proposed": "UNDECIDED"
+    }
+  ],
+  "new_frozen_fact": {
+    "path": "debug_json.forward_financial_evidence_available",
+    "type": "boolean",
+    "producer_rule": "Any non-None financial subscore from the accepted v2.2 helper, excluding analyst rating. Zero scores remain usable financial evidence.",
+    "consumer_rule": "v2.2 requires literal true; false or absent remains UNDECIDED. v2.1 behavior is unchanged."
+  }
+}

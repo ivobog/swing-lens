@@ -330,7 +330,7 @@ def test_wrong_formula_cannot_be_hidden_under_a_different_model_identity(model):
         forward_quality_score({}, model_version="unknown")
 
 
-@pytest.mark.parametrize("path", [V21_PATH, Path("config/fundamentals_v2.yaml")])
+@pytest.mark.parametrize("path", [V21_PATH, Path("config/fundamentals_v2_2.yaml")])
 def test_frozen_delivery_uses_its_own_model_and_hash(path, monkeypatch):
     from app.services import configuration_delivery as delivery
     from app.services.core_effective_configuration import resolve_fundamental_configuration
@@ -348,7 +348,7 @@ def test_frozen_delivery_uses_its_own_model_and_hash(path, monkeypatch):
     assert expected.debug["config_hash"] == config.config_hash
 
 
-@pytest.mark.parametrize("path", [V21_PATH, Path("config/fundamentals_v2.yaml")])
+@pytest.mark.parametrize("path", [V21_PATH, Path("config/fundamentals_v2_2.yaml")])
 def test_readiness_registration_respects_retained_fundamental_model(path, monkeypatch):
     from app.services import configuration_delivery as delivery
     from app.services.contextual_consumer_eligibility import FUNDAMENTAL_TO_COMBINED
@@ -369,8 +369,9 @@ def test_readiness_registration_respects_retained_fundamental_model(path, monkey
     else:
         assert registered == {
             "mode": "ACTIVE",
-            "policy_version": "fundamental-admission-v4",
-            "shadow_policy_version": "fundamental-admission-shadow-v4",
+            "policy_version": "fundamental-admission-v5",
+            "shadow_policy_version": "fundamental-admission-shadow-v5",
+            "requires_forward_financial_evidence": True,
             "supported_model_field_counts": [
                 {"model_version": "fundamentals_v2.1", "field_count": 79},
                 {"model_version": "fundamentals_v2.2", "field_count": 76},
@@ -398,6 +399,7 @@ def _admission(model="fundamentals_v2.2", total=76, available=None):
         },
         component_coverage=dict.fromkeys(FUNDAMENTAL_COMPONENTS, 1.0),
         parse_diagnostics={"failed_field_count": 0, "failed_fields": []},
+        forward_financial_evidence_available=True,
     )
 
 
@@ -418,7 +420,7 @@ def test_model_and_count_admission_matrix(model, total, valid):
     if valid:
         assert decision.reason_codes == ("complete_score_evidence",)
         assert decision.policy_version == (
-            "fundamental-admission-v3" if model.endswith("2.1") else "fundamental-admission-v4"
+            "fundamental-admission-v3" if model.endswith("2.1") else "fundamental-admission-v5"
         )
     else:
         assert "field_coverage_contract_invalid" in decision.reason_codes
@@ -513,3 +515,85 @@ def test_retired_formula_fields_keep_their_existing_warning_dependencies():
     assert result.forward_quality_score > 4
     assert "forward_quality_weak" in result.warning_flags
     assert result.fundamental_label == "Quality risk"
+
+
+@pytest.mark.parametrize("fact", [False, None, 0, 1, "true", "false", [], {}])
+def test_v22_requires_a_literal_true_frozen_financial_evidence_fact(fact):
+    value = replace(_admission(), forward_financial_evidence_available=fact)
+    decision = evaluate_fundamental_admission(value)
+    assert decision.eligibility.value == "UNDECIDED"
+    reason = (
+        "no_usable_forward_financial_forecast"
+        if fact is False
+        else "forward_financial_evidence_missing_or_invalid"
+    )
+    assert reason in decision.reason_codes
+
+
+def test_v21_ignores_new_fact_and_preserves_its_frozen_input_shape():
+    value = _admission("fundamentals_v2.1", 79)
+    old = evaluate_fundamental_admission(value)
+    for fact in (None, False, True, "invalid"):
+        variant = replace(value, forward_financial_evidence_available=fact)
+        assert evaluate_fundamental_admission(variant) == old
+        assert "forward_financial_evidence_available" not in variant.canonical_payload()
+
+
+def test_frozen_fact_distinguishes_valid_and_incompatible_forecasts_without_changing_math():
+    values = _values(**BASELINE["cases"][0]["values"])
+    values.update(
+        net_income_estimate_ntm=values["net_income_ttm"],
+        revenue_estimate_annual=None,
+        cash_short_term_investments_estimate_annual=None,
+        capex_estimate_ntm=None,
+        analyst_rating="Hold",
+    )
+    valid = score_row_v2(_row(values))
+    invalid = score_row_v2(_row({**values, "net_income_estimate_ntm_currency": "EUR"}))
+    assert valid.forward_quality_score == invalid.forward_quality_score == 5
+    assert valid.fundamental_score == invalid.fundamental_score
+    assert valid.debug["forward_financial_evidence_available"] is True
+    assert invalid.debug["forward_financial_evidence_available"] is False
+    assert valid.debug["coverage"] == invalid.debug["coverage"]
+
+
+def test_zero_financial_subscore_is_usable_evidence_and_rating_alone_is_not():
+    loss = score_row_v2(_row(_values(net_income_ttm=100, net_income_estimate_ntm=-10)))
+    rating_only = score_row_v2(_row({"analyst_rating": "Strong Buy"}))
+    assert loss.forward_quality_score == 0
+    assert loss.debug["forward_financial_evidence_available"] is True
+    assert rating_only.forward_quality_score == 10
+    assert rating_only.debug["forward_financial_evidence_available"] is False
+
+
+def test_fact_is_read_from_frozen_evidence_not_mutable_serving_debug():
+    from datetime import timedelta
+    from types import SimpleNamespace
+
+    from app.services.contextual_consumer_eligibility import _fundamental_frozen_input
+    from app.services.fundamental_admission_policy import fundamental_input_from_frozen_row
+
+    value = _admission()
+    payload = {
+        "scoring_model_version": "fundamentals_v2.2",
+        "fundamental_score": 7.25,
+        "fundamental_label": "High-quality quant",
+        "debug_json": {
+            "coverage": dict(value.coverage),
+            "component_coverage": dict(value.component_coverage),
+            "parse_diagnostics": dict(value.parse_diagnostics),
+            "forward_financial_evidence_available": False,
+        },
+    }
+    evidence = SimpleNamespace(
+        id=42,
+        calculated_at=value.decision_cutoff - timedelta(minutes=1),
+        calculation_identity_fingerprint="a" * 64,
+        payload_json=payload,
+    )
+    frozen = _fundamental_frozen_input(evidence)
+    admitted_input = fundamental_input_from_frozen_row(
+        frozen, consumer_edge="FUNDAMENTAL_TO_COMBINED"
+    )
+    assert admitted_input.forward_financial_evidence_available is False
+    assert evaluate_fundamental_admission(admitted_input).eligibility.value == "UNDECIDED"

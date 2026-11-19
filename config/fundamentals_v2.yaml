@@ -1,4 +1,4 @@
-model_version: fundamentals_v2.2
+model_version: fundamentals_v2.1
 
 weights:
   growth_quality_score: 0.13
@@ -106,9 +106,6 @@ field_priorities:
     - analyst_rating
 
 coverage_only_fields:
-  - eps_estimate_annual
-  - eps_estimate_quarterly
-  - ebit_estimate_ntm
   - market_cap
   - capex_per_share_ttm
   - capex_growth_quarterly_yoy
@@ -199,14 +196,12 @@ components:
       - peg_ratio
   forward_quality_score:
     fields:
-      - net_income_ttm
-      - total_revenue_ttm
-      - net_margin_ttm
+      - eps_estimate_annual
+      - eps_estimate_quarterly
       - revenue_estimate_annual
       - net_income_estimate_ntm
-      - cash_short_term_investments_annual
+      - ebit_estimate_ntm
       - cash_short_term_investments_estimate_annual
-      - capex_ttm
       - capex_estimate_ntm
       - analyst_rating
   shareholder_quality_score:
