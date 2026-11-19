@@ -54,6 +54,9 @@ def test_new_research_configuration_admits_but_never_grants_transitive_trading_a
     # This regression requires a genuinely complete Fundamental producer.
     raw = {
         **_quality_values(),
+        # Explicit controlled metadata makes this forecast genuinely usable in v2.2.
+        "net_income_ttm_currency": "USD",
+        "net_income_estimate_ntm_currency": "USD",
         "total_assets_estimate_annual": "11000000000",
         "ebit_per_share_ttm": "6",
         "number_of_shareholders_annual": "5000",

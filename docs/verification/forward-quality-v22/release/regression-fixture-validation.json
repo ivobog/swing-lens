@@ -1,0 +1,18 @@
+{
+  "source_parent": "e862f7eb58744228d7a01203db0c839226576a5e",
+  "scope": "Working fixture correction; native CI must validate the committed head",
+  "passed": 26,
+  "skipped_native_cases": 3,
+  "seconds": 377.34,
+  "ruff": "PASS",
+  "registry_valid": true,
+  "source_impact": "PLAN_READY",
+  "test_source_sha256": {
+    "tests/test_ibmi_golden_recertification.py": "9067440a4d43199641a35611dc88fdf2db914225cabe52d3d1e1e86017e0b9ae",
+    "tests/test_candidate_pipeline_finalization.py": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05",
+    "tests/integration/test_technical_research_v2_postgresql.py": "796b4db0c954846d2e66786579337762283abfadd287d354b3c693763e7379a7",
+    "tests/integration/test_run40_lifecycle_remediation_postgresql.py": "4d62e3863ebb1f13fb1a96171555cc3adec1250982f58497ee4fc02a62dd8cc3"
+  },
+  "golden_proposal_digest_unchanged": "a60210567e3ca742972c49a0d93c39fb92fb6dd4ec45e930639c11c78720a1a3",
+  "owner_authorization": "NOT_VERIFIED"
+}

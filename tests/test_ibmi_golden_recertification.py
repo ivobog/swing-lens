@@ -45,6 +45,14 @@ def test_versioned_runtime_config_preserves_every_historical_seal(monkeypatch):
 
 def test_proposal_does_not_select_or_authorize_a_golden(monkeypatch):
     monkeypatch.delenv(validation.CANDIDATE_ENV, raising=False)
+    # This historical IBMI-only contract keeps its original v5 financial literals.
+    # Current v7 financial propagation is certified by the native A04 lane.
+    monkeypatch.setattr(
+        validation, "PROPOSAL", Path(
+            "docs/verification/forward-quality-v22/release/golden-v6/"
+            "previous-pending-v5-proposal.json"
+        ),
+    )
     proposal = validation.candidate_proposal()
     inspected = inspect_proposal(proposal)
     assert inspected["financial_equivalence"] == "NOT_EVALUATED"
@@ -90,7 +98,7 @@ def _clone_declared_data(tmp_path):
 def test_changed_candidate_literals_fail_even_after_prior_success(tmp_path, monkeypatch):
     proposal = _clone_declared_data(tmp_path)
     monkeypatch.setattr(validation, "ROOT", tmp_path)
-    assert validation.expected_manifest(True, candidate=True)["version"] == "a05-v5"
+    assert validation.expected_manifest(True, candidate=True)["version"] == "a05-v7"
     old = "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json"
     path = tmp_path / proposal["candidate"]["expectation_artifacts"][old]
     changed = json.loads(path.read_text())
@@ -136,7 +144,7 @@ if sys.argv[1] == 'True':
 else:
     _enable_native_browser_candidate()
     from single_run_certification import candidate_validation
-    assert candidate_validation.VERSION == 'a05-v5'
+    assert candidate_validation.VERSION == 'a05-v7'
     candidate_validation.require_complete(candidate_validation.expected_manifest(True))
     assert candidate_validation.candidate_binding()['activation_authorized'] is False
 """

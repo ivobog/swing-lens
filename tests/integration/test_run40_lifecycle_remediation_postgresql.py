@@ -161,7 +161,13 @@ def _seed_universe(
     )
     db.flush()
     for index, ticker in enumerate(tickers, 1):
-        raw = {"Symbol": ticker, **_quality_values()}
+        # Controlled fixture facts for the current Fundamental forecast contract.
+        raw = {
+            "Symbol": ticker,
+            **_quality_values(),
+            "net_income_ttm_currency": "USD",
+            "net_income_estimate_ntm_currency": "USD",
+        }
         if winner_config is not None:
             from test_t14c_decision_writer_postgresql import _native_liquidity_source
 

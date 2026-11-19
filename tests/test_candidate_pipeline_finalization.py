@@ -42,6 +42,12 @@ def candidate_specimen(historical_specimen):  # noqa: F811
     bundle["certificate-contract.json"] = copy.deepcopy(contract)
     oracle = bundle["db-results/independent-complete-oracle.json"]
     oracle["expected"] = copy.deepcopy(manifest["completion"])
+    # Seed current-candidate unit doubles, as the retained specimen seeds v3.
+    # This exercises finalizer structure/faults; native A04 supplies financial proof.
+    oracle["actual"] = copy.deepcopy(manifest["completion"]["domains"])
+    bundle["db-results/independent-golden-subset.json"]["actual"].update(
+        copy.deepcopy(manifest["domains"])
+    )
     # These are explicit unit-double observations, not copied production data.
     for row in oracle["actual"]["captures"]:
         row["pipeline_ownership_state"] = "KNOWN"
@@ -70,7 +76,7 @@ def test_candidate_file_finalizer_requires_exact_known_capture_owner(candidate_s
     assert len(result["gates"]) == 620
     assert result["relationship_count"] == 541
     assert sum(result["actual_counts"].values()) == 402
-    assert result["candidate_validation"]["input_version"] == "a05-v5"
+    assert result["candidate_validation"]["input_version"] == "a05-v7"
     assert result["candidate_validation"]["owner_authorization"] == "NOT_EVALUATED"
     assert result["candidate_validation"]["activation_authorized"] is False
 
