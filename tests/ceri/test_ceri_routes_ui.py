@@ -291,6 +291,37 @@ def test_ceri_changes_render_groups_and_alert_actions(
     assert "Current relevance unconfirmed" in response.text
 
 
+@pytest.mark.parametrize(
+    ("path", "name"),
+    [
+        ("/ceri", "opportunity_min"),
+        ("/ceri", "risk_max"),
+        ("/ceri/changes", "min_delta"),
+    ],
+)
+@pytest.mark.parametrize("value", ["NaN", "Inf", "-Infinity", "1e999"])
+def test_ceri_html_filters_reject_non_finite_values(monkeypatch, path, name, value) -> None:
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: FakeCeriQueryService())
+    client = TestClient(_app(ceri_ui_enabled=True), raise_server_exceptions=False)
+
+    response = client.get(path, params={name: value})
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["query", name]
+
+
+def test_ceri_changes_preserves_explicit_zero_run_bounds(monkeypatch) -> None:
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: FakeCeriQueryService())
+    client = TestClient(_app(ceri_ui_enabled=True))
+
+    response = client.get("/ceri/changes?from_run_id=0&to_run_id=0&min_delta=-0.125")
+
+    assert response.status_code == 200
+    assert 'name="from_run_id" type="number" value="0"' in response.text
+    assert 'name="to_run_id" type="number" value="0"' in response.text
+    assert 'name="min_delta" type="number" step="any" value="-0.125"' in response.text
+
+
 def test_changes_can_group_visible_records_by_ticker(monkeypatch) -> None:
     monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: FakeCeriQueryService())
     response = TestClient(_app(ceri_ui_enabled=True, ceri_admin_enabled=True)).get(

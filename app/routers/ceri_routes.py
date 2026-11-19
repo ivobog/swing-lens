@@ -10,6 +10,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi import status as http_status
 from fastapi.responses import HTMLResponse, JSONResponse, Response
+from pydantic import FiniteFloat
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -97,8 +98,8 @@ DbSession = Annotated[Session, Depends(get_db)]
 def ceri_dashboard_page(
     request: Request,
     db: DbSession,
-    opportunity_min: float | None = None,
-    risk_max: float | None = None,
+    opportunity_min: FiniteFloat | None = None,
+    risk_max: FiniteFloat | None = None,
     confidence: str | None = None,
     catalyst_category: str | None = None,
     posture: str | None = None,
@@ -275,7 +276,7 @@ def ceri_changes_page(
     change_type: str | None = None,
     importance: str | None = None,
     signal_class: str | None = None,
-    min_delta: float | None = None,
+    min_delta: FiniteFloat | None = None,
     catalyst_category: str | None = None,
     history_scope: str | None = None,
     include_non_comparable: bool = False,
@@ -347,8 +348,8 @@ def ceri_changes_page(
             "filters": {
                 "ticker": ticker or "",
                 "status": status or "",
-                "from_run_id": from_run_id or "",
-                "to_run_id": to_run_id or "",
+                "from_run_id": from_run_id if from_run_id is not None else "",
+                "to_run_id": to_run_id if to_run_id is not None else "",
                 "change_group": change_group or "",
                 "change_type": change_type or "",
                 "importance": importance or "",
