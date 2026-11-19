@@ -25,3 +25,6 @@ This is fixture/source-association review, not owner approval or a new certifica
 All existing test IDs, tiers, lanes, static ownership and native requirements are
 retained. Four existing contracts re-review the changed whole-file hashes below;
 no selector or assertion is removed and no required check is bypassed.
+
+The Run40 raw payload uses CSV headers. Its two currency facts therefore use
+the frozen alias map, matching its existing source-backed income amounts.

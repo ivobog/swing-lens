@@ -5311,7 +5311,7 @@
             "lane": "python-regressions",
             "positive": "Actual certified READY Technical inputs for the late-arriving one/two-observation cohorts, against the older shared benchmark history, yield two native committed Winner predictions.",
             "negative": "The retained blowoff/climax input stays DEGRADED and Winner v1 undecided, with two exclusions and no predictions, even when Combined/Ranking v2 research admission permits their inputs.",
-            "reviewed_test_sha256": "4d62e3863ebb1f13fb1a96171555cc3adec1250982f58497ee4fc02a62dd8cc3"
+            "reviewed_test_sha256": "8e964cc5d6b9fc78901368b5b494e8a3c4cfcf30068265426d6dd325634510b1"
           },
           {
             "id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_native_winner_fixture_preserves_v1_readiness_boundary[True]",
@@ -5320,7 +5320,7 @@
             "lane": "python-regressions",
             "positive": "Actual certified READY Technical inputs for the late-arriving one/two-observation cohorts, against the older shared benchmark history, yield two native committed Winner predictions.",
             "negative": "The retained blowoff/climax input stays DEGRADED and Winner v1 undecided, with two exclusions and no predictions, even when Combined/Ranking v2 research admission permits their inputs.",
-            "reviewed_test_sha256": "4d62e3863ebb1f13fb1a96171555cc3adec1250982f58497ee4fc02a62dd8cc3"
+            "reviewed_test_sha256": "8e964cc5d6b9fc78901368b5b494e8a3c4cfcf30068265426d6dd325634510b1"
           },
           {
             "id": "tests/winner_probability/test_native_capture_evidence_reuse.py::test_native_estimation_reuses_prepared_candidates_and_clears_them",
@@ -5342,7 +5342,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "5218d2bd7483fa0596aa1c5d2eec7116ab6dda0f16456114b778d3eb7ab72ff2",
+        "review_sha256": "c6e8bfc5809ec84813c30cb374fdc785e99a6a4bcf37de93e2e8212b8159a43f",
         "review_addenda": [
           {
             "task": "FR02",
@@ -5368,6 +5368,15 @@
             "previous_review_sha256": "58ade1d9c20898d0d6db00187891af75e3ddfbd549e9235806a2c997e9321883",
             "scope": "Explicit synthetic forecast currencies and version-specific fixture bindings only; all existing positive/negative/native assertions and selectors retained. No financial expected artifact or application behavior changes.",
             "claim": "STATIC_INTENT; execution and owner authorization are separate"
+          },
+          {
+            "task": "FORWARD-QUALITY-V22-MAPPED-FIXTURE-METADATA",
+            "kind": "STATIC_SOURCE_AND_BEHAVIOR_ASSOCIATION_REVIEW",
+            "evidence": "docs/verification/forward-quality-v22/release/regression-fixture-review.md",
+            "source_revision": "3de1e558640b38bd391a19535be40bdc3bbd90cc",
+            "previous_review_sha256": "5218d2bd7483fa0596aa1c5d2eec7116ab6dda0f16456114b778d3eb7ab72ff2",
+            "scope": "Use frozen CSV aliases for the two explicit USD currency headers; no value, assertion, selector or policy change.",
+            "claim": "STATIC_INTENT; native execution remains mandatory"
           }
         ]
       },
