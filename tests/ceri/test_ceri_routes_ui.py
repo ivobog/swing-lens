@@ -270,6 +270,19 @@ def test_ceri_changes_render_groups_and_alert_actions(
     assert "Current relevance unconfirmed" in response.text
 
 
+def test_changes_can_group_visible_records_by_ticker(monkeypatch) -> None:
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: FakeCeriQueryService())
+    response = TestClient(_app(ceri_ui_enabled=True, ceri_admin_enabled=True)).get(
+        "/ceri/changes?group_by=ticker"
+    )
+    assert response.status_code == 200
+    assert "Changes grouped by ticker on this page" in response.text
+    assert "MSFT (2)" in response.text
+    assert "Revision up" in response.text
+    assert "Risk escalated" in response.text
+    assert response.text.count('/api/ceri/alerts/9/acknowledge') == 1
+
+
 def test_ceri_changes_template_tolerates_missing_comparison_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

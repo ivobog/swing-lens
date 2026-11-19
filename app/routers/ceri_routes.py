@@ -5,7 +5,7 @@ import json
 from dataclasses import asdict
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi import status as http_status
@@ -280,6 +280,7 @@ def ceri_changes_page(
     sort: str = "created_at",
     direction: str = "desc",
     limit: int = 50,
+    group_by: Literal["type", "ticker"] = "type",
     offset: int = 0,
 ) -> HTMLResponse:
     changes, changes_error = _ui_payload_or_empty(
@@ -320,13 +321,24 @@ def ceri_changes_page(
             ),
         )
     )
+    visible_changes = changes.get("items", [])
+    visible_alerts = alerts.get("items", [])
+    by_ticker = group_by == "ticker"
     return templates.TemplateResponse(
         request,
         "ceri_changes.html",
         {
             "active_nav": "ceri-alerts",
-            "change_groups": _group_changes(changes.get("items", [])),
-            "alerts": alerts.get("items", []),
+            "change_groups": (
+                _ticker_groups(visible_changes) if by_ticker else _group_changes(visible_changes)
+            ),
+            "alerts": visible_alerts,
+            "alert_groups": (
+                _ticker_groups(visible_alerts)
+                if by_ticker
+                else [{"label": None, "items": visible_alerts}]
+            ),
+            "group_by": group_by,
             "page": changes,
             "comparison_context": changes.get("comparison_context", {}),
             "filters": {
@@ -1281,6 +1293,14 @@ def _group_changes(changes: list[dict[str, Any]]) -> list[dict[str, Any]]:
         }
         for group in ChangeGroup
     ]
+
+
+def _ticker_groups(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        ticker = item.get("ticker") or "Ticker unavailable"
+        groups.setdefault(ticker, []).append(item)
+    return [{"label": ticker, "items": rows} for ticker, rows in groups.items()]
 
 
 def _provider_health_payload() -> list[dict[str, Any]]:

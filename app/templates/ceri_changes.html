@@ -64,6 +64,12 @@
         {% endfor %}
       </select>
     </label>
+    <label><span>Group shown records by</span>
+      <select name="group_by">
+        <option value="type" {{ "selected" if group_by == "type" else "" }}>Change type</option>
+        <option value="ticker" {{ "selected" if group_by == "ticker" else "" }}>Ticker</option>
+      </select>
+    </label>
     <label><span>Sort</span>
       <select name="sort">
         {% for option in ["created_at", "severity", "ticker", "id"] %}
@@ -87,12 +93,12 @@
 
 <section class="split-grid section-gap">
   <div class="panel">
-    <div class="panel-header compact-header"><div><h2>Change Groups</h2></div></div>
+    <div class="panel-header compact-header"><div><h2>{{ "Changes grouped by ticker on this page" if group_by == "ticker" else "Change Groups" }}</h2></div></div>
     {% for group in change_groups %}
       <section class="ceri-change-group">
-        <h3>{{ group.label }}</h3>
+        <h3>{{ group.label }}{% if group_by == "ticker" %} ({{ group["items"]|length }}){% endif %}</h3>
         {% for change in group["items"] %}
-          <article class="evidence-row">
+          <article class="evidence-row" id="ceri-change-{{ change.id }}">
             <strong>{{ change.ticker or "Unknown" }} · {{ change.title }}</strong>
             <span>{{ change.summary }}</span>
             {% set inputs = (change.technical|default({})).get("comparison_inputs", {}) %}
@@ -106,10 +112,35 @@
               {% endif %}
             {% endif %}
             {% if change.group in ["Upward revisions", "Downward revisions"] %}
-              {% if change.current.revision_windows %}<small>Supporting revision windows</small>{% endif %}
-              {% for window in change.current.revision_windows %}
-                <small>{{ window.metric|replace("_DILUTED", "") }} {{ window.period_key|replace("_", " ")|title }} {{ window.window_days }}d · {% if window.pct_change is not none %}{{ "%+.2f"|format(window.pct_change) }}{{ "%" if window.pct_change_unit == "PERCENTAGE_POINTS" else " (unit unverified)" }}{% else %}Unavailable{% endif %} · Breadth {{ "%+.2f"|format(window.net_breadth) if window.net_breadth is not none else "Unavailable" }} · Acceleration {% if window.acceleration is not none %}{{ "%+.2f"|format(window.acceleration) }} {{ "percentage points/day" if window.acceleration_unit == "PERCENTAGE_POINTS_PER_DAY" else "(unit unverified)" }}{% else %}Unavailable{% endif %}</small>
-              {% endfor %}
+              {% set previous_windows = (change.previous or {}).get("revision_windows", []) %}
+              {% set current_windows = (change.current or {}).get("revision_windows", []) %}
+              {% if current_windows or previous_windows %}
+                <details>
+                  <summary>Supporting revision windows</summary>
+                  <div class="table-wrap">
+                    <table>
+                      <thead><tr><th scope="col">Snapshot</th><th scope="col">Metric</th><th scope="col">Period identity</th><th scope="col">Window</th><th scope="col">Change</th><th scope="col">Breadth</th><th scope="col">Acceleration</th></tr></thead>
+                      <tbody>
+                        {% for label, windows in [("Previous", previous_windows), ("Current", current_windows)] %}
+                          {% for window in windows %}
+                            <tr>
+                              <td>{{ label }}</td>
+                              <td>{{ window.metric }}</td>
+                              <td>{{ window.period_key or "Unverified" }}</td>
+                              <td>{{ window.window_days }}d{% if window.actual_elapsed_days is number %} · {{ window.actual_elapsed_days }}d elapsed{% endif %}</td>
+                              <td>{% if window.pct_change is number %}{{ "%+.2f"|format(window.pct_change) }}{{ "%" if window.pct_change_unit == "PERCENTAGE_POINTS" else " (unit unverified)" }}{% else %}Unavailable{% endif %}</td>
+                              <td>{% if window.net_breadth is number %}{{ "%+.2f"|format(window.net_breadth) }}{% else %}Unavailable{% endif %}</td>
+                              <td>{% if window.acceleration is number %}{{ "%+.2f"|format(window.acceleration) }} {{ "pp/day" if window.acceleration_unit == "PERCENTAGE_POINTS_PER_DAY" else "(unit unverified)" }}{% else %}Unavailable{% endif %}</td>
+                            </tr>
+                          {% endfor %}
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              {% else %}
+                <small>Pinned revision window evidence unavailable</small>
+              {% endif %}
             {% elif change.group == "Guidance" %}
               <small>{{ change.previous.action or "No accepted guidance" }} -> {{ change.current.action }} · {{ change.current.metric or "Metric unavailable" }} · Confidence {{ change.current.confidence or "Unavailable" }}</small>
             {% elif change.previous and change.current %}
@@ -159,9 +190,11 @@
               <th scope="col">Action</th>
             </tr>
           </thead>
+          {% for group in alert_groups %}
           <tbody>
-            {% for alert in alerts %}
-              <tr data-ceri-alert-row>
+            {% if group.label %}<tr><th scope="rowgroup" colspan="11">{{ group.label }} ({{ group["items"]|length }} shown)</th></tr>{% endif %}
+            {% for alert in group["items"] %}
+              <tr data-ceri-alert-row id="ceri-alert-{{ alert.id }}">
                 <td>{{ alert.ticker }}</td>
                 <td>{{ alert.alert_type|replace("_", " ")|title }}</td>
                 <td>{{ alert.importance|title }}</td>
@@ -203,6 +236,7 @@
               </tr>
             {% endfor %}
           </tbody>
+          {% endfor %}
         </table>
       </div>
     {% else %}
