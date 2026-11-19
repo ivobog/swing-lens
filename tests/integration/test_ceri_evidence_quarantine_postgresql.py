@@ -33,7 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 def test_owner_fallback_is_correlated_to_each_snapshot_upload(
     disposable_postgres_database: str,
 ) -> None:
-    """An unrelated failed run cannot poison a NULL-context-owner fallback."""
+    """Resolve a dedicated NULL-FK context only through its own persisted owner."""
 
     _upgrade(disposable_postgres_database)
     engine = create_engine(disposable_postgres_database)
@@ -66,9 +66,9 @@ def test_owner_fallback_is_correlated_to_each_snapshot_upload(
                 "latest_completed_session,calendar_version,bar_readiness_version,cutoff_reason) "
                 "values "
                 "(901,null,100,'2026-10-15 20:00:00+00','America/New_York',"
-                "'2026-10-15','test','test','test'),"
+                "'2026-10-15','test','test','CERI_POST_ACQUISITION_FROZEN'),"
                 "(903,null,300,'2026-10-15 20:00:00+00','America/New_York',"
-                "'2026-10-15','test','test','test')"
+                "'2026-10-15','test','test','CERI_POST_ACQUISITION_FROZEN')"
             )
         )
         connection.execute(
@@ -94,6 +94,21 @@ def test_owner_fallback_is_correlated_to_each_snapshot_upload(
         )
 
     with Session(engine) as db:
+        # Pipeline history alone cannot establish an exact owner, even for a safe PARTIAL.
+        assert set(db.scalars(eligible_snapshot_select(CeriScoreSnapshot.id))) == set()
+
+        # Dedicated contexts keep a NULL FK. Each pipeline names its own frozen context.
+        db.execute(
+            text(
+                "update pipeline_runs set result_json = result_json || cast(:binding as jsonb) "
+                "where id = :owner_id"
+            ),
+            [
+                {"binding": '{"ceri_calculation_context_id": 901}', "owner_id": 100},
+                {"binding": '{"ceri_calculation_context_id": 903}', "owner_id": 300},
+            ],
+        )
+        assert set(db.scalars(eligible_snapshot_select(CeriScoreSnapshot.id))) == {901, 902}
         assert (
             append_evidence_dispositions(
                 db,
