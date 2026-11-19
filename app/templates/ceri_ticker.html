@@ -126,7 +126,7 @@
       {% for dataset, state in ((latest.evidence_diagnostics if latest.evidence_diagnostics is defined else {}) or {}).items() %}
         <div class="evidence-row">
           <strong>{{ dataset|title }}</strong>
-          {{ facts(dataset, state) }}
+          {{ facts(dataset, state, (latest.ledgers|default({})).get("opportunity") or {}) }}
         </div>
       {% else %}
         <p>No evidence-stage diagnostics are available.</p>

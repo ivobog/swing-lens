@@ -154,6 +154,27 @@ def test_run_page_reuses_one_query_service_instance(monkeypatch: pytest.MonkeyPa
     assert len(instances) == 1
 
 
+def test_missing_earnings_component_lineage_is_unknown(monkeypatch) -> None:
+    service = FakeCeriQueryService()
+    original_latest = service.latest
+
+    def latest(db, query):
+        payload = original_latest(db, query)
+        item = payload["items"][0]
+        item["ledgers"]["opportunity"] = {}
+        item["evidence_diagnostics"]["earnings"] = {
+            "source_status": "ABSENT", "source_present": False, "source_age_days": None,
+            "normalized_count": 0, "eligible_count": 0, "selected_count": 0,
+        }
+        return payload
+
+    monkeypatch.setattr(service, "latest", latest)
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: service)
+    response = TestClient(_app(ceri_ui_enabled=True)).get("/ceri")
+    assert response.status_code == 200
+    assert "Surprise component availability unknown" in response.text
+
+
 def test_ceri_dashboard_renders_empty_state(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: EmptyCeriQueryService())
     app = _app(ceri_ui_enabled=True)

@@ -154,7 +154,7 @@
                 {% for dataset, state in ((item.freshness if item.freshness is defined else {}) or {}).items() %}<span>{{ dataset|title }}: {{ state.age_days if state.age_days is not none else "N/A" }}d · {{ state.status|lower }}</span>{% endfor %}
                 {% for dataset, state in ((item.evidence_diagnostics if item.evidence_diagnostics is defined else {}) or {}).items() %}
                   <span>{{ dataset|title }}</span>
-                  {{ facts(dataset, state) }}
+                  {{ facts(dataset, state, (item.ledgers|default({})).get("opportunity") or {}) }}
                 {% endfor %}
                 {% set evidence_counts = ((item.evidence_lineage or {}).get('evidence_counts') or {}) %}
                 <span class="muted-line">Evidence {{ evidence_counts.get('CONSIDERED', 0) }} considered / {{ item.lineage_reconciliation.selected_evidence_count if item.lineage_reconciliation is defined else evidence_counts.get('SELECTED_FOR_COMPONENT', 0) }} direct component evidence selected{% if item.lineage_reconciliation is defined and item.lineage_reconciliation.requires_rebuild %} · rebuild required{% endif %}</span>
