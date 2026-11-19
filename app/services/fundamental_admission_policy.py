@@ -1,8 +1,8 @@
 """Bounded Fundamental admission policy with explicit evidence dependencies.
 
 Coverage is certified separately for ``fundamentals_v2.1`` and ``fundamentals_v2.2``.
-Historical v2.1 decisions retain policy v3; v2.2 registers policy v4 with the same
-eligibility requirements and its explicitly certified formula dependencies.
+Historical v2.1 decisions retain policy v3; v2.2 registers policy v5 with the same
+coverage thresholds and the approved sealed financial-forecast evidence requirement.
 """
 
 from __future__ import annotations

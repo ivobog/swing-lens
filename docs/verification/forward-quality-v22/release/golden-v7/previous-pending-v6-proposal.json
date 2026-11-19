@@ -1,0 +1,1160 @@
+{
+  "affected_obligations": [
+    {
+      "authority": "A04",
+      "contracts": [
+        "ceri",
+        "combined",
+        "market_regime_sector",
+        "ranking",
+        "setup",
+        "technical",
+        "winner"
+      ],
+      "financial_rows": 402,
+      "obligations": 620,
+      "precision": {
+        "ceri_components": "0.000001",
+        "default": "0.00000001",
+        "revision_columns": "0"
+      },
+      "relationships": 541,
+      "selectors": "Both original ten-ticker handoff variants and genuine native worker-recovery comparisons; all 620 obligations per original variant retained"
+    },
+    {
+      "authority": "A16",
+      "requirements": "All current required source-bound release lanes and matching A04 candidate identities; no skipped or historical receipts"
+    },
+    {
+      "authority": "A13",
+      "requirements": "Existing authenticated sole-owner acknowledgement on exact final PR head/digest; no activation authority from candidate validation"
+    }
+  ],
+  "candidate": {
+    "artifacts": {
+      "tests/e2e/single_run_certification/golden/v6/DERIVATIONS.md": "fcb2b27293f2cc4bff0218c618314f6df21a3c564160e838e10b21918f32a7bc",
+      "tests/e2e/single_run_certification/golden/v6/calendar.json": "72c85eb606d68c6928b2d7710a8a27986c41eb31734cf8d57c4cfa3d4b92b5cc",
+      "tests/e2e/single_run_certification/golden/v6/configuration.json": "41c08a22beb7ccaec96b808ddd50a53a390f1bcdeaf8be1a3b453dd06d0ec9d4",
+      "tests/e2e/single_run_certification/golden/v6/expected-results.json": "233bf111b941e4f788e7a2845d694e82da1a83134f9ce7b445099151a8f24f17",
+      "tests/e2e/single_run_certification/golden/v6/financial-source.json": "f883aa55f534e68d598e1e85bf8550d0900fb6ab6001a3d6b8ae3f1aa75c90a9",
+      "tests/e2e/single_run_certification/golden/v6/fundamental-derivation.json": "0140adf8e333a165480b677907d1beeb327e7c05a9ecc0b62962cac082ab2dd1",
+      "tests/e2e/single_run_certification/golden/v6/history.json": "bf9c645b1e95558010c81cbcb93c1cfffce153b9246fc4677e175121ba6d8b44",
+      "tests/e2e/single_run_certification/golden/v6/instruments.json": "9edbb37f82101add2d5a840217c4672f52a33b2800581303458f0c18c5338f9c",
+      "tests/e2e/single_run_certification/golden/v6/manifest.json": "2e55f8f384a84c9ac757fb0f5f83dbaa05b12a62bc60fb981ce6fb2c2a157e33",
+      "tests/e2e/single_run_certification/golden/v6/market-data.json": "18fbe874def6e2ce7a925a21a23fd05d4b3f4c7427a94ddddd58186eaee1d95b",
+      "tests/e2e/single_run_certification/golden/v6/negative-control-specimens.json": "6f11fffa697e208a82151aaf524ec1b4a2b3efafd14fd2f44b0932e50be406af",
+      "tests/e2e/single_run_certification/golden/v6/oracle-completion/DERIVATIONS.md": "fcb2b27293f2cc4bff0218c618314f6df21a3c564160e838e10b21918f32a7bc",
+      "tests/e2e/single_run_certification/golden/v6/oracle-completion/ceri-derivations.json": "3269fa3190a54cd1b4261c5933688d97303ccf883d3d9ebd1225a1c7d3213b9c",
+      "tests/e2e/single_run_certification/golden/v6/oracle-completion/ceri-expected.json": "9cfdcb92dd389c91c56f1263239e06b5d8107cb0083170936a1deaab60898e2f",
+      "tests/e2e/single_run_certification/golden/v6/oracle-completion/context-derivations.json": "00950a9e7b8a55eee01d63fa109935944daa794962262932b66a03abe7ac9959",
+      "tests/e2e/single_run_certification/golden/v6/oracle-completion/context-expected.json": "0eb7b475e69eb3354f5f167c27f2f832d65eb3140d79dd0b643f0e10980ead5d",
+      "tests/e2e/single_run_certification/golden/v6/oracle-completion/core-derivations.json": "396332c5c807b4756ecf36e633a6ba8f778d00ebfcf6d01e8dac17b15d3d9f40",
+      "tests/e2e/single_run_certification/golden/v6/oracle-completion/core-expected.json": "d5833faca5f74caf443eac9962f22c7d4d59fe79ef08357dfedbfd1dd657e19d",
+      "tests/e2e/single_run_certification/golden/v6/oracle-completion/downstream-derivations.json": "e2a507f698954a5bf959186839a7b8d5d2b08a30a6d42c94285fce426a1f2abe",
+      "tests/e2e/single_run_certification/golden/v6/oracle-completion/downstream-expected.json": "34b1e81c0a1ea1156961fdbd46f61efc3d7ce07c4772fea66007216205f93ea3",
+      "tests/e2e/single_run_certification/golden/v6/oracle-completion/manifest.json": "e6e7fa31e3a3086ad1ff360dc42a7a6d5a3d3a3578f85aa5fd99bf2645816faf",
+      "tests/e2e/single_run_certification/golden/v6/prerequisites-source.py.txt": "e291ef0f54e0b97972e9ee6f5bc3c50b52716200e86c3b2cee6c405c0bcf3ce4",
+      "tests/e2e/single_run_certification/golden/v6/provider-replay.json": "0ad2ccfd12c4dfdba9b279b4fcabdced446c8d455535d7f044e4e5fbc78506cc",
+      "tests/e2e/single_run_certification/golden/v6/runtime-settings.json": "da3a2dd948c92fd9b99658f2cd48fa234d6fddffcfde4ffe85ae3e9aa38ef22f",
+      "tests/e2e/single_run_certification/golden/v6/universe.csv": "ca20730f5c905344ef957166fe087e9bd1aab4bd66a813a9f68f9b108f122b7f"
+    },
+    "completion_manifest": "tests/e2e/single_run_certification/golden/v6/oracle-completion/manifest.json",
+    "completion_manifest_sha256": "e6e7fa31e3a3086ad1ff360dc42a7a6d5a3d3a3578f85aa5fd99bf2645816faf",
+    "expectation_artifacts": {
+      "tests/e2e/single_run_certification/golden/v3/expected-results.json": "tests/e2e/single_run_certification/golden/v6/expected-results.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json": "tests/e2e/single_run_certification/golden/v6/oracle-completion/ceri-expected.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-expected.json": "tests/e2e/single_run_certification/golden/v6/oracle-completion/context-expected.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json": "tests/e2e/single_run_certification/golden/v6/oracle-completion/core-expected.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json": "tests/e2e/single_run_certification/golden/v6/oracle-completion/downstream-expected.json"
+    },
+    "expectation_revision": "a05b-r6",
+    "input_identity": "2d3e7a1ee4499c67b141815dd99766085d96b15a6cf1eafe54073f7e036bd197",
+    "input_manifest": "tests/e2e/single_run_certification/golden/v6/manifest.json",
+    "input_manifest_sha256": "2e55f8f384a84c9ac757fb0f5f83dbaa05b12a62bc60fb981ce6fb2c2a157e33",
+    "input_version": "a05-v6"
+  },
+  "contract_change": {
+    "configuration_sha256": {
+      "config/ceri.yaml": "c1ce6f065cddb239cc9774533d3b9238855083ab62754daaa821190527ead7e7",
+      "config/ceri_catalyst_taxonomy.yaml": "dfbac62e23d72b8ccabd884cb812947bea3af1eba146f03dec6a82330e0a4a66",
+      "config/column_aliases.yaml": "1970327843247b206cda082014fe7f55abf13602f1c69d14c0744f2bb8c2c840",
+      "config/fundamentals_v2.yaml": "2f228e931f0ce2bdc545a06badfe07854c2f1dfdf038881473b745739eb22db3",
+      "config/fundamentals_v2_2.yaml": "cb44274eec045c12929647f6915083a07ffbd835f95340008280845de136f06b",
+      "config/ib_market_intelligence.yaml": "9d9dba1499294d15fbb8a0a3af6a29af58e7d96e93df7ce85b8797c608ea5430",
+      "config/market_regime_command_center.yaml": "adafd4e6d6621cf7dfbbbac9769a06f7c3b7762e03ba327f05d74e816bb1e917",
+      "config/market_sector_intelligence.yaml": "5d544cf086c90b98cbbb0a286c63b9fdd9c067d76f84518197b7389b3ee658b0",
+      "config/pine_defaults.yaml": "a1ea36a5ff75bd9252c485005e5c9adcc72bf81c0a99d7c3e1db419acf6eacb4",
+      "config/ranking_profiles.yaml": "4d4d3b1e0a9a04de72f5bae2eedae974c8df30e6e2312801eef517476c7fce01",
+      "config/scoring_weights.yaml": "c205b1c69f190bb9ed839568424350c4e490b16ff767930ee8eabee606788c0f",
+      "config/sector_rotation.yaml": "1c01f19698c1778d008047cf26bcbfa77a930b32c65c57a32ee199f904540415",
+      "config/setup_lifecycle.yaml": "97efedb71ac4c6e5784bbe7025984d380bc3492a270ebb6d2f4e1c4c89e642eb",
+      "config/technical_scoring_v4.yaml": "b696b44c66c5494b29833f92585e5004c8f135c33b96295698d71c3098488da0",
+      "config/technical_scoring_v5.yaml": "0796b7c7f71709eec8291c1678eafba6039cc4027dc9604fd707a2f0e02d7dcd",
+      "config/technical_v51_research.yaml": "64b0ecbacf27fbee542b8156a2b938388630f977199651d5d7a16d7c9f005f01",
+      "config/winner_probability.yaml": "9cfae4719d312718e24ec5c882d4cc94ba19cc262460ad71297b3f51bd4a8c7a"
+    },
+    "reason": "Forward quality v2.2 and approved financial-evidence guard only; preserve v2.1 source seals, use a versioned current profile, and declare controlled USD metadata in the candidate specimen. Pending CERI proposal is archived, not adopted.",
+    "source_revision": "80553eba6292f90f3ddc7955062f7fd81614dd50"
+  },
+  "expectation_changes": [
+    {
+      "after": "7.3646",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "10.0000",
+      "pointer": "/domains/fundamental/0/forward_quality_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "9.1909",
+      "pointer": "/domains/fundamental/0/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.3646",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "10.0000",
+      "pointer": "/domains/fundamental/1/forward_quality_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "9.1909",
+      "pointer": "/domains/fundamental/1/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.3646",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "10.0000",
+      "pointer": "/domains/fundamental/2/forward_quality_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "9.1909",
+      "pointer": "/domains/fundamental/2/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.3646",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "10.0000",
+      "pointer": "/domains/fundamental/3/forward_quality_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "9.1909",
+      "pointer": "/domains/fundamental/3/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.3646",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "10.0000",
+      "pointer": "/domains/fundamental/4/forward_quality_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "9.1909",
+      "pointer": "/domains/fundamental/4/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.3646",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "10.0000",
+      "pointer": "/domains/fundamental/5/forward_quality_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "9.1909",
+      "pointer": "/domains/fundamental/5/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.3646",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "10.0000",
+      "pointer": "/domains/fundamental/6/forward_quality_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "9.1909",
+      "pointer": "/domains/fundamental/6/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.3646",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "10.0000",
+      "pointer": "/domains/fundamental/7/forward_quality_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "9.1909",
+      "pointer": "/domains/fundamental/7/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.3646",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "10.0000",
+      "pointer": "/domains/fundamental/8/forward_quality_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "9.1909",
+      "pointer": "/domains/fundamental/8/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.3646",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "10.0000",
+      "pointer": "/domains/fundamental/9/forward_quality_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "9.1909",
+      "pointer": "/domains/fundamental/9/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "a05-v6",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "a05-v3",
+      "pointer": "/version",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.5327",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-expected.json",
+      "before": "7.6487",
+      "pointer": "/sector/0/average_final_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-expected.json",
+      "before": "9.1909",
+      "pointer": "/sector/0/average_fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.2248",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-expected.json",
+      "before": "7.3197",
+      "pointer": "/sector/0/average_profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.2248",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-expected.json",
+      "before": "7.3197",
+      "pointer": "/sector/0/component_scores/average_profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "5.0892",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-expected.json",
+      "before": "5.1082",
+      "pointer": "/sector/0/sector_final_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "5.0892",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-expected.json",
+      "before": "5.1082",
+      "pointer": "/sector/0/universe_leadership_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "Watchlist",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "Candidate",
+      "pointer": "/combined/0/combined_decision",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.7165",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "6.8325",
+      "pointer": "/combined/0/final_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "9.1909",
+      "pointer": "/combined/0/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "Small probe",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "Half starter",
+      "pointer": "/combined/0/position_size_hint",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.1300",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.2460",
+      "pointer": "/combined/1/final_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "9.1909",
+      "pointer": "/combined/1/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "Watchlist",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "Candidate",
+      "pointer": "/combined/2/combined_decision",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.7630",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "6.8790",
+      "pointer": "/combined/2/final_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "9.1909",
+      "pointer": "/combined/2/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "Small probe",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "Half starter",
+      "pointer": "/combined/2/position_size_hint",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.9337",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.0496",
+      "pointer": "/combined/3/final_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "9.1909",
+      "pointer": "/combined/3/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "Candidate",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "Strong candidate",
+      "pointer": "/combined/4/combined_decision",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.9416",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.0576",
+      "pointer": "/combined/4/final_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "9.1909",
+      "pointer": "/combined/4/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "Watchlist",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "Candidate",
+      "pointer": "/combined/5/combined_decision",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.7630",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "6.8790",
+      "pointer": "/combined/5/final_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "9.1909",
+      "pointer": "/combined/5/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "Small probe",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "Half starter",
+      "pointer": "/combined/5/position_size_hint",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.1824",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.2984",
+      "pointer": "/combined/6/final_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "9.1909",
+      "pointer": "/combined/6/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.0084",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.1244",
+      "pointer": "/combined/7/final_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "9.1909",
+      "pointer": "/combined/7/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "Candidate",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "Strong candidate",
+      "pointer": "/combined/8/combined_decision",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.9129",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.0289",
+      "pointer": "/combined/8/final_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "9.1909",
+      "pointer": "/combined/8/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "Candidate",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "Strong candidate",
+      "pointer": "/combined/9/combined_decision",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.9756",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.0916",
+      "pointer": "/combined/9/final_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "9.1909",
+      "pointer": "/combined/9/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.3077",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.4447",
+      "pointer": "/ranking/0/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "5.8228",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "5.9493",
+      "pointer": "/ranking/1/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.7207",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.784",
+      "pointer": "/ranking/2/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.3747",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "6.4696",
+      "pointer": "/ranking/3/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.6328",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "6.7488",
+      "pointer": "/ranking/4/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.3081",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.4452",
+      "pointer": "/ranking/5/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.3233",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.4499",
+      "pointer": "/ranking/6/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.6841",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.7474",
+      "pointer": "/ranking/7/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.8536",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.9485",
+      "pointer": "/ranking/8/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.1183",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.2343",
+      "pointer": "/ranking/9/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.306",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.4431",
+      "pointer": "/ranking/10/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "5.8209",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "5.9475",
+      "pointer": "/ranking/11/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.7174",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.7807",
+      "pointer": "/ranking/12/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.3686",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "6.4635",
+      "pointer": "/ranking/13/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.6293",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "6.7453",
+      "pointer": "/ranking/14/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.3358",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.4728",
+      "pointer": "/ranking/15/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "5.8877",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "6.0143",
+      "pointer": "/ranking/16/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.7778",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.8411",
+      "pointer": "/ranking/17/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.5412",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "6.6361",
+      "pointer": "/ranking/18/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "Watchlist",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "Candidate",
+      "pointer": "/ranking/19/decision_label",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.7396",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "6.8556",
+      "pointer": "/ranking/19/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.2052",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.3423",
+      "pointer": "/ranking/20/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.3258",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.4523",
+      "pointer": "/ranking/21/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.3406",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.4039",
+      "pointer": "/ranking/22/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.6767",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.7716",
+      "pointer": "/ranking/23/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "Candidate",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "Strong candidate",
+      "pointer": "/ranking/24/decision_label",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.9969",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.1129",
+      "pointer": "/ranking/24/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.306",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.4431",
+      "pointer": "/ranking/25/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "5.8209",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "5.9475",
+      "pointer": "/ranking/26/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.7174",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.7807",
+      "pointer": "/ranking/27/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.3686",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "6.4635",
+      "pointer": "/ranking/28/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.6293",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "6.7453",
+      "pointer": "/ranking/29/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.3417",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.4788",
+      "pointer": "/ranking/30/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.3945",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.521",
+      "pointer": "/ranking/31/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.6996",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.7628",
+      "pointer": "/ranking/32/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.0023",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.0972",
+      "pointer": "/ranking/33/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.2152",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.3312",
+      "pointer": "/ranking/34/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.2081",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.3452",
+      "pointer": "/ranking/35/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.329",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.4555",
+      "pointer": "/ranking/36/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.3463",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.4095",
+      "pointer": "/ranking/37/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.6871",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.782",
+      "pointer": "/ranking/38/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.003",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.119",
+      "pointer": "/ranking/39/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.2089",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.346",
+      "pointer": "/ranking/40/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.33",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.4565",
+      "pointer": "/ranking/41/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.3479",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.4112",
+      "pointer": "/ranking/42/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.6901",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.785",
+      "pointer": "/ranking/43/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.0048",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.1208",
+      "pointer": "/ranking/44/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.2075",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.3446",
+      "pointer": "/ranking/45/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.3283",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.4549",
+      "pointer": "/ranking/46/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.3451",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.4083",
+      "pointer": "/ranking/47/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.6848",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "7.7797",
+      "pointer": "/ranking/48/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.0017",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json",
+      "before": "8.1177",
+      "pointer": "/ranking/49/profile_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.7165",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "6.8325",
+      "pointer": "/winner/0/features/combined_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "9.1909",
+      "pointer": "/winner/0/features/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.2.",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+      "pointer": "/winner/0/features/screener_provenance",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.1300",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "8.2460",
+      "pointer": "/winner/1/features/combined_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "9.1909",
+      "pointer": "/winner/1/features/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.2.",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+      "pointer": "/winner/1/features/screener_provenance",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.7630",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "6.8790",
+      "pointer": "/winner/2/features/combined_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "9.1909",
+      "pointer": "/winner/2/features/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.2.",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+      "pointer": "/winner/2/features/screener_provenance",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.9337",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "7.0496",
+      "pointer": "/winner/3/features/combined_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "9.1909",
+      "pointer": "/winner/3/features/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.2.",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+      "pointer": "/winner/3/features/screener_provenance",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.9416",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "8.0576",
+      "pointer": "/winner/4/features/combined_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "9.1909",
+      "pointer": "/winner/4/features/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6_5_to_8",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "8_plus",
+      "pointer": "/winner/4/features/score_band",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.2.",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+      "pointer": "/winner/4/features/screener_provenance",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6.7630",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "6.8790",
+      "pointer": "/winner/5/features/combined_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "9.1909",
+      "pointer": "/winner/5/features/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.2.",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+      "pointer": "/winner/5/features/screener_provenance",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.1824",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "8.2984",
+      "pointer": "/winner/6/features/combined_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "9.1909",
+      "pointer": "/winner/6/features/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.2.",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+      "pointer": "/winner/6/features/screener_provenance",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.0084",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "8.1244",
+      "pointer": "/winner/7/features/combined_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "9.1909",
+      "pointer": "/winner/7/features/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.2.",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+      "pointer": "/winner/7/features/screener_provenance",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.9129",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "8.0289",
+      "pointer": "/winner/8/features/combined_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "9.1909",
+      "pointer": "/winner/8/features/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6_5_to_8",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "8_plus",
+      "pointer": "/winner/8/features/score_band",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.2.",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+      "pointer": "/winner/8/features/screener_provenance",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "7.9756",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "8.0916",
+      "pointer": "/winner/9/features/combined_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "8.9800",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "9.1909",
+      "pointer": "/winner/9/features/fundamental_score",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "6_5_to_8",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "8_plus",
+      "pointer": "/winner/9/features/score_band",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    },
+    {
+      "after": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.2.",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json",
+      "before": "CSV uploaded, raw rows stored, and fundamental scores calculated with fundamentals_v2.1.",
+      "pointer": "/winner/9/features/screener_provenance",
+      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+    }
+  ],
+  "historical_artifacts": {
+    "config/ceri.yaml": "c1ce6f065cddb239cc9774533d3b9238855083ab62754daaa821190527ead7e7",
+    "config/ceri_catalyst_taxonomy.yaml": "dfbac62e23d72b8ccabd884cb812947bea3af1eba146f03dec6a82330e0a4a66",
+    "config/column_aliases.yaml": "1970327843247b206cda082014fe7f55abf13602f1c69d14c0744f2bb8c2c840",
+    "config/fundamentals_v2.yaml": "2f228e931f0ce2bdc545a06badfe07854c2f1dfdf038881473b745739eb22db3",
+    "config/ib_market_intelligence.yaml": "9d9dba1499294d15fbb8a0a3af6a29af58e7d96e93df7ce85b8797c608ea5430",
+    "config/market_regime_command_center.yaml": "adafd4e6d6621cf7dfbbbac9769a06f7c3b7762e03ba327f05d74e816bb1e917",
+    "config/market_sector_intelligence.yaml": "5d544cf086c90b98cbbb0a286c63b9fdd9c067d76f84518197b7389b3ee658b0",
+    "config/pine_defaults.yaml": "a1ea36a5ff75bd9252c485005e5c9adcc72bf81c0a99d7c3e1db419acf6eacb4",
+    "config/ranking_profiles.yaml": "4d4d3b1e0a9a04de72f5bae2eedae974c8df30e6e2312801eef517476c7fce01",
+    "config/scoring_weights.yaml": "c205b1c69f190bb9ed839568424350c4e490b16ff767930ee8eabee606788c0f",
+    "config/sector_rotation.yaml": "1c01f19698c1778d008047cf26bcbfa77a930b32c65c57a32ee199f904540415",
+    "config/setup_lifecycle.yaml": "97efedb71ac4c6e5784bbe7025984d380bc3492a270ebb6d2f4e1c4c89e642eb",
+    "config/technical_scoring_v4.yaml": "b696b44c66c5494b29833f92585e5004c8f135c33b96295698d71c3098488da0",
+    "config/technical_scoring_v5.yaml": "0796b7c7f71709eec8291c1678eafba6039cc4027dc9604fd707a2f0e02d7dcd",
+    "config/technical_v51_research.yaml": "64b0ecbacf27fbee542b8156a2b938388630f977199651d5d7a16d7c9f005f01",
+    "config/winner_probability.yaml": "9cfae4719d312718e24ec5c882d4cc94ba19cc262460ad71297b3f51bd4a8c7a",
+    "docs/testing/golden-provenance/a05b-r3/derive_ceri.py.txt": "af5052cd2a7109352af1564d4ceacbc081808e754d1ba15e3dbb733de1584cda",
+    "docs/testing/golden-provenance/a05b-r3/derive_context.py.txt": "8e0e971800ba260356bbe194bb0f401dca439d953b9c27dcd8a7108759abb8f0",
+    "docs/testing/golden-provenance/a05b-r3/derive_core.py.txt": "c703a0625549e487c5d7e011ceb992173f82667f1c452286df9e0649aecfae4e",
+    "docs/testing/golden-provenance/a05b-r3/derive_downstream.py.txt": "90ec7e37770b2df4059bd80056f39b166a1db55bdd830a1d285f42045b78cda9",
+    "tests/e2e/single_run_certification/golden/v3/DERIVATIONS.md": "b14880efa374c9e37afc90b72b70ea10788fd8c1d0417b7da9f04ceda559fb92",
+    "tests/e2e/single_run_certification/golden/v3/calendar.json": "72c85eb606d68c6928b2d7710a8a27986c41eb31734cf8d57c4cfa3d4b92b5cc",
+    "tests/e2e/single_run_certification/golden/v3/configuration.json": "dfc5fe41d7e665662f2233b48642fbe422db94933b6412aff3d4a6e99a01ada9",
+    "tests/e2e/single_run_certification/golden/v3/expected-results.json": "3db5cced44c96cd46d59583617ff306052ee28e13f5e9d0ddc4ef11d8c462376",
+    "tests/e2e/single_run_certification/golden/v3/financial-source.json": "f46da1fe44b3ac01fce2d654ad1ed04f003b79a1dc1d7ef998754fbdfef1e32a",
+    "tests/e2e/single_run_certification/golden/v3/fundamental-derivation.json": "02c867000316d33048fff2d5444d0d812af10d233b319012450a71e5e206635f",
+    "tests/e2e/single_run_certification/golden/v3/history.json": "bf9c645b1e95558010c81cbcb93c1cfffce153b9246fc4677e175121ba6d8b44",
+    "tests/e2e/single_run_certification/golden/v3/instruments.json": "9edbb37f82101add2d5a840217c4672f52a33b2800581303458f0c18c5338f9c",
+    "tests/e2e/single_run_certification/golden/v3/manifest.json": "ffe8d308d0146fa6b6728b497554a907e5ac7cee3d0c15bc5d831efb726dcabe",
+    "tests/e2e/single_run_certification/golden/v3/market-data.json": "18fbe874def6e2ce7a925a21a23fd05d4b3f4c7427a94ddddd58186eaee1d95b",
+    "tests/e2e/single_run_certification/golden/v3/negative-control-specimens.json": "6f11fffa697e208a82151aaf524ec1b4a2b3efafd14fd2f44b0932e50be406af",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/DERIVATIONS.md": "621f1c4f387da4fe9c1a02bd20fd31621099b5a8b984e8c69914a40022f541a6",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-derivations.json": "3269fa3190a54cd1b4261c5933688d97303ccf883d3d9ebd1225a1c7d3213b9c",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json": "9cfdcb92dd389c91c56f1263239e06b5d8107cb0083170936a1deaab60898e2f",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-derivations.json": "00950a9e7b8a55eee01d63fa109935944daa794962262932b66a03abe7ac9959",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-expected.json": "651e28cc83a1f4500b5492e9572e99bd183c96846a7d702a58f64211dab400a7",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-derivations.json": "396332c5c807b4756ecf36e633a6ba8f778d00ebfcf6d01e8dac17b15d3d9f40",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json": "58a4093c33e8926766a7fd576e8965c4972a205a7f0fc3cbcc154bbfa8a25044",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-derivations.json": "e2a507f698954a5bf959186839a7b8d5d2b08a30a6d42c94285fce426a1f2abe",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json": "d5ac9ae177f2d0de01a4378d217fa130a2323c2706dc5e600926c82d55e09601",
+    "tests/e2e/single_run_certification/golden/v3/oracle-completion/manifest.json": "bebee63caf04d69a27c3a92dba67b0620c96ac272759a846785ea5b31122689a",
+    "tests/e2e/single_run_certification/golden/v3/prerequisites-source.py.txt": "e291ef0f54e0b97972e9ee6f5bc3c50b52716200e86c3b2cee6c405c0bcf3ce4",
+    "tests/e2e/single_run_certification/golden/v3/provider-replay.json": "0ad2ccfd12c4dfdba9b279b4fcabdced446c8d455535d7f044e4e5fbc78506cc",
+    "tests/e2e/single_run_certification/golden/v3/runtime-settings.json": "da3a2dd948c92fd9b99658f2cd48fa234d6fddffcfde4ffe85ae3e9aa38ef22f",
+    "tests/e2e/single_run_certification/golden/v3/universe.csv": "562c079f471fe125f7aa28ef762b2236c196ff68bd6ed6ed87727a2603c09990"
+  },
+  "independent_derivation": {
+    "artifacts": {
+      "docs/verification/forward-quality-v22/release/golden-v6/REVIEW.md": "fcb2b27293f2cc4bff0218c618314f6df21a3c564160e838e10b21918f32a7bc",
+      "docs/verification/forward-quality-v22/release/golden-v6/authoring-record.py.txt": "123f117a0a63c9f8a0e8ca560add22627d1f0667d8d153483cfb9b92fffdec2e",
+      "docs/verification/forward-quality-v22/release/golden-v6/independent-derivation.json": "6e57496f8850c0d96e8a39f1b5617fb2fe4284d5eac3704e1fb081acd9f5e1d9"
+    },
+    "method": "INDEPENDENT_FORMULA_REVIEW",
+    "production_outputs_used": false
+  },
+  "previous": {
+    "completion_manifest_sha256": "bebee63caf04d69a27c3a92dba67b0620c96ac272759a846785ea5b31122689a",
+    "expectation_revision": "a05b-r3",
+    "input_identity": "6217a219eea1d954bad0f5e6503f71188e5d82a7e411919aa703935c36118591",
+    "input_manifest_sha256": "ffe8d308d0146fa6b6728b497554a907e5ac7cee3d0c15bc5d831efb726dcabe",
+    "input_version": "a05-v3"
+  },
+  "review_request": {
+    "candidate_digest": "cb237bfd65d8fb945956e480bc6fad882151be41f2e370aba4fb741f46c5df73",
+    "expectation_revision": "a05b-r6",
+    "input_version": "a05-v6",
+    "producer": "INDEPENDENT_FORMULA_AUTHOR",
+    "source_revision": "80553eba6292f90f3ddc7955062f7fd81614dd50",
+    "status": "PROPOSED"
+  },
+  "schema": "swinglens.golden-update-proposal.v1"
+}

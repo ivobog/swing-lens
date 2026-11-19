@@ -1,0 +1,15 @@
+{
+  "proposal_content_integrity": "PASS",
+  "financial_equivalence": "NOT_EVALUATED",
+  "authenticated_human_approval": "NOT_VERIFIED",
+  "activation_authorized": false,
+  "proposal_digest": "a60210567e3ca742972c49a0d93c39fb92fb6dd4ec45e930639c11c78720a1a3",
+  "inherited_v5_ceri_bytes_identical": true,
+  "inherited_v5_nonfundamental_configuration_identical": true,
+  "inherited_v5_replay_calendar_runtime_inputs_identical": true,
+  "inherited_v5_technical_vectors_identical": true,
+  "expectation_differences_vs_v3": 151,
+  "existing_v5_ownership_differences_carried": 10,
+  "new_forward_related_differences": 141,
+  "source_revision": "06765ace9a92fbeb479258a223c67e689df9fd9f"
+}

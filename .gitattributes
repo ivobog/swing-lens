@@ -39,3 +39,4 @@ docs/testing/golden-provenance/a05b-r5/** -text
 
 # Preserve the independently authored forward-quality candidate review bytes.
 /docs/verification/forward-quality-v22/release/golden-v6/** -text
+/docs/verification/forward-quality-v22/release/golden-v7/** -text
