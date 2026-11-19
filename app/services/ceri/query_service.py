@@ -3784,7 +3784,7 @@ def _comparison_context(
     elif new is not None:
         label = f"To Run {new}"
     else:
-        pairs = set()
+        shown_pairs = []
         unknown = False
         for item in items:
             inputs = (item.get("technical") or {}).get("comparison_inputs") or {}
@@ -3793,11 +3793,12 @@ def _comparison_context(
             if left is None or right is None:
                 unknown = True
             else:
-                pairs.add((left, right))
+                shown_pairs.append((left, right))
+        pairs = set(shown_pairs)
         if len(pairs) > 1:
             label = "Mixed run comparisons"
         elif len(pairs) == 1 and not unknown:
-            old, new = pairs.pop()
+            old, new = next(iter(pairs))
             label = f"Shown page: Run {old} -> Run {new}"
         elif items:
             label = "Run comparison unavailable for some shown events"
