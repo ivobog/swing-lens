@@ -2695,6 +2695,52 @@ def _normalize_allowed_resume_projection_diagnostics(
             projection.pop(diagnostic_field, None)
 
 
+def _sealed_v22_fundamental_exclusion(permission, *, evidence, source_id):
+    """Recognize the approved v2.2 omission without reinterpreting legacy readiness.
+
+    The parent seal is already certified by the caller. Read only its recorded
+    ACTIVE v5 decision, require the exact producer pin, and refuse changed serving
+    decisions before normalizing compatibility addresses. No policy is reevaluated.
+    """
+    from app.services.fundamental_admission_policy import (
+        FUNDAMENTAL_V22_ADMISSION_POLICY_VERSION,
+    )
+
+    retained = (evidence.payload_json.get("debug_json") or {}).get(
+        "contextual_consumer_eligibility"
+    ) or {}
+    retained = retained.get("fundamental") or {}
+    admission = retained.get("orthogonal_decision") or {}
+    inputs = retained.get("fundamental_admission_input") or {}
+    if not all(isinstance(value, dict) for value in (retained, admission, inputs)):
+        return False
+    new_reasons = {
+        "no_usable_forward_financial_forecast",
+        "forward_financial_evidence_missing_or_invalid",
+    }
+    return (
+        type(source_id) is int
+        and permission.get("included") is False
+        and retained.get("included") is False
+        and permission.get("fundamental_admission_mode") == "ACTIVE"
+        and retained.get("fundamental_admission_mode") == "ACTIVE"
+        and inputs.get("scoring_model_version") == "fundamentals_v2.2"
+        and inputs.get("forward_financial_evidence_available") is not True
+        and admission.get("policy_version") == FUNDAMENTAL_V22_ADMISSION_POLICY_VERSION
+        and admission.get("authoritative") is True
+        and admission.get("eligibility") == "UNDECIDED"
+        and bool(new_reasons.intersection(admission.get("reason_codes") or []))
+        and type(admission.get("source_evidence_id")) is int
+        and type(inputs.get("source_evidence_id")) is int
+        and admission.get("source_evidence_id") == inputs.get("source_evidence_id") == source_id
+        and all(
+            CanonicalEvidenceSerializer.fingerprint(permission.get(key))
+            == CanonicalEvidenceSerializer.fingerprint(retained.get(key))
+            for key in ("orthogonal_decision", "fundamental_admission_input")
+        )
+    )
+
+
 def _validate_projection_source_pins(db, *, kind, projection, evidence):
     """Projection address normalization must never conceal a source change."""
     debug = projection.get("debug_json") or {}
@@ -2731,6 +2777,9 @@ def _validate_projection_source_pins(db, *, kind, projection, evidence):
                         "INELIGIBLE",
                         "POLICY_UNDECIDED",
                     }
+                    excluded = excluded or _sealed_v22_fundamental_exclusion(
+                        permission, evidence=evidence, source_id=pins.get(role)
+                    )
                 else:
                     decision = (debug.get("technical_consumer_eligibility") or {}).get(
                         "decision"

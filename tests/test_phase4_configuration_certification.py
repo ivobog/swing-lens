@@ -9,6 +9,7 @@ import pytest
 from app.services import contextual_consumer_eligibility, technical_consumer_eligibility
 from app.services.column_mapper import map_csv_rows
 from app.services.configuration_delivery import (
+    EXECUTION_SETTINGS,
     ConfigurationDelivery,
     configuration_delivery_scope,
 )
@@ -18,6 +19,7 @@ from app.services.core_effective_configuration import (
 )
 from app.services.decision_effective_configuration import (
     configuration_from_payload,
+    freeze_decision_configuration,
     resolve_readiness_policy_configuration,
 )
 from app.services.producer_readiness import legacy_readiness
@@ -50,7 +52,22 @@ def test_every_native_readiness_policy_executable_drift_preserves_retained_decis
     namespace, policy
 ):
     frozen = resolve_readiness_policy_configuration(policy)
-    delivery = ConfigurationDelivery({"test": "C1"}, {namespace: frozen})
+    from app.settings import get_settings
+
+    # Fundamental admission is an explicit frozen input of the readiness policy.
+    settings = get_settings()
+    execution = freeze_decision_configuration(
+        "execution.settings",
+        {key: getattr(settings, key) for key in EXECUTION_SETTINGS},
+        tuple(EXECUTION_SETTINGS),
+    )
+    delivery = ConfigurationDelivery(
+        {"test": "C1"}, {
+            namespace: frozen,
+            "execution.settings": execution,
+            "core.fundamental": resolve_fundamental_configuration(),
+        }
+    )
     readiness = legacy_readiness(getattr(policy, "producer", "TECHNICAL"))
     with configuration_delivery_scope(delivery):
         original = policy.evaluate(readiness)
