@@ -1,6 +1,13 @@
 document.addEventListener("DOMContentLoaded", () => {
   bindCeriAlertActions();
   bindCeriJsonForms();
+  document.querySelectorAll("[data-ceri-optional-numbers]").forEach((form) => {
+    form.addEventListener("formdata", ({ formData }) => {
+      for (const control of form.querySelectorAll('input[type="number"]:not([required])')) {
+        if (control.value === "") formData.delete(control.name);
+      }
+    });
+  });
 });
 
 function bindCeriAlertActions() {

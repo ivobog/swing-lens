@@ -60,7 +60,7 @@
 
 <section class="panel section-gap">
   <div class="panel-header compact-header"><div><h2>Filters</h2></div></div>
-  <form class="ceri-filter-grid section-gap" method="get">
+  <form class="ceri-filter-grid section-gap" method="get" data-ceri-optional-numbers>
     <label><span>Min opportunity</span><input name="opportunity_min" type="number" step="0.1" value="{{ filters.opportunity_min if filters.opportunity_min is not none else '' }}"></label>
     <label><span>Max risk</span><input name="risk_max" type="number" step="0.1" value="{{ filters.risk_max if filters.risk_max is not none else '' }}"></label>
     <label><span>Confidence</span><input name="confidence" value="{{ filters.confidence }}"></label>
