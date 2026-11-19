@@ -4343,6 +4343,15 @@
         ],
         "impact_patterns": [
           "app/services/ceri/*.py",
+          "app/routers/ceri_routes.py",
+          "app/static/ceri.js",
+          "app/templates/ceri_changes.html",
+          "app/templates/ceri_dashboard.html",
+          "app/templates/ceri_operations.html",
+          "app/templates/ceri_ticker.html",
+          "app/templates/partials/_ceri_evidence_facts.html",
+          "app/templates/partials/_ceri_risk_display.html",
+          "tests/ceri/test_ceri_query_service.py",
           "app/services/market_calculation_context_service.py",
           "tests/test_provider_replay_contracts.py",
           "app/services/alembic_heads.py",
@@ -4483,6 +4492,60 @@
           "tests/test_sec_continuation_executor.py"
         ],
         "tests": [
+          {
+            "id": "tests/integration/test_ceri_evidence_quarantine_postgresql.py::test_owner_fallback_is_correlated_to_each_snapshot_upload",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "A safe PARTIAL pipeline with an exact reverse binding admits its own dedicated NULL-FK context.",
+            "negative": "Unbound contexts, the exactly bound failed owner and an explicit disposition remain excluded.",
+            "reviewed_test_sha256": "fa2f824228fe0cdb11b398eb21166b810ad6a5b3b2099bb7d2586e5d9494f537"
+          },
+          {
+            "id": "tests/ceri/test_ceri_export_service.py::test_current_view_uses_cutoff_before_session_and_normalizes_ticker_case",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "A normalized ticker retains the eligible snapshot with greatest cutoff.",
+            "negative": "An earlier cutoff cannot win through session ordering or different ticker casing.",
+            "reviewed_test_sha256": "8ef132b04e9d1062fba47a76804e2608499b1385c46449f5ecdc4fd0addf7716"
+          },
+          {
+            "id": "tests/ceri/test_ceri_export_service.py::test_current_export_keeps_native_fallback_over_replay_and_purge",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Current export selects the eligible native fallback.",
+            "negative": "Replay and purge-invalidated rows cannot replace the current native row.",
+            "reviewed_test_sha256": "8ef132b04e9d1062fba47a76804e2608499b1385c46449f5ecdc4fd0addf7716"
+          },
+          {
+            "id": "tests/ceri/test_ceri_changes_alerts_forensic.py::test_revision_trigger_uses_aggregate_instead_of_decreasing_window",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The explanation retains the previous and current aggregate values and stored signed delta.",
+            "negative": "A declining supporting window cannot reverse the actual aggregate trigger.",
+            "reviewed_test_sha256": "f0334f520e2bd94387a677eb4c4ab2473f9b6b8a3b2b128ace2ba822e139740c"
+          },
+          {
+            "id": "tests/ceri/test_ceri_routes_ui.py::test_ceri_dashboard_renders_full_data_and_filters",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The dashboard passes the requested filters and labels the eligible scope.",
+            "negative": "A shown Low confidence candidate with high opportunity does not qualify under the recommendation evidence policy.",
+            "reviewed_test_sha256": "8f5f7dd64234315cf54765e3d60fe43334b097b4fef288b3fc463545761d6d86"
+          },
+          {
+            "id": "tests/ceri/test_ceri_routes_ui.py::test_changes_can_group_visible_records_by_ticker",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Ticker grouping retains the expected change and alert identities.",
+            "negative": "Grouping does not omit either original record or replace its action identity.",
+            "reviewed_test_sha256": "8f5f7dd64234315cf54765e3d60fe43334b097b4fef288b3fc463545761d6d86"
+          },
           {
             "id": "tests/ceri/test_point_in_time_query.py::test_late_correction_does_not_displace_version_known_at_cutoff",
             "tier": "FAST",
@@ -4727,7 +4790,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "3dde2e85ea49f5b6eb7184432b5ff10aad558c846b4b3a4c1eff9ff77c2bb73f",
+        "review_sha256": "f0a15f473d75d4bdb379fb8d02262f412e94cf60c995a70c7bf8be8618a01c3b",
         "review_addenda": [
           {
             "task": "MSI-20261103",
