@@ -1075,6 +1075,14 @@ class CeriQueryService:
             sort_aliases={"stale_days": "stale_days", "dataset": "dataset", "id": "id"},
         )
 
+    def feed_freshness(self, db: Session) -> list[dict[str, Any]]:
+        records = (
+            _load(db, CeriIngestionRun)
+            if _uses_fixture_collections(db)
+            else _database_freshness_records(db, self.config)
+        )
+        return self._dataset_freshness(records)
+
     def operations_status(self, db: Session) -> dict[str, Any]:
         if not _uses_fixture_collections(db):
             return self._database_operations_status(db)

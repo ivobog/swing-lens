@@ -636,6 +636,9 @@ class FakeCeriQueryService:
             "total": 1,
         }
 
+    def feed_freshness(self, db):
+        return self.operations_status(db)["dataset_freshness"]
+
     def operations_status(self, _db):
         return {
             "dataset_freshness": [

@@ -127,7 +127,7 @@ def ceri_dashboard_page(
             _list_query(sort="created_at", direction="desc", limit=25),
         )
     )
-    operations = CeriQueryService().operations_status(db)
+    provider_freshness = CeriQueryService().feed_freshness(db)
     return templates.TemplateResponse(
         request,
         "ceri_dashboard.html",
@@ -139,11 +139,11 @@ def ceri_dashboard_page(
             "summary": _dashboard_summary(
                 latest.get("items", []),
                 changes.get("items", []),
-                operations,
+                {},
                 population=latest.get("summary"),
             ),
             "changes": _group_changes(changes.get("items", [])),
-            "provider_freshness": operations.get("dataset_freshness", []),
+            "provider_freshness": provider_freshness,
             "filters": {
                 "opportunity_min": opportunity_min,
                 "risk_max": risk_max,
