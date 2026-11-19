@@ -150,10 +150,12 @@
               <th scope="col">Alert</th>
               <th scope="col">Importance</th>
               <th scope="col">Change</th>
-              <th scope="col">Risk</th>
+              <th scope="col">Alert-time risk</th>
+              <th scope="col">Current risk assessment</th>
               <th scope="col">Confidence</th>
               <th scope="col">When</th>
-              <th scope="col">Status</th>
+              <th scope="col">Notification status</th>
+              <th scope="col">Alert validity</th>
               <th scope="col">Action</th>
             </tr>
           </thead>
@@ -164,10 +166,27 @@
                 <td>{{ alert.alert_type|replace("_", " ")|title }}</td>
                 <td>{{ alert.importance|title }}</td>
                 <td>{{ alert.change_summary }}</td>
-                <td>{{ alert.risk if alert.risk is not none else "Unavailable" }}</td>
+                {% set assessment = (alert.technical|default({})).get("assessment", {}) %}
+                {% set current_risk = assessment.get("current_risk") or {} %}
+                {% set linked_change = alert.change|default({}) or {} %}
+                {% set alert_snapshot = ((linked_change.get("technical") or {}).get("comparison_inputs") or {}).get("to", {}) %}
+                <td>
+                  {{ alert.risk if alert.risk is number else "Unavailable" }}
+                  {% if alert_snapshot.as_of_session %}<small class="muted-line">{{ alert_snapshot.as_of_session }}</small>{% endif %}
+                </td>
+                <td>
+                  {% if current_risk.score is number and current_risk.state in ["SUFFICIENT", "PARTIAL"] %}
+                    {{ current_risk.score }} · {{ current_risk.state|title }}
+                    <small class="muted-line">{{ current_risk.as_of_session or "Session unavailable" }}</small>
+                  {% endif %}
+                  {% if assessment.validity != "VALID_CURRENT" or current_risk.state != "SUFFICIENT" %}
+                    <small class="muted-line">Current relevance unconfirmed</small>
+                  {% endif %}
+                </td>
                 <td>{{ alert.confidence or "Unavailable" }}</td>
                 <td>{{ alert.created_at }}</td>
                 <td><span data-ceri-alert-status>{{ alert.status }}</span></td>
+                <td>{{ assessment.validity|default("Unknown", true)|replace("_", " ")|title }}</td>
                 <td>
                   {% if alert.actionable and admin_enabled %}
                     <div class="row-actions">

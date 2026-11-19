@@ -60,6 +60,7 @@ from app.services.ceri.change_semantics import (
     ComparisonState,
     change_dimensions,
     change_group,
+    classify_snapshot_comparison,
 )
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.constants import (
@@ -737,7 +738,7 @@ class CeriQueryService:
             validity = classify_legacy_alert(
                 alert,
                 change=change,
-                latest_snapshot_ids=latest_snapshot_ids,
+                latest_snapshot_ids=set(latest_snapshot_ids.values()),
                 current_catalyst_revision_ids=current_catalyst_revision_ids,
             )
             invalid_legacy_freshness = uses_legacy_freshness_semantics(change)
@@ -775,6 +776,11 @@ class CeriQueryService:
             item["actionable"] = effective_status not in {"INVALIDATED", "DISMISSED"}
             item["technical"]["persisted_status"] = alert.status
             item["technical"]["effective_validity"] = item["validity_classification"]
+            bound = snapshots.get(change.to_snapshot_id) if change is not None else None
+            latest_id = latest_snapshot_ids.get(bound.company_id) if bound is not None else None
+            item["technical"]["assessment"] = _alert_assessment(
+                validity, bound, snapshots.get(latest_id)
+            )
             if query.filters.importance and item["importance"] != query.filters.importance:
                 continue
             if query.filters.signal_class and item["signal_class"] != query.filters.signal_class:
@@ -922,6 +928,7 @@ class CeriQueryService:
         latest_snapshot_ids = {
             int(row.latest_snapshot_id) for row in rows if row.latest_snapshot_id is not None
         }
+        current_snapshots = self._snapshots_for_ids(db, latest_snapshot_ids)
         current_revision_ids = {
             int(item.id)
             for item in context["revisions"].values()
@@ -976,6 +983,14 @@ class CeriQueryService:
             item["actionable"] = row.effective_status not in {"INVALIDATED", "DISMISSED"}
             item["technical"]["persisted_status"] = alert.status
             item["technical"]["effective_validity"] = item["validity_classification"]
+            bound = (
+                context["snapshots"].get(source_change.to_snapshot_id)
+                if source_change is not None
+                else None
+            )
+            item["technical"]["assessment"] = _alert_assessment(
+                validity, bound, current_snapshots.get(row.latest_snapshot_id)
+            )
             items.append(item)
         if current_snapshot is not None:
             return {"items": items, "limit": query.limit}
@@ -2967,6 +2982,41 @@ def _change_payload(
         "invalidated_by_purge": _has_purge_marker(change.delta_json),
     }
     return payload
+
+
+def _alert_assessment(
+    validity: AlertValidity,
+    alert_snapshot: CeriScoreSnapshot | None,
+    latest: CeriScoreSnapshot | None,
+) -> dict[str, Any]:
+    result = {"validity": validity.value, "current_risk": None}
+    if (
+        validity not in {AlertValidity.VALID_CURRENT, AlertValidity.VALID_HISTORICAL}
+        or alert_snapshot is None
+        or latest is None
+        or latest.cutoff_at is None
+        or alert_snapshot.cutoff_at is None
+        or latest.cutoff_at < alert_snapshot.cutoff_at
+        or latest.company_id != alert_snapshot.company_id
+        or latest.controlled_replay_id is not None
+        or _is_invalidated(latest.warnings_json)
+        or not alert_snapshot.evidence_contract_version
+    ):
+        return result
+    if latest.id != alert_snapshot.id and (
+        classify_snapshot_comparison(alert_snapshot, latest) != ComparisonState.COMPARABLE
+    ):
+        return result
+
+    result["current_risk"] = {
+        "score": latest.event_risk_score,
+        "state": _risk_evidence_state(
+            latest.event_risk_ledger_json or {}, latest.warnings_json or []
+        ),
+        "as_of_session": _value(latest.as_of_session),
+        "run_id": latest.run_id,
+    }
+    return result
 
 
 def _alert_payload(

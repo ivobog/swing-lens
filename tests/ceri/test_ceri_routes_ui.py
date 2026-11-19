@@ -265,6 +265,9 @@ def test_ceri_changes_render_groups_and_alert_actions(
     assert "N/A -&gt; N/A" not in response.text
     assert 'data-ceri-alert-action="/api/ceri/alerts/9/acknowledge"' in response.text
     assert "Alert actions update only alert state" in response.text
+    assert "Notification status" in response.text
+    assert "Alert validity" in response.text
+    assert "Current relevance unconfirmed" in response.text
 
 
 def test_ceri_changes_template_tolerates_missing_comparison_context(
