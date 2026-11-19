@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/_ceri_evidence_facts.html" import facts with context %}
+{% from "partials/_ceri_risk_display.html" import assessed_risk %}
 
 {% block title %}CERI {{ payload.ticker if payload else "Ticker" }}{% endblock %}
 
@@ -40,7 +41,7 @@
   {% set opportunity = latest.opportunity if latest.opportunity is defined else {'score': latest.opportunity_score, 'rated': latest.opportunity_score is number, 'coverage_pct': none, 'minimum_required_coverage_pct': 60} %}
   <section class="metric-grid section-gap ceri-metrics" aria-label="Ticker CERI summary">
     <div class="metric"><span>Opportunity</span><strong>{{ "%.2f"|format(opportunity.score) if opportunity.rated else "Unrated" }}</strong><span>Coverage {{ "%.0f"|format(opportunity.coverage_pct) if opportunity.coverage_pct is number else "N/A" }}% / {{ "%.0f"|format(opportunity.minimum_required_coverage_pct) if opportunity.minimum_required_coverage_pct is number else "60" }}% required</span></div>
-    <div class="metric"><span>Event Risk</span><strong>{{ "%.2f"|format(latest.event_risk_score) if latest.event_risk_score is number else "N/A" }}</strong></div>
+    <div class="metric"><span>Event Risk</span>{{ assessed_risk(latest.event_risk|default({"score": latest.event_risk_score})) }}</div>
     <div class="metric"><span>Confidence</span><strong>{{ latest.data_confidence }}</strong></div>
     <div class="metric"><span>Coverage</span><strong>{{ "%.0f"|format(latest.coverage_pct) if latest.coverage_pct is number else "N/A" }}%</strong></div>
     <div class="metric"><span>Posture</span><strong>{{ latest.posture }}</strong></div>

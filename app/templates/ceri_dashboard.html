@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/_ceri_evidence_facts.html" import facts with context %}
+{% from "partials/_ceri_risk_display.html" import assessed_risk %}
 
 {% block title %}CERI Dashboard{% endblock %}
 
@@ -127,7 +128,7 @@
                   <span class="muted-line">Coverage {{ "%.0f"|format(opportunity.coverage_pct) if opportunity.coverage_pct is number else "N/A" }}% / {{ "%.0f"|format(opportunity.minimum_required_coverage_pct) if opportunity.minimum_required_coverage_pct is number else "60" }}% required</span>
                 {% endif %}
               </td>
-              <td>{{ "%.2f"|format(risk.score) if risk.score is number else "Unavailable" }}<span class="muted-line">{{ risk.dominant_reason or "Dominant risk unavailable" }}</span><span class="muted-line">Risk evidence: {{ risk.evidence_state|title if risk.evidence_state is defined else "Unavailable" }}</span></td>
+              <td>{{ assessed_risk(risk) }}</td>
               <td><span class="badge badge-{{ 'success' if item.data_confidence == 'High' else 'warning' if item.data_confidence in ['Low', 'Insufficient'] else 'muted' }}">{{ item.data_confidence }}</span></td>
               <td>{{ item.posture }}</td>
               <td>

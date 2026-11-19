@@ -50,6 +50,36 @@ def test_ceri_dashboard_renders_full_data_and_filters(
     assert fake_service.latest_queries[-1].filters.has_warnings is True
 
 
+@pytest.mark.parametrize(
+    ("score", "evidence_state", "text"),
+    [
+        (0.0, "SUFFICIENT", "No material assessed event risk"),
+        (0.0, "PARTIAL", "0.00 calculated"),
+        (3.0, "PARTIAL", "3.00 calculated"),
+        (0.0, "UNAVAILABLE", "Risk unknown"),
+        (0.0, "INSUFFICIENT", "Risk unknown"),
+        (None, "UNAVAILABLE", "Risk unknown"),
+    ],
+)
+def test_dashboard_risk_display_uses_evidence_state(monkeypatch, score, evidence_state, text):
+    service = FakeCeriQueryService()
+    baseline_latest = service.latest
+
+    def latest(db, query):
+        payload = baseline_latest(db, query)
+        payload["items"][0]["event_risk"] = {
+            "score": score, "evidence_state": evidence_state, "dominant_reason": None
+        }
+        return payload
+
+    monkeypatch.setattr(service, "latest", latest)
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: service)
+    response = TestClient(_app(ceri_ui_enabled=True)).get("/ceri")
+
+    assert response.status_code == 200
+    assert text in response.text
+
+
 def test_run_dashboard_renders_pagination_rated_coverage_and_safe_semantics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
