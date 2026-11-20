@@ -106,9 +106,12 @@ class SecEdgarClient:
             http_wait_ms=self.http_wait_ms,
         )
 
-    def submissions(self, cik: str) -> dict[str, Any]:
+    def submissions(self, cik: str, *, fresh: bool = False) -> dict[str, Any]:
         normalized = str(cik).zfill(10)
-        return self.get_json(f"/submissions/CIK{normalized}.json")
+        path = f"/submissions/CIK{normalized}.json"
+        if fresh:
+            self._cache.pop(self.config.base_url.rstrip("/") + path, None)
+        return self.get_json(path)
 
     def company_tickers(self) -> dict[str, Any]:
         return self.get_json_absolute(self.config.company_tickers_url)
