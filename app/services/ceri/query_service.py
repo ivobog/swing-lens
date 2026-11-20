@@ -6,6 +6,7 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
+from math import isclose, isfinite
 from typing import Any
 
 from sqlalchemy import (
@@ -54,10 +55,12 @@ from app.services.ceri.api_dtos import (
 )
 from app.services.ceri.change_semantics import (
     CHANGE_GROUP_BY_TYPE,
+    EVIDENCE_CONTRACT_VERSION,
     ChangeGroup,
     ComparisonState,
     change_dimensions,
     change_group,
+    classify_snapshot_comparison,
 )
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.constants import (
@@ -88,6 +91,12 @@ from app.services.ceri.legacy_alert_audit import (
     uses_legacy_freshness_semantics,
 )
 from app.services.ceri.provider_cost_ledger import ProviderCostLedger
+from app.services.ceri.snapshot_selection import (
+    current_projection_contains,
+    current_projection_snapshot_scope,
+    latest_eligible_by_ticker,
+)
+from app.services.ceri.snapshot_selection import snapshot_recency_key as _snapshot_sort_tuple
 from app.services.ceri.snapshot_service import CeriSnapshotService
 from app.services.core_calculation_evidence import (
     CoreEvidenceKind,
@@ -206,11 +215,7 @@ class CeriQueryService:
     def latest(self, db: Session, query: CeriListQuery) -> dict[str, Any]:
         self._validate(query)
         snapshots = self._filtered_snapshots(db, query.filters)
-        latest_by_ticker: dict[str, CeriScoreSnapshot] = {}
-        for snapshot in snapshots:
-            current = latest_by_ticker.get(snapshot.ticker.upper())
-            if current is None or _snapshot_sort_tuple(snapshot) > _snapshot_sort_tuple(current):
-                latest_by_ticker[snapshot.ticker.upper()] = snapshot
+        latest_by_ticker = latest_eligible_by_ticker(snapshots)
         payload = self._snapshot_page(
             list(latest_by_ticker.values()),
             db=db,
@@ -410,7 +415,7 @@ class CeriQueryService:
             },
         )
         payload["comparison_context"] = _comparison_context(
-            items, snapshots.values(), filters=query.filters
+            payload["items"], snapshots.values(), filters=query.filters
         )
         payload["read_mode"] = "CURRENT_PROJECTION_COMPARISON"
         return payload
@@ -532,32 +537,12 @@ class CeriQueryService:
                 "limit": query.limit,
                 "read_mode": "CURRENT_PROJECTION_COMPARISON",
             }
-        pair = (query.filters.from_run_id, query.filters.to_run_id)
-        if pair == (None, None):
-            pair_row = db.execute(
-                joined(
-                    select(
-                        prior.run_id, current.run_id, func.count().label("pair_count")
-                    ).select_from(CeriChangeEvent)
-                )
-                .where(*predicates, prior.run_id.is_not(None), current.run_id.is_not(None))
-                .group_by(prior.run_id, current.run_id)
-                .order_by(func.count().desc(), prior.run_id.asc(), current.run_id.asc())
-                .limit(1)
-            ).first()
-            pair = (pair_row[0], pair_row[1]) if pair_row is not None else (None, None)
-        excluded = _excluded_referenced_snapshot_count(db)
         payload = _page_payload(items, total=total, query=query)
-        payload["comparison_context"] = {
-            "from_run_id": pair[0],
-            "to_run_id": pair[1],
-            "label": (
-                f"Comparing Run {pair[0]} -> Run {pair[1]}"
-                if pair[0] is not None and pair[1] is not None
-                else "Mixed change history"
-            ),
-            "excluded_non_comparable": excluded,
-        }
+        payload["comparison_context"] = _comparison_context(
+            items,
+            filters=query.filters,
+            excluded_non_comparable=_excluded_referenced_snapshot_count(db),
+        )
         return payload
 
     def _change_page_context(
@@ -586,13 +571,9 @@ class CeriQueryService:
             for revision in revisions.values()
             if revision.catalyst_event_id is not None
         }
-        revision_feature_ids = {
-            int(feature_id)
-            for snapshot in snapshots.values()
-            for component in (snapshot.component_json or {}).get("components") or []
-            if str(component.get("name") or "").startswith("revision_")
-            for feature_id in component.get("evidence_ids") or []
-        }
+        revision_feature_ids = set().union(
+            *(_stored_revision_feature_ids(snapshot) for snapshot in snapshots.values())
+        )
         return {
             "snapshots": snapshots,
             "revisions": revisions,
@@ -761,7 +742,7 @@ class CeriQueryService:
             validity = classify_legacy_alert(
                 alert,
                 change=change,
-                latest_snapshot_ids=latest_snapshot_ids,
+                latest_snapshot_ids=set(latest_snapshot_ids.values()),
                 current_catalyst_revision_ids=current_catalyst_revision_ids,
             )
             invalid_legacy_freshness = uses_legacy_freshness_semantics(change)
@@ -799,6 +780,11 @@ class CeriQueryService:
             item["actionable"] = effective_status not in {"INVALIDATED", "DISMISSED"}
             item["technical"]["persisted_status"] = alert.status
             item["technical"]["effective_validity"] = item["validity_classification"]
+            bound = snapshots.get(change.to_snapshot_id) if change is not None else None
+            latest_id = latest_snapshot_ids.get(bound.company_id) if bound is not None else None
+            item["technical"]["assessment"] = _alert_assessment(
+                validity, bound, snapshots.get(latest_id)
+            )
             if query.filters.importance and item["importance"] != query.filters.importance:
                 continue
             if query.filters.signal_class and item["signal_class"] != query.filters.signal_class:
@@ -946,6 +932,7 @@ class CeriQueryService:
         latest_snapshot_ids = {
             int(row.latest_snapshot_id) for row in rows if row.latest_snapshot_id is not None
         }
+        current_snapshots = self._snapshots_for_ids(db, latest_snapshot_ids)
         current_revision_ids = {
             int(item.id)
             for item in context["revisions"].values()
@@ -1000,6 +987,14 @@ class CeriQueryService:
             item["actionable"] = row.effective_status not in {"INVALIDATED", "DISMISSED"}
             item["technical"]["persisted_status"] = alert.status
             item["technical"]["effective_validity"] = item["validity_classification"]
+            bound = (
+                context["snapshots"].get(source_change.to_snapshot_id)
+                if source_change is not None
+                else None
+            )
+            item["technical"]["assessment"] = _alert_assessment(
+                validity, bound, current_snapshots.get(row.latest_snapshot_id)
+            )
             items.append(item)
         if current_snapshot is not None:
             return {"items": items, "limit": query.limit}
@@ -1079,6 +1074,14 @@ class CeriQueryService:
             query=query,
             sort_aliases={"stale_days": "stale_days", "dataset": "dataset", "id": "id"},
         )
+
+    def feed_freshness(self, db: Session) -> list[dict[str, Any]]:
+        records = (
+            _load(db, CeriIngestionRun)
+            if _uses_fixture_collections(db)
+            else _database_freshness_records(db, self.config)
+        )
+        return self._dataset_freshness(records)
 
     def operations_status(self, db: Session) -> dict[str, Any]:
         if not _uses_fixture_collections(db):
@@ -1705,8 +1708,10 @@ class CeriQueryService:
             predicates = []
             if filters.run_id is not None:
                 predicates.append(CeriScoreSnapshot.run_id == filters.run_id)
+            else:
+                predicates.append(current_projection_snapshot_scope())
             if filters.ticker:
-                predicates.append(CeriScoreSnapshot.ticker == _ticker(filters.ticker))
+                predicates.append(func.upper(CeriScoreSnapshot.ticker) == _ticker(filters.ticker))
             snapshot_rows = list(
                 db.scalars(
                     eligible_snapshot_select(name="filtered_ceri_dispositions").where(*predicates)
@@ -1714,6 +1719,10 @@ class CeriQueryService:
             )
         else:
             snapshot_rows = filter_eligible_snapshots(db, _load(db, CeriScoreSnapshot))
+            if filters.run_id is None:
+                snapshot_rows = [
+                    row for row in snapshot_rows if current_projection_contains(row)
+                ]
         self._remember_snapshots(snapshot_rows)
         snapshots = []
         catalyst_company_ids: set[int] | None = None
@@ -2356,21 +2365,35 @@ def _earnings_surprise_features(db: Session, snapshot: CeriScoreSnapshot) -> lis
 
 
 def _current_revision_summary(db: Session, snapshot: CeriScoreSnapshot) -> dict[str, Any]:
-    features = [
-        feature
-        for feature in _rows_for_company(db, CeriRevisionFeature, snapshot.company_id)
-        if feature.as_of_session == snapshot.as_of_session
-        and feature.calculation_version == snapshot.calculation_version
-    ]
+    selected_ids = _stored_revision_feature_ids(snapshot)
+    if not selected_ids:
+        return {}
+    if _uses_fixture_collections(db):
+        features = _rows_for_company(db, CeriRevisionFeature, snapshot.company_id)
+    else:
+        features = list(
+            db.scalars(select(CeriRevisionFeature).where(CeriRevisionFeature.id.in_(selected_ids)))
+        )
     result: dict[str, Any] = {}
-    for feature in features:
-        if feature.metric is None:
+    for feature in sorted(features, key=lambda row: row.id or 0):
+        if (
+            feature.id not in selected_ids
+            or feature.metric is None
+            or not _matches_snapshot_revision(snapshot, feature)
+        ):
             continue
         metric = "eps" if feature.metric == "EPS_DILUTED" else feature.metric.lower()
         key = f"{metric}_{feature.period_slot or 'unresolved'}_{feature.window_days}d"
+        if key in result:
+            # Two pinned period identities may share a slot label. Show each
+            # through exact detail lineage rather than picking one as the headline.
+            result[key] = {"available": False, "breadth": None, "reason": "AMBIGUOUS_PINNED_SLOT"}
+            continue
+        unit_verified = feature.pct_change_unit == "PERCENTAGE_POINTS"
+        unit_suffix = "%" if unit_verified else " (unit unverified)"
         result[key] = {
             "value": _value(feature.pct_change),
-            "display_value": _format_signed(feature.pct_change, suffix="%"),
+            "display_value": _format_signed(feature.pct_change, suffix=unit_suffix),
             "unit": feature.pct_change_unit,
             "available": feature.pct_change is not None,
             "reason": feature.unavailable_reason,
@@ -2964,6 +2987,10 @@ def _change_payload(
         "history_scope": "CURRENT" if is_current else "HISTORICAL",
         "technical": {
             "change_event_id": change.id,
+            "comparison_inputs": {
+                "from": _comparison_input(prior),
+                "to": _comparison_input(current),
+            },
             "from_snapshot_id": change.from_snapshot_id,
             "to_snapshot_id": change.to_snapshot_id,
             "catalyst_revision_id": change.catalyst_revision_id,
@@ -2973,6 +3000,41 @@ def _change_payload(
         "invalidated_by_purge": _has_purge_marker(change.delta_json),
     }
     return payload
+
+
+def _alert_assessment(
+    validity: AlertValidity,
+    alert_snapshot: CeriScoreSnapshot | None,
+    latest: CeriScoreSnapshot | None,
+) -> dict[str, Any]:
+    result = {"validity": validity.value, "current_risk": None}
+    if (
+        validity not in {AlertValidity.VALID_CURRENT, AlertValidity.VALID_HISTORICAL}
+        or alert_snapshot is None
+        or latest is None
+        or latest.cutoff_at is None
+        or alert_snapshot.cutoff_at is None
+        or latest.cutoff_at < alert_snapshot.cutoff_at
+        or latest.company_id != alert_snapshot.company_id
+        or latest.controlled_replay_id is not None
+        or _is_invalidated(latest.warnings_json)
+        or not alert_snapshot.evidence_contract_version
+    ):
+        return result
+    if latest.id != alert_snapshot.id and (
+        classify_snapshot_comparison(alert_snapshot, latest) != ComparisonState.COMPARABLE
+    ):
+        return result
+
+    result["current_risk"] = {
+        "score": latest.event_risk_score,
+        "state": _risk_evidence_state(
+            latest.event_risk_ledger_json or {}, latest.warnings_json or []
+        ),
+        "as_of_session": _value(latest.as_of_session),
+        "run_id": latest.run_id,
+    }
+    return result
 
 
 def _alert_payload(
@@ -3094,17 +3156,25 @@ def _semantic_change_values(
         component_name = "revision_acceleration" if "ACCELERAT" in kind else "revision_magnitude"
         old_value = _component_value_from_payload(prior, component_name)
         new_value = _component_value_from_payload(current, component_name)
-        unit = "pp/day" if component_name == "revision_acceleration" else "pp"
         previous_windows = _revision_window_values(prior, revision_features)
         current_windows = _revision_window_values(current, revision_features)
-        summary = _revision_summary(
-            previous_windows,
-            current_windows,
-            fallback=(
-                f"{_component_label(component_name)} {_signed(old_value)}"
-                f" -> {_signed(new_value)} {unit}"
-            ),
+        unit_verified = (
+            prior is not None
+            and current is not None
+            and prior.evidence_contract_version
+            == current.evidence_contract_version
+            == EVIDENCE_CONTRACT_VERSION
+            and prior.calculation_version == current.calculation_version
         )
+        summary = _revision_summary(
+            component_name,
+            old_value,
+            new_value,
+            delta.get("delta"),
+            unit_verified=unit_verified,
+        )
+        if _mixed_revision_windows(previous_windows, current_windows):
+            summary += " · Supporting revision windows moved in different directions"
         threshold = (
             {"acceleration_delta": change_thresholds.get("acceleration_delta", 0.01)}
             if component_name == "revision_acceleration"
@@ -3280,9 +3350,45 @@ def _component_value_from_payload(snapshot: CeriScoreSnapshot | None, name: str)
     if snapshot is None:
         return None
     for component in (snapshot.component_json or {}).get("components") or []:
-        if component.get("name") == name and component.get("value") is not None:
-            return float(component["value"])
+        if component.get("name") == name:
+            try:
+                value = float(component["value"])
+            except (KeyError, TypeError, ValueError):
+                return None
+            return value if isfinite(value) else None
     return None
+
+
+def _stored_revision_feature_ids(snapshot: CeriScoreSnapshot) -> set[int]:
+    try:
+        if snapshot.opportunity_ledger_json:
+            return revision_feature_ids(snapshot)
+        return {
+            int(evidence_id)
+            for component in (snapshot.component_json or {}).get("components", [])
+            if component.get("name") in {
+                "revision_magnitude", "revision_breadth", "revision_acceleration",
+            }
+            for evidence_id in component.get("evidence_ids") or []
+        }
+    except (ValueError, TypeError):
+        return set()
+
+
+def _matches_snapshot_revision(snapshot: CeriScoreSnapshot, feature: CeriRevisionFeature) -> bool:
+    return (
+        feature.company_id == snapshot.company_id
+        and feature.as_of_session == snapshot.as_of_session
+        and snapshot.cutoff_at is not None
+        and feature.calculation_cutoff_at == snapshot.cutoff_at
+        and feature.calculation_context_id == snapshot.calculation_context_id
+        and feature.controlled_replay_id == snapshot.controlled_replay_id
+        and feature.config_version == snapshot.config_version
+        and feature.config_hash == snapshot.config_hash
+        and feature.calculation_version == snapshot.calculation_version
+        and (feature.known_at is None or feature.known_at <= snapshot.cutoff_at)
+        and not _is_invalidated(feature.warnings_json)
+    )
 
 
 def _revision_window_values(
@@ -3291,14 +3397,10 @@ def _revision_window_values(
 ) -> list[dict[str, Any]]:
     if snapshot is None:
         return []
-    evidence_ids: set[int] = set()
-    for component in (snapshot.component_json or {}).get("components") or []:
-        if str(component.get("name") or "").startswith("revision_"):
-            evidence_ids.update(int(value) for value in component.get("evidence_ids") or [])
     rows = []
-    for feature_id in sorted(evidence_ids):
+    for feature_id in sorted(_stored_revision_feature_ids(snapshot)):
         feature = features.get(feature_id)
-        if feature is None:
+        if feature is None or not _matches_snapshot_revision(snapshot, feature):
             continue
         rows.append(
             {
@@ -3327,45 +3429,53 @@ def _revision_window_values(
     )
 
 
-def _revision_summary(
-    previous: list[dict[str, Any]],
-    current: list[dict[str, Any]],
-    *,
-    fallback: str,
-) -> str:
-    previous_by_key = {
-        (row["metric"], row["period_key"], row["window_days"]): row for row in previous
+def _mixed_revision_windows(
+    previous: list[dict[str, Any]], current: list[dict[str, Any]]
+) -> bool:
+    def observed_values(windows):
+        return {
+            (row["metric"], row["period_key"], row["window_days"]): row["pct_change"]
+            for row in windows
+            if row["pct_change_unit"] == "PERCENTAGE_POINTS" and row["pct_change"] is not None
+        }
+
+    earlier = observed_values(previous)
+    later = observed_values(current)
+    directions = {
+        later[key] > earlier[key]
+        for key in earlier.keys() & later.keys()
+        if later[key] != earlier[key]
     }
-    candidates = []
-    for row in current:
-        key = (row["metric"], row["period_key"], row["window_days"])
-        old = previous_by_key.get(key)
-        if old is not None and (
-            old.get("pct_change") is not None or row.get("pct_change") is not None
-        ):
-            candidates.append((key, old, row))
-    if not candidates:
-        return fallback
-    key, old, new = sorted(
-        candidates,
-        key=lambda item: (
-            item[0][2] != 30,
-            item[0][0] != "EPS_DILUTED",
-            item[0][1] != "CURRENT_QUARTER",
-            item[0],
-        ),
-    )[0]
-    metric = "EPS" if key[0] == "EPS_DILUTED" else _label(key[0], "Revision")
-    period = {
-        "CURRENT_QUARTER": "CQ",
-        "NEXT_QUARTER": "NQ",
-        "CURRENT_FISCAL_YEAR": "CFY",
-        "NEXT_FISCAL_YEAR": "NFY",
-    }.get(key[1], _label(key[1], "Period"))
-    return (
-        f"{metric} {period} {key[2]}d "
-        f"{_signed(old.get('pct_change'))}% -> {_signed(new.get('pct_change'))}%"
-    )
+    return len(directions) > 1
+
+
+def _revision_trigger_value(value: float, *, signed: bool = False) -> str:
+    rounded = f"{value:+.2f}" if signed else f"{value:.2f}"
+    if float(rounded) == value:
+        return rounded
+    return f"{value:+.12g}" if signed else f"{value:.12g}"
+
+
+def _revision_summary(
+    component: str,
+    previous: float | None,
+    current: float | None,
+    stored_delta: Any,
+    *,
+    unit_verified: bool,
+) -> str:
+    label = f"{component.replace('_', ' ').capitalize()} score"
+    if previous is None or current is None:
+        return f"{label} trigger values unavailable"
+
+    summary = f"{label} {_revision_trigger_value(previous)} -> {_revision_trigger_value(current)}"
+    if type(stored_delta) not in (int, float) or not isfinite(stored_delta):
+        return f"{summary} (stored delta unavailable)"
+    unit = "score points" if unit_verified else "unit unverified"
+    summary = f"{summary} ({_revision_trigger_value(stored_delta, signed=True)} {unit})"
+    if not isclose(current - previous, stored_delta, rel_tol=1e-9, abs_tol=1e-9):
+        summary += " · Stored delta differs from the retained component values"
+    return summary
 
 
 def _component_label(name: str) -> str:
@@ -3648,40 +3758,65 @@ def _excluded_referenced_snapshot_count(db: Session) -> int:
     )
 
 
+def _comparison_input(snapshot: CeriScoreSnapshot | None) -> dict[str, Any]:
+    if snapshot is None:
+        return {}
+    return {
+        "run_id": snapshot.run_id,
+        "as_of_session": _value(snapshot.as_of_session),
+        "cutoff_at": _value(snapshot.cutoff_at),
+    }
+
+
 def _comparison_context(
     items: list[dict[str, Any]],
-    snapshots: Any,
+    snapshots=(),
     *,
     filters: CeriQueryFilters | None = None,
+    excluded_non_comparable: int | None = None,
 ) -> dict[str, Any]:
-    pairs = Counter(
-        (
-            (item.get("previous") or {}).get("run_id"),
-            (item.get("current") or {}).get("run_id"),
+    old = filters.from_run_id if filters else None
+    new = filters.to_run_id if filters else None
+    if old is not None and new is not None:
+        label = f"Comparing Run {old} -> Run {new}"
+    elif old is not None:
+        label = f"From Run {old}"
+    elif new is not None:
+        label = f"To Run {new}"
+    else:
+        shown_pairs = []
+        unknown = False
+        for item in items:
+            inputs = (item.get("technical") or {}).get("comparison_inputs") or {}
+            left = (inputs.get("from") or {}).get("run_id")
+            right = (inputs.get("to") or {}).get("run_id")
+            if left is None or right is None:
+                unknown = True
+            else:
+                shown_pairs.append((left, right))
+        pairs = set(shown_pairs)
+        if len(pairs) > 1:
+            label = "Mixed run comparisons"
+        elif len(pairs) == 1 and not unknown:
+            old, new = next(iter(pairs))
+            label = f"Shown page: Run {old} -> Run {new}"
+        elif items:
+            label = "Run comparison unavailable for some shown events"
+        else:
+            label = "No run comparison shown"
+
+    if excluded_non_comparable is None:
+        excluded_non_comparable = sum(
+            1
+            for snapshot in snapshots
+            if snapshot.comparison_state
+            and snapshot.comparison_state != ComparisonState.COMPARABLE.value
         )
-        for item in items
-        if item.get("previous") and item.get("current")
-    )
-    requested_pair = (
-        (filters.from_run_id, filters.to_run_id)
-        if filters and (filters.from_run_id is not None or filters.to_run_id is not None)
-        else None
-    )
-    pair = requested_pair or (pairs.most_common(1)[0][0] if pairs else (None, None))
-    snapshot_rows = list(snapshots)
-    excluded = sum(
-        1
-        for snapshot in snapshot_rows
-        if snapshot.comparison_state
-        and snapshot.comparison_state != ComparisonState.COMPARABLE.value
-    )
     return {
-        "from_run_id": pair[0],
-        "to_run_id": pair[1],
-        "label": f"Comparing Run {pair[0]} -> Run {pair[1]}"
-        if pair[0] is not None and pair[1] is not None
-        else "Mixed change history",
-        "excluded_non_comparable": excluded,
+        "from_run_id": old,
+        "to_run_id": new,
+        "label": label,
+        "excluded_non_comparable": excluded_non_comparable,
     }
 
 
@@ -4247,14 +4382,6 @@ def _current_revision_by_event_id(db: Session) -> dict[int, CeriCatalystEventRev
         if revision.is_current:
             revisions[revision.catalyst_event_id] = revision
     return revisions
-
-
-def _snapshot_sort_tuple(snapshot: CeriScoreSnapshot) -> tuple:
-    return (
-        snapshot.cutoff_at or datetime.min.replace(tzinfo=UTC),
-        snapshot.as_of_session or date.min,
-        snapshot.id or 0,
-    )
 
 
 def _replace_filter(filters: CeriQueryFilters, **changes) -> CeriQueryFilters:

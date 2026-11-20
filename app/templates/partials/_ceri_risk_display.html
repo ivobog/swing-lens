@@ -1,0 +1,17 @@
+{% macro assessed_risk(risk) %}
+  {% set state = risk.evidence_state|default("UNAVAILABLE") %}
+  {% if state == "SUFFICIENT" and risk.score is number %}
+    <span>{{ "%.2f"|format(risk.score) }}</span>
+    {% if risk.score == 0 %}<small class="muted-line">No material assessed event risk</small>{% endif %}
+  {% elif state == "PARTIAL" and risk.score is number %}
+    <span>{{ "%.2f"|format(risk.score) }} calculated</span>
+    <small class="muted-line">Incomplete assessment</small>
+  {% else %}
+    <span>Risk unknown</span>
+    {% if risk.score is number %}
+      <details><summary>Retained numeric score</summary><span>{{ "%.2f"|format(risk.score) }}</span></details>
+    {% endif %}
+  {% endif %}
+  {% if risk.dominant_reason %}<small class="muted-line">{{ risk.dominant_reason }}</small>{% endif %}
+  <small class="muted-line">Risk evidence: {{ state|title }}</small>
+{% endmacro %}

@@ -69,6 +69,40 @@ def test_current_view_export_is_latest_canonical_row_per_ticker() -> None:
     assert [row["run_id"] for row in result.rows] == [2]
 
 
+def test_current_view_uses_cutoff_before_session_and_normalizes_ticker_case() -> None:
+    earlier = _snapshot("MSFT", run_id=1)
+    earlier.id = 1
+    earlier.as_of_session = date(2026, 9, 2)
+    earlier.cutoff_at = datetime(2026, 9, 2, 20, tzinfo=UTC)
+    later = _snapshot("msft", run_id=2)
+    later.id = 2
+    later.as_of_session = date(2026, 9, 1)
+    later.cutoff_at = datetime(2026, 9, 3, 20, tzinfo=UTC)
+
+    export = CeriExportService().current_view(FakeDb(), snapshots=[earlier, later])
+    assert [row["run_id"] for row in export.rows] == [2]
+
+
+def test_current_export_keeps_native_fallback_over_replay_and_purge() -> None:
+    original = _snapshot("MSFT", run_id=1)
+    original.id = 1
+    original.cutoff_at = datetime(2026, 8, 1, tzinfo=UTC)
+    purged = _snapshot("MSFT", run_id=2)
+    purged.id = 2
+    purged.cutoff_at = datetime(2026, 8, 2, tzinfo=UTC)
+    purged.warnings_json = ["provider_license_purge_invalidated"]
+    replay = _snapshot("msft", run_id=None)
+    replay.id = 3
+    replay.cutoff_at = datetime(2026, 8, 3, tzinfo=UTC)
+    replay.controlled_replay_id = 42
+    candidates = [original, purged, replay]
+
+    service = CeriExportService()
+    assert [r["run_id"] for r in service.current_view(FakeDb(), snapshots=candidates).rows] == [1]
+    run = service.current_view(FakeDb(), run_id=2, snapshots=candidates)
+    assert run.rows[0]["invalidated_by_purge"] is True
+
+
 def test_full_evidence_company_filter_uses_normalized_lineage() -> None:
     msft_source = CeriSourceRecord(
         id=10,

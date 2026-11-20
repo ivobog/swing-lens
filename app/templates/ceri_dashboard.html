@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% from "partials/_ceri_evidence_facts.html" import facts with context %}
+{% from "partials/_ceri_risk_display.html" import assessed_risk %}
 
 {% block title %}CERI Dashboard{% endblock %}
 
@@ -14,14 +16,16 @@
     <div class="actions">
       <a class="button-link secondary" href="/ceri/changes">Changes</a>
       <a class="button-link secondary" href="/ceri/operations">Operations</a>
-      <a class="button-link secondary" href="/ceri/export.csv{% if run_id %}?run_id={{ run_id }}{% endif %}">CSV</a>
-      <a class="button-link secondary" href="/ceri/export.json{% if run_id %}?run_id={{ run_id }}{% endif %}">JSON</a>
+      <a class="button-link secondary" href="/ceri/export.csv{% if run_id %}?run_id={{ run_id }}{% endif %}" aria-label="Export unfiltered {% if run_id %}run{% else %}current view{% endif %} as CSV">Unfiltered CSV</a>
+      <a class="button-link secondary" href="/ceri/export.json{% if run_id %}?run_id={{ run_id }}{% endif %}" aria-label="Export unfiltered {% if run_id %}run{% else %}current view{% endif %} as JSON">Unfiltered JSON</a>
     </div>
   </div>
   <div class="run-meta">
     <span class="badge badge-muted">Research only</span>
+    <span>{{ "Eligible candidates in this run" if run_id else "Latest eligible snapshot per ticker" }}</span>
+    <span>Snapshot age uses calendar days as of {{ reference_utc_date }} UTC.</span>
     <span>{{ page.total or 0 }} candidates</span>
-    <span>Summary population {{ summary.population_count or 0 }}</span>
+    <span>Summary population {{ summary.population_count or 0 }} matching candidates before pagination</span>
     {% if ui_error %}<span class="badge badge-warning">{{ ui_error.code }}: {{ ui_error.message }}</span>{% endif %}
   </div>
   {% if evidence_population %}
@@ -50,19 +54,18 @@
 </section>
 
 <section class="metric-grid section-gap ceri-metrics" aria-label="CERI summary">
-  <div class="metric"><span>High Opp / Low Risk</span><strong>{{ summary.high_opportunity_low_risk }}</strong></div>
-  <div class="metric"><span>Revision Leaders</span><strong>{{ summary.upward_revision_leaders }}</strong></div>
-  <div class="metric"><span>Guidance Raises</span><strong>{{ summary.guidance_raises }}</strong></div>
-  <div class="metric"><span>Binary Risks</span><strong>{{ summary.binary_risks }}</strong></div>
-  <div class="metric"><span>Stale / Conflicted</span><strong>{{ summary.stale_count }} / {{ summary.conflicted_count }}</strong></div>
-  <div class="metric"><span>Meaningful Changes</span><strong>{{ summary.meaningful_changes }}</strong></div>
+  <div class="metric"><span>High opportunity / low assessed risk research candidates</span><strong>{{ summary.high_opportunity_low_risk }}</strong></div>
+  <div class="metric"><span>Revision-up events in preview</span><strong>{{ summary.upward_revision_leaders }}</strong></div>
+  <div class="metric"><span>Guidance-raise events in preview</span><strong>{{ summary.guidance_raises }}</strong></div>
+  <div class="metric"><span>New binary-event flags in preview</span><strong>{{ summary.binary_risks }}</strong></div>
+  <div class="metric"><span>Recent change events shown (max 25)</span><strong>{{ summary.meaningful_changes }}</strong></div>
 </section>
 
 <section class="panel section-gap">
   <div class="panel-header compact-header"><div><h2>Filters</h2></div></div>
-  <form class="ceri-filter-grid section-gap" method="get">
-    <label><span>Min opportunity</span><input name="opportunity_min" type="number" step="0.1" value="{{ filters.opportunity_min if filters.opportunity_min is not none else '' }}"></label>
-    <label><span>Max risk</span><input name="risk_max" type="number" step="0.1" value="{{ filters.risk_max if filters.risk_max is not none else '' }}"></label>
+  <form class="ceri-filter-grid section-gap" method="get" data-ceri-optional-numbers>
+    <label><span>Min opportunity</span><input name="opportunity_min" type="number" step="any" value="{{ filters.opportunity_min if filters.opportunity_min is not none else '' }}"></label>
+    <label><span>Max risk</span><input name="risk_max" type="number" step="any" value="{{ filters.risk_max if filters.risk_max is not none else '' }}"></label>
     <label><span>Confidence</span><input name="confidence" value="{{ filters.confidence }}"></label>
     <label><span>Catalyst category</span><input name="catalyst_category" value="{{ filters.catalyst_category }}"></label>
     <label><span>Posture</span><input name="posture" value="{{ filters.posture }}"></label>
@@ -94,6 +97,9 @@
 
 <section class="panel section-gap">
   <div class="panel-header compact-header"><div><h2>Candidates</h2></div></div>
+  {% if not page_has_qualified_candidates and not ui_error %}
+    <p class="muted-line">No shown candidates meet the CERI recommendation evidence policy.</p>
+  {% endif %}
   {% if items %}
     <div class="table-wrap section-gap">
       <table class="ceri-table">
@@ -117,7 +123,12 @@
             {% set guidance = item.guidance or {} %}
             {% set next_event = item.next_event or {} %}
             <tr>
-              <td><a href="/ceri/ticker/{{ item.ticker }}">{{ item.ticker }}</a><small>Run {{ item.run_id or "N/A" }}</small></td>
+              {% set scope = candidate_scope.get(item.id, {}) %}
+              <td>
+                <a href="/ceri/ticker/{{ item.ticker }}">{{ item.ticker }}</a>
+                <small class="muted-line">Session {{ item.as_of_session or "unknown" }}{% if scope.age_days is number %} · {{ scope.age_days }}d from reference{% endif %}</small>
+                {% if item.run_id %}<a class="muted-line" href="/runs/{{ item.run_id }}/ceri">Run {{ item.run_id }}</a>{% else %}<small class="muted-line">Run unavailable</small>{% endif %}
+              </td>
               <td>
                 {% if opportunity.rated %}
                   {{ "%.2f"|format(opportunity.score) }}
@@ -127,12 +138,12 @@
                   <span class="muted-line">Coverage {{ "%.0f"|format(opportunity.coverage_pct) if opportunity.coverage_pct is number else "N/A" }}% / {{ "%.0f"|format(opportunity.minimum_required_coverage_pct) if opportunity.minimum_required_coverage_pct is number else "60" }}% required</span>
                 {% endif %}
               </td>
-              <td>{{ "%.2f"|format(risk.score) if risk.score is number else "Unavailable" }}<span class="muted-line">{{ risk.dominant_reason or "Dominant risk unavailable" }}</span><span class="muted-line">Risk evidence: {{ risk.evidence_state|title if risk.evidence_state is defined else "Unavailable" }}</span></td>
-              <td><span class="badge badge-{{ 'success' if item.data_confidence == 'High' else 'warning' if item.data_confidence in ['Low', 'Insufficient'] else 'muted' }}">{{ item.data_confidence }}</span></td>
+              <td>{{ assessed_risk(risk) }}</td>
+              <td><span class="badge badge-{{ 'success' if item.data_confidence == 'High' else 'warning' if item.data_confidence in ['Low', 'Insufficient'] else 'muted' }}">{{ item.data_confidence }}</span><small class="muted-line">{{ "Meets CERI recommendation evidence policy" if scope.qualified else "Research only" }}</small>{% if scope.reasons %}<small class="muted-line">{{ scope.reasons|join(" · ") }}</small>{% endif %}</td>
               <td>{{ item.posture }}</td>
               <td>
                 {% set eps30 = item.revision_evidence.get('eps_CURRENT_QUARTER_30d') if item.revision_evidence is defined else none %}
-                <span>EPS CQ 30d {{ eps30.display_value if eps30 and eps30.available and eps30.display_value else "N/A" }}</span>
+                <span>EPS CQ 30d {{ eps30.display_value if eps30 and eps30.available and eps30.display_value else "Pinned evidence unavailable" }}</span>
                 <span class="muted-line" title="Breadth is (upward revisions - downward revisions) / total directional revisions; it ranges from -1.00 to +1.00.">Breadth {{ eps30.display_breadth if eps30 and eps30.breadth is not none else "N/A" }}</span>
               </td>
               <td>
@@ -142,8 +153,8 @@
               <td>
                 {% for dataset, state in ((item.freshness if item.freshness is defined else {}) or {}).items() %}<span>{{ dataset|title }}: {{ state.age_days if state.age_days is not none else "N/A" }}d · {{ state.status|lower }}</span>{% endfor %}
                 {% for dataset, state in ((item.evidence_diagnostics if item.evidence_diagnostics is defined else {}) or {}).items() %}
-                  <span>{{ dataset|title }} — Source: {{ state.source_status|title }}{% if state.source_age_days is not none %} · {{ state.source_age_days }}d{% endif %}</span>
-                  <span class="muted-line">Normalized: {{ state.normalized_count }} · Eligible: {{ state.eligible_count }} · Selected: {{ state.selected_count }} · {{ state.evidence_state or state.dominant_blocker or "No blocker" }}</span>
+                  <span>{{ dataset|title }}</span>
+                  {{ facts(dataset, state, (item.ledgers|default({})).get("opportunity") or {}) }}
                 {% endfor %}
                 {% set evidence_counts = ((item.evidence_lineage or {}).get('evidence_counts') or {}) %}
                 <span class="muted-line">Evidence {{ evidence_counts.get('CONSIDERED', 0) }} considered / {{ item.lineage_reconciliation.selected_evidence_count if item.lineage_reconciliation is defined else evidence_counts.get('SELECTED_FOR_COMPONENT', 0) }} direct component evidence selected{% if item.lineage_reconciliation is defined and item.lineage_reconciliation.requires_rebuild %} · rebuild required{% endif %}</span>

@@ -27,6 +27,9 @@ from app.services.ceri.query_service import (
     CeriQueryFilters,
     _change_matches_filters,
     _change_payload,
+    _comparison_context,
+    _mixed_revision_windows,
+    _revision_summary,
 )
 
 
@@ -323,6 +326,7 @@ def test_revision_dto_exposes_window_values_breadth_acceleration_and_threshold()
         metric="EPS_DILUTED",
         period_key="CURRENT_QUARTER",
         as_of_session=prior.as_of_session,
+        calculation_cutoff_at=prior.cutoff_at,
         window_days=30,
         pct_change=1.2,
         net_breadth=0.2,
@@ -337,6 +341,7 @@ def test_revision_dto_exposes_window_values_breadth_acceleration_and_threshold()
         metric="EPS_DILUTED",
         period_key="CURRENT_QUARTER",
         as_of_session=current.as_of_session,
+        calculation_cutoff_at=current.cutoff_at,
         window_days=30,
         pct_change=4.6,
         net_breadth=0.6,
@@ -361,6 +366,91 @@ def test_revision_dto_exposes_window_values_breadth_acceleration_and_threshold()
     assert payload["current"]["revision_windows"][0]["net_breadth"] == 0.6
     assert payload["current"]["revision_windows"][0]["acceleration"] == 0.04
     assert payload["semantic"]["threshold"] == {"revision_pct_points": 2.0}
+
+
+def test_revision_trigger_uses_aggregate_instead_of_decreasing_window() -> None:
+    prior = _snapshot(1, opportunity=6.0, posture="Mixed")
+    current = _snapshot(2, opportunity=6.0, posture="Mixed")
+    prior.component_json = {
+        "components": [{"name": "revision_acceleration", "value": 4.0, "evidence_ids": [71]}]
+    }
+    current.component_json = {
+        "components": [{"name": "revision_acceleration", "value": 7.0, "evidence_ids": [72]}]
+    }
+    features = {
+        n: CeriRevisionFeature(
+            id=n,
+            company_id=42,
+            metric="EPS_DILUTED",
+            period_key="CURRENT_QUARTER",
+            window_days=30,
+            pct_change=value,
+            as_of_session=owner.as_of_session,
+            calculation_cutoff_at=owner.cutoff_at,
+            config_version=owner.config_version,
+            config_hash=owner.config_hash,
+            calculation_version=owner.calculation_version,
+        )
+        for n, value, owner in ((71, 6.47, prior), (72, -1.81, current))
+    }
+    change = _change("REVISION_ACCELERATED")
+    change.from_snapshot_id = 1
+    change.to_snapshot_id = 2
+    change.delta_json = {"delta": 3.0}
+
+    def project():
+        return _change_payload(
+            change, ticker="TEST", snapshots={1: prior, 2: current}, revision_features=features
+        )
+
+    payload = project()
+    assert payload["summary"] == "Revision acceleration score 4.00 -> 7.00 (+3.00 score points)"
+    assert payload["current"]["revision_windows"][0]["pct_change"] == -1.81
+    assert payload["delta"] == {"delta": 3.0}
+
+    change.delta_json = {"delta": 4.0}
+    assert "differs from the retained component values" in project()["summary"]
+    current.evidence_contract_version = "legacy"
+    assert "unit unverified" in project()["summary"]
+    current.component_json = None
+    assert "trigger values unavailable" in project()["summary"]
+
+
+def test_revision_summary_preserves_aapl_trigger_precision_and_units() -> None:
+    summary = _revision_summary(
+        "revision_acceleration", 5.2768175, 5.3428525, 0.06603500000000029,
+        unit_verified=True,
+    )
+    assert summary == "Revision acceleration score 5.2768175 -> 5.3428525 (+0.066035 score points)"
+
+
+def test_mixed_revision_windows_need_both_matched_directions() -> None:
+    evidence = [
+        {"metric": "EPS_DILUTED", "period_key": "CURRENT_FISCAL_YEAR", "window_days": days,
+         "pct_change_unit": "PERCENTAGE_POINTS", "pct_change": 0.0}
+        for days in (30, 90)
+    ]
+    differing = [dict(evidence[0], pct_change=0.1), dict(evidence[1], pct_change=-0.2)]
+    assert _mixed_revision_windows(evidence, differing)
+    assert not _mixed_revision_windows(evidence, differing[:1])
+
+
+def test_comparison_header_uses_shown_pairs_and_explicit_bounds() -> None:
+    items = [
+        {"technical": {"comparison_inputs": {"from": {"run_id": old}, "to": {"run_id": new}}}}
+        for old, new in ((3, 4), (3, 4), (4, 5))
+    ]
+
+    assert _comparison_context(items, [])["label"] == "Mixed run comparisons"
+    assert _comparison_context(items[:1], [])["label"] == "Shown page: Run 3 -> Run 4"
+    assert _comparison_context([], [])["label"] == "No run comparison shown"
+    from_only = _comparison_context(items, [], filters=CeriQueryFilters(from_run_id=3))
+    assert from_only["label"] == "From Run 3"
+    assert from_only["to_run_id"] is None
+    to_only = _comparison_context(items, [], filters=CeriQueryFilters(to_run_id=5))
+    assert to_only["label"] == "To Run 5"
+    explicit = _comparison_context(items, [], filters=CeriQueryFilters(from_run_id=3, to_run_id=5))
+    assert explicit["label"] == "Comparing Run 3 -> Run 5"
 
 
 def _snapshot(

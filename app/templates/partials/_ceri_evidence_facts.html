@@ -1,0 +1,20 @@
+{% macro facts(dataset, state, ledger) %}
+  {% set components = ledger.get("components") or [] %}
+  {% set pinned = state.selected_count if state.selected_count or components else "provenance unavailable" %}
+  {% if dataset != "price_response" %}
+    <span>Source: {% if state.source_status == "ABSENT" and state.source_present %}Freshness unknown{% else %}{{ state.source_status|title }}{% endif %}{% if state.source_age_days is not none %} · {{ state.source_age_days }}d{% endif %}</span>
+  {% endif %}
+  {% if dataset == "estimates" %}
+    <span class="muted-line">Normalized estimate snapshots: {{ state.normalized_count }} · Usable same-session revision features: {{ state.eligible_count }} · Pinned revision feature IDs: {{ pinned }}</span>
+  {% elif dataset == "earnings" %}
+    <span class="muted-line">Historical actuals: {{ state.normalized_count }} · Usable surprise observations: {{ state.eligible_count }} · Surprise component {% if state.selected_count %}available{% elif components|selectattr("name", "equalto", "surprise_trend")|list %}unavailable{% else %}availability unknown{% endif %}</span>
+    <span class="muted-line">Earnings date evidence is assessed separately under Event Risk.</span>
+  {% elif dataset == "guidance" %}
+    <span class="muted-line">Normalized guidance records: {{ state.normalized_count }} · Marked accepted for scoring: {{ state.eligible_count }} · Pinned guidance event IDs: {{ pinned }}</span>
+  {% elif dataset == "catalysts" %}
+    <span class="muted-line">Normalized event revisions: {{ state.normalized_count }} · Issuer-relevant non-rejected revisions: {{ state.eligible_count }} · Pinned catalyst event IDs: {{ pinned }}</span>
+  {% elif dataset == "price_response" %}
+    <span class="muted-line">Derived company features: {{ state.normalized_count }} · Features with quality recorded: {{ state.eligible_count }} · Pinned parent event IDs: {{ pinned }}</span>
+    <span class="muted-line">Depends on an accepted event and an elapsed price window.</span>
+  {% endif %}
+{% endmacro %}

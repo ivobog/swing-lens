@@ -4,23 +4,28 @@ import hashlib
 import json
 from dataclasses import asdict
 from datetime import UTC, date, datetime
-from typing import Annotated, Any
+from types import SimpleNamespace
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi import status as http_status
 from fastapi.responses import HTMLResponse, JSONResponse, Response
+from pydantic import FiniteFloat
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.ceri_tables import (
     CeriAlertEvent,
+    CeriAlertRule,
     CeriCatalystEvent,
     CeriCatalystEventRevision,
+    CeriChangeEvent,
     CeriCompany,
     CeriManualReview,
     CeriProcessingRun,
     CeriPurgeAudit,
+    CeriScoreSnapshot,
 )
 from app.models.tables import BackgroundJob
 from app.routers.export_responses import attachment_response
@@ -34,11 +39,12 @@ from app.services.background_job_service import (
     enqueue_job,
     request_job_cancel,
 )
+from app.services.ceri.actionability import CeriConsumer, evaluate_ceri_actionability
 from app.services.ceri.alert_service import CeriAlertService
 from app.services.ceri.backfill_service import CeriBackfillRequest, CeriBackfillService
 from app.services.ceri.change_semantics import ChangeGroup
 from app.services.ceri.evidence_population import evidence_population_summary
-from app.services.ceri.export_service import CeriExportService
+from app.services.ceri.export_service import CERI_EXPORT_ROW_LIMIT, CeriExportService
 from app.services.ceri.feature_flags import ceri_flags, require_flag
 from app.services.ceri.job_handlers import (
     CERI_ALERT_REBUILD,
@@ -92,8 +98,8 @@ DbSession = Annotated[Session, Depends(get_db)]
 def ceri_dashboard_page(
     request: Request,
     db: DbSession,
-    opportunity_min: float | None = None,
-    risk_max: float | None = None,
+    opportunity_min: FiniteFloat | None = None,
+    risk_max: FiniteFloat | None = None,
     confidence: str | None = None,
     catalyst_category: str | None = None,
     posture: str | None = None,
@@ -122,7 +128,7 @@ def ceri_dashboard_page(
             _list_query(sort="created_at", direction="desc", limit=25),
         )
     )
-    operations = CeriQueryService().operations_status(db)
+    provider_freshness = CeriQueryService().feed_freshness(db)
     return templates.TemplateResponse(
         request,
         "ceri_dashboard.html",
@@ -130,14 +136,15 @@ def ceri_dashboard_page(
             "active_nav": "ceri",
             "items": latest.get("items", []),
             "page": latest,
+            **_dashboard_scope(latest.get("items", [])),
             "summary": _dashboard_summary(
                 latest.get("items", []),
                 changes.get("items", []),
-                operations,
+                {},
                 population=latest.get("summary"),
             ),
             "changes": _group_changes(changes.get("items", [])),
-            "provider_freshness": operations.get("dataset_freshness", []),
+            "provider_freshness": provider_freshness,
             "filters": {
                 "opportunity_min": opportunity_min,
                 "risk_max": risk_max,
@@ -190,6 +197,7 @@ def ceri_run_page(
             "run_id": run_id,
             "items": payload.get("items", []),
             "page": payload,
+            **_dashboard_scope(payload.get("items", [])),
             "summary": _dashboard_summary(
                 payload.get("items", []),
                 changes.get("items", []),
@@ -268,7 +276,7 @@ def ceri_changes_page(
     change_type: str | None = None,
     importance: str | None = None,
     signal_class: str | None = None,
-    min_delta: float | None = None,
+    min_delta: FiniteFloat | None = None,
     catalyst_category: str | None = None,
     history_scope: str | None = None,
     include_non_comparable: bool = False,
@@ -276,6 +284,7 @@ def ceri_changes_page(
     sort: str = "created_at",
     direction: str = "desc",
     limit: int = 50,
+    group_by: Literal["type", "ticker"] = "type",
     offset: int = 0,
 ) -> HTMLResponse:
     changes, changes_error = _ui_payload_or_empty(
@@ -316,20 +325,31 @@ def ceri_changes_page(
             ),
         )
     )
+    visible_changes = changes.get("items", [])
+    visible_alerts = alerts.get("items", [])
+    by_ticker = group_by == "ticker"
     return templates.TemplateResponse(
         request,
         "ceri_changes.html",
         {
             "active_nav": "ceri-alerts",
-            "change_groups": _group_changes(changes.get("items", [])),
-            "alerts": alerts.get("items", []),
+            "change_groups": (
+                _ticker_groups(visible_changes) if by_ticker else _group_changes(visible_changes)
+            ),
+            "alerts": visible_alerts,
+            "alert_groups": (
+                _ticker_groups(visible_alerts)
+                if by_ticker
+                else [{"label": None, "items": visible_alerts}]
+            ),
+            "group_by": group_by,
             "page": changes,
             "comparison_context": changes.get("comparison_context", {}),
             "filters": {
                 "ticker": ticker or "",
                 "status": status or "",
-                "from_run_id": from_run_id or "",
-                "to_run_id": to_run_id or "",
+                "from_run_id": from_run_id if from_run_id is not None else "",
+                "to_run_id": to_run_id if to_run_id is not None else "",
                 "change_group": change_group or "",
                 "change_type": change_type or "",
                 "importance": importance or "",
@@ -742,7 +762,11 @@ def export_ceri_csv(
         output_format="csv",
     )
     content = result.to_csv()
-    _enforce_export_rows(_export_result_row_count(result, content), resource="CERI export")
+    _enforce_export_rows(
+        _export_result_row_count(result, content),
+        resource="CERI export",
+        hard_limit=CERI_EXPORT_ROW_LIMIT,
+    )
     return attachment_response(
         content,
         media_type="text/csv",
@@ -763,7 +787,11 @@ def export_ceri_json(
         output_format="json",
     )
     content = result.to_json()
-    _enforce_export_rows(_export_result_row_count(result, content), resource="CERI export")
+    _enforce_export_rows(
+        _export_result_row_count(result, content),
+        resource="CERI export",
+        hard_limit=CERI_EXPORT_ROW_LIMIT,
+    )
     return attachment_response(
         content,
         media_type="application/json",
@@ -1030,6 +1058,74 @@ def reprocess_ceri(
     return _job_response(job, coalesced=getattr(job, "_coalesced", False))
 
 
+@router.get("/api/ceri/alerts/{alert_id}/detail", dependencies=[Depends(_require_ceri_ui)])
+def ceri_alert_detail(alert_id: int, db: DbSession, response: Response) -> dict[str, Any]:
+    """Return an allowlisted technical view of a single visible alert."""
+    row = db.execute(
+        select(
+            CeriAlertEvent.id,
+            CeriAlertEvent.source_change_event_id,
+            CeriAlertEvent.source_catalyst_revision_id,
+            CeriAlertRule.rule_id,
+            CeriAlertRule.config_version,
+            CeriAlertRule.cooldown_sessions,
+            CeriChangeEvent.change_type,
+            CeriChangeEvent.from_snapshot_id,
+            CeriChangeEvent.to_snapshot_id,
+            CeriChangeEvent.delta_json["freshness"]["semantic"].as_string().label(
+                "freshness_semantic"
+            ),
+        )
+        .outerjoin(CeriAlertRule, CeriAlertRule.id == CeriAlertEvent.alert_rule_id)
+        .outerjoin(CeriChangeEvent, CeriChangeEvent.id == CeriAlertEvent.source_change_event_id)
+        .where(CeriAlertEvent.id == alert_id, CeriAlertEvent.status != "INVALIDATED")
+    ).one_or_none()
+    if row is None or (
+        row.change_type in {"DATA_STALE", "DATA_REFRESHED"}
+        and row.freshness_semantic != "PROVIDER_FEED_FRESHNESS"
+    ):
+        raise _structured_http_error(
+            "CERI_ALERT_DETAIL_UNAVAILABLE",
+            "Alert detail is unavailable.",
+            status_code=404,
+        )
+    snapshot_ids = {row.from_snapshot_id, row.to_snapshot_id} - {None}
+    inputs = {}
+    if snapshot_ids:
+        snapshots = db.execute(
+            select(
+                CeriScoreSnapshot.id,
+                CeriScoreSnapshot.run_id,
+                CeriScoreSnapshot.as_of_session,
+                CeriScoreSnapshot.cutoff_at,
+            ).where(CeriScoreSnapshot.id.in_(snapshot_ids))
+        )
+        inputs = {
+            snapshot.id: {
+                "snapshot_id": snapshot.id,
+                "run_id": snapshot.run_id,
+                "as_of_session": snapshot.as_of_session,
+                "cutoff_at": snapshot.cutoff_at,
+            }
+            for snapshot in snapshots
+        }
+    response.headers["Cache-Control"] = "no-store"
+    return {
+        "alert_id": row.id,
+        "change_event_id": row.source_change_event_id,
+        "catalyst_revision_id": row.source_catalyst_revision_id,
+        "rule": {
+            "id": row.rule_id,
+            "version": row.config_version,
+            "cooldown_sessions": row.cooldown_sessions,
+        } if row.rule_id is not None else None,
+        "comparison_inputs": {
+            "from": inputs.get(row.from_snapshot_id),
+            "to": inputs.get(row.to_snapshot_id),
+        },
+    }
+
+
 @router.post("/api/ceri/alerts/{alert_id}/acknowledge")
 @unsafe_route(
     ROUTE_CLASS_LOCAL_ADMIN,
@@ -1182,6 +1278,45 @@ def _ui_payload_or_empty(callback) -> tuple[dict[str, Any], dict[str, str] | Non
         }
 
 
+def _dashboard_scope(items: list[dict[str, Any]]) -> dict[str, Any]:
+    reference_date = datetime.now(UTC).date()
+    projected = {}
+    for item in items:
+        session = item.get("as_of_session")
+        age_days = (reference_date - date.fromisoformat(session)).days if session else None
+        ledger = (item.get("ledgers") or {}).get("confidence") or {}
+        opportunity = item.get("opportunity") or {}
+        risk = item.get("event_risk") or {}
+        snapshot = SimpleNamespace(
+            data_confidence=item.get("data_confidence"),
+            opportunity_score=item.get("opportunity_score"),
+            opportunity_coverage_pct=opportunity.get("coverage_pct"),
+            opportunity_unrated_reason=opportunity.get("unrated_reason"),
+            confidence_ledger_json=ledger,
+        )
+        policy = evaluate_ceri_actionability(
+            snapshot,
+            consumer=CeriConsumer.RECOMMENDATION,
+            evidence_eligible=True,
+            require_opportunity=True,
+            require_risk_evidence=True,
+            risk_evidence_accepted=risk.get("evidence_state") == "SUFFICIENT",
+        )
+        reasons = policy.reason_codes if not policy.allowed else ()
+        if "caps" not in ledger:
+            reasons = (*reasons, "confidence_ledger_unavailable")
+        projected[item["id"]] = {
+            "age_days": age_days,
+            "qualified": not reasons,
+            "reasons": [reason.replace("_", " ").capitalize() for reason in reasons],
+        }
+    return {
+        "reference_utc_date": reference_date.isoformat(),
+        "candidate_scope": projected,
+        "page_has_qualified_candidates": any(row["qualified"] for row in projected.values()),
+    }
+
+
 def _dashboard_summary(
     items: list[dict[str, Any]],
     changes: list[dict[str, Any]],
@@ -1230,6 +1365,14 @@ def _group_changes(changes: list[dict[str, Any]]) -> list[dict[str, Any]]:
         }
         for group in ChangeGroup
     ]
+
+
+def _ticker_groups(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        ticker = item.get("ticker") or "Ticker unavailable"
+        groups.setdefault(ticker, []).append(item)
+    return [{"label": ticker, "items": rows} for ticker, rows in groups.items()]
 
 
 def _provider_health_payload() -> list[dict[str, Any]]:
@@ -1407,12 +1550,16 @@ def _job_response(job: BackgroundJob, *, coalesced: bool = False) -> JSONRespons
     )
 
 
-def _enforce_export_rows(row_count: int, *, resource: str) -> None:
-    settings = get_settings()
+def _enforce_export_rows(
+    row_count: int, *, resource: str, hard_limit: int | None = None
+) -> None:
+    limit = get_settings().max_export_rows
+    if hard_limit is not None:
+        limit = min(limit, hard_limit)
     try:
         enforce_row_limit(
             row_count,
-            settings.max_export_rows,
+            limit,
             resource=resource,
             code="EXPORT_ROW_LIMIT_EXCEEDED",
         )

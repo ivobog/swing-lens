@@ -18,17 +18,19 @@
     </div>
   </div>
   <div class="run-meta">
-    <span>{{ page.total or 0 }} changes</span>
+    <span>{{ page.total or 0 }} matching changes</span>
     <span>{{ alerts|length }} alerts visible</span>
     <span>{{ comparison.get("label", "No comparable run pair selected") }}</span>
-    <span>{{ comparison.get("excluded_non_comparable", 0) }} excluded as non-comparable</span>
+    {% if comparison.get("excluded_non_comparable") is not none %}
+      <span>{{ comparison.excluded_non_comparable }} referenced snapshots marked non-comparable across retained change history</span>
+    {% endif %}
     {% if ui_error %}<span class="badge badge-warning">{{ ui_error.code }}: {{ ui_error.message }}</span>{% endif %}
   </div>
 </section>
 
 <section class="panel section-gap">
   <div class="panel-header compact-header"><div><h2>Filters</h2></div></div>
-  <form class="ceri-filter-grid section-gap" method="get">
+  <form class="ceri-filter-grid section-gap" method="get" data-ceri-optional-numbers>
     <label><span>Ticker</span><input name="ticker" value="{{ filters.ticker }}"></label>
     <label><span>From run</span><input name="from_run_id" type="number" value="{{ filters.from_run_id }}"></label>
     <label><span>To run</span><input name="to_run_id" type="number" value="{{ filters.to_run_id }}"></label>
@@ -62,6 +64,12 @@
         {% endfor %}
       </select>
     </label>
+    <label><span>Group shown records by</span>
+      <select name="group_by">
+        <option value="type" {{ "selected" if group_by == "type" else "" }}>Change type</option>
+        <option value="ticker" {{ "selected" if group_by == "ticker" else "" }}>Ticker</option>
+      </select>
+    </label>
     <label><span>Sort</span>
       <select name="sort">
         {% for option in ["created_at", "severity", "ticker", "id"] %}
@@ -85,18 +93,54 @@
 
 <section class="split-grid section-gap">
   <div class="panel">
-    <div class="panel-header compact-header"><div><h2>Change Groups</h2></div></div>
+    <div class="panel-header compact-header"><div><h2>{{ "Changes grouped by ticker on this page" if group_by == "ticker" else "Change Groups" }}</h2></div></div>
     {% for group in change_groups %}
       <section class="ceri-change-group">
-        <h3>{{ group.label }}</h3>
+        <h3>{{ group.label }}{% if group_by == "ticker" %} ({{ group["items"]|length }}){% endif %}</h3>
         {% for change in group["items"] %}
-          <article class="evidence-row">
+          <article class="evidence-row" id="ceri-change-{{ change.id }}">
             <strong>{{ change.ticker or "Unknown" }} · {{ change.title }}</strong>
             <span>{{ change.summary }}</span>
+            {% set inputs = (change.technical|default({})).get("comparison_inputs", {}) %}
+            {% if inputs %}
+              {% set earlier = inputs["from"] %}
+              {% set later = inputs["to"] %}
+              <small>Run {{ earlier.run_id|default("unavailable", true) }} → Run {{ later.run_id|default("unavailable", true) }} · {{ change.comparison_state|replace("_", " ")|title }}</small>
+              {% if earlier or later %}
+                <small>Sessions {{ earlier.as_of_session|default("unavailable", true) }} → {{ later.as_of_session|default("unavailable", true) }}</small>
+                <small>Cutoffs {{ earlier.cutoff_at|default("unavailable", true) }} → {{ later.cutoff_at|default("unavailable", true) }}</small>
+              {% endif %}
+            {% endif %}
             {% if change.group in ["Upward revisions", "Downward revisions"] %}
-              {% for window in change.current.revision_windows %}
-                <small>{{ window.metric|replace("_DILUTED", "") }} {{ window.period_key|replace("_", " ")|title }} {{ window.window_days }}d · {{ "%+.2f"|format(window.pct_change) if window.pct_change is not none else "Unavailable" }}% · Breadth {{ "%+.2f"|format(window.net_breadth) if window.net_breadth is not none else "Unavailable" }} · Acceleration {{ "%+.2f"|format(window.acceleration) if window.acceleration is not none else "Unavailable" }}</small>
-              {% endfor %}
+              {% set previous_windows = (change.previous or {}).get("revision_windows", []) %}
+              {% set current_windows = (change.current or {}).get("revision_windows", []) %}
+              {% if current_windows or previous_windows %}
+                <details>
+                  <summary>Supporting revision windows</summary>
+                  <div class="table-wrap">
+                    <table>
+                      <thead><tr><th scope="col">Snapshot</th><th scope="col">Metric</th><th scope="col">Period identity</th><th scope="col">Window</th><th scope="col">Change</th><th scope="col">Breadth</th><th scope="col">Acceleration</th></tr></thead>
+                      <tbody>
+                        {% for label, windows in [("Previous", previous_windows), ("Current", current_windows)] %}
+                          {% for window in windows %}
+                            <tr>
+                              <td>{{ label }}</td>
+                              <td>{{ window.metric }}</td>
+                              <td>{{ window.period_key or "Unverified" }}</td>
+                              <td>{{ window.window_days }}d{% if window.actual_elapsed_days is number %} · {{ window.actual_elapsed_days }}d elapsed{% endif %}</td>
+                              <td>{% if window.pct_change is number %}{{ "%+.2f"|format(window.pct_change) }}{{ "%" if window.pct_change_unit == "PERCENTAGE_POINTS" else " (unit unverified)" }}{% else %}Unavailable{% endif %}</td>
+                              <td>{% if window.net_breadth is number %}{{ "%+.2f"|format(window.net_breadth) }}{% else %}Unavailable{% endif %}</td>
+                              <td>{% if window.acceleration is number %}{{ "%+.2f"|format(window.acceleration) }} {{ "pp/day" if window.acceleration_unit == "PERCENTAGE_POINTS_PER_DAY" else "(unit unverified)" }}{% else %}Unavailable{% endif %}</td>
+                            </tr>
+                          {% endfor %}
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              {% else %}
+                <small>Pinned revision window evidence unavailable</small>
+              {% endif %}
             {% elif change.group == "Guidance" %}
               <small>{{ change.previous.action or "No accepted guidance" }} -> {{ change.current.action }} · {{ change.current.metric or "Metric unavailable" }} · Confidence {{ change.current.confidence or "Unavailable" }}</small>
             {% elif change.previous and change.current %}
@@ -137,24 +181,45 @@
               <th scope="col">Alert</th>
               <th scope="col">Importance</th>
               <th scope="col">Change</th>
-              <th scope="col">Risk</th>
+              <th scope="col">Alert-time risk</th>
+              <th scope="col">Current risk assessment</th>
               <th scope="col">Confidence</th>
               <th scope="col">When</th>
-              <th scope="col">Status</th>
+              <th scope="col">Notification status</th>
+              <th scope="col">Alert validity</th>
               <th scope="col">Action</th>
             </tr>
           </thead>
+          {% for group in alert_groups %}
           <tbody>
-            {% for alert in alerts %}
-              <tr data-ceri-alert-row>
+            {% if group.label %}<tr><th scope="rowgroup" colspan="11">{{ group.label }} ({{ group["items"]|length }} shown)</th></tr>{% endif %}
+            {% for alert in group["items"] %}
+              <tr data-ceri-alert-row id="ceri-alert-{{ alert.id }}">
                 <td>{{ alert.ticker }}</td>
                 <td>{{ alert.alert_type|replace("_", " ")|title }}</td>
                 <td>{{ alert.importance|title }}</td>
                 <td>{{ alert.change_summary }}</td>
-                <td>{{ alert.risk if alert.risk is not none else "Unavailable" }}</td>
+                {% set assessment = (alert.technical|default({})).get("assessment", {}) %}
+                {% set current_risk = assessment.get("current_risk") or {} %}
+                {% set linked_change = alert.change|default({}) or {} %}
+                {% set alert_snapshot = ((linked_change.get("technical") or {}).get("comparison_inputs") or {}).get("to", {}) %}
+                <td>
+                  {{ alert.risk if alert.risk is number else "Unavailable" }}
+                  {% if alert_snapshot.as_of_session %}<small class="muted-line">{{ alert_snapshot.as_of_session }}</small>{% endif %}
+                </td>
+                <td>
+                  {% if current_risk.score is number and current_risk.state in ["SUFFICIENT", "PARTIAL"] %}
+                    {{ current_risk.score }} · {{ current_risk.state|title }}
+                    <small class="muted-line">{{ current_risk.as_of_session or "Session unavailable" }}</small>
+                  {% endif %}
+                  {% if assessment.validity != "VALID_CURRENT" or current_risk.state != "SUFFICIENT" %}
+                    <small class="muted-line">Current relevance unconfirmed</small>
+                  {% endif %}
+                </td>
                 <td>{{ alert.confidence or "Unavailable" }}</td>
                 <td>{{ alert.created_at }}</td>
                 <td><span data-ceri-alert-status>{{ alert.status }}</span></td>
+                <td>{{ assessment.validity|default("Unknown", true)|replace("_", " ")|title }}</td>
                 <td>
                   {% if alert.actionable and admin_enabled %}
                     <div class="row-actions">
@@ -166,11 +231,18 @@
                   {% else %}
                     <span>Admin disabled</span>
                   {% endif %}
-                  <details><summary>Technical details</summary><code>{{ alert.technical|tojson }}</code></details>
+                  <details data-ceri-alert-detail="/api/ceri/alerts/{{ alert.id }}/detail">
+                    <summary>Technical details</summary>
+                    <span data-ceri-detail-status aria-live="polite"></span>
+                    <pre data-ceri-detail-output hidden></pre>
+                    <button type="button" class="secondary" data-ceri-detail-retry hidden>Retry technical details</button>
+                    <noscript>Enable JavaScript to load technical details.</noscript>
+                  </details>
                 </td>
               </tr>
             {% endfor %}
           </tbody>
+          {% endfor %}
         </table>
       </div>
     {% else %}

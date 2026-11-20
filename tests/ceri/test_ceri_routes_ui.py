@@ -44,10 +44,43 @@ def test_ceri_dashboard_renders_full_data_and_filters(
     assert "Low" in response.text
     assert "1 warning" in response.text
     assert "Provider Freshness" in response.text
+    assert "Latest eligible snapshot per ticker" in response.text
+    assert "Snapshot age uses calendar days" in response.text
+    assert "No shown candidates meet the CERI recommendation evidence policy." in response.text
     assert "Evidence 7 considered / 1 direct component evidence selected" in response.text
     assert fake_service.latest_queries[-1].filters.opportunity_min == 7
     assert fake_service.latest_queries[-1].filters.risk_max == 3
     assert fake_service.latest_queries[-1].filters.has_warnings is True
+
+
+@pytest.mark.parametrize(
+    ("score", "evidence_state", "text"),
+    [
+        (0.0, "SUFFICIENT", "No material assessed event risk"),
+        (0.0, "PARTIAL", "0.00 calculated"),
+        (3.0, "PARTIAL", "3.00 calculated"),
+        (0.0, "UNAVAILABLE", "Risk unknown"),
+        (0.0, "INSUFFICIENT", "Risk unknown"),
+        (None, "UNAVAILABLE", "Risk unknown"),
+    ],
+)
+def test_dashboard_risk_display_uses_evidence_state(monkeypatch, score, evidence_state, text):
+    service = FakeCeriQueryService()
+    baseline_latest = service.latest
+
+    def latest(db, query):
+        payload = baseline_latest(db, query)
+        payload["items"][0]["event_risk"] = {
+            "score": score, "evidence_state": evidence_state, "dominant_reason": None
+        }
+        return payload
+
+    monkeypatch.setattr(service, "latest", latest)
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: service)
+    response = TestClient(_app(ceri_ui_enabled=True)).get("/ceri")
+
+    assert response.status_code == 200
+    assert text in response.text
 
 
 def test_run_dashboard_renders_pagination_rated_coverage_and_safe_semantics(
@@ -70,9 +103,9 @@ def test_run_dashboard_renders_pagination_rated_coverage_and_safe_semantics(
     assert "Coverage 85%" in response.text
     assert "Risk evidence: Sufficient" in response.text
     assert "Source: Fresh" in response.text
-    assert "Normalized: 36" in response.text
-    assert "Eligible: 8" in response.text
-    assert "Selected: 3" in response.text
+    assert "Normalized estimate snapshots: 36" in response.text
+    assert "Usable same-session revision features: 8" in response.text
+    assert "Pinned revision feature IDs: 3" in response.text
     assert "+5.00%" in response.text
     assert "+0.71" in response.text
     assert "Breadth is (upward revisions - downward revisions)" in response.text
@@ -96,6 +129,9 @@ def test_summary_uses_full_population_and_explicit_zero_risk_predicate(
     assert "31</strong>" in response.text
     assert "177 candidates" in response.text
     assert "Summary population 177" in response.text
+    assert "High opportunity / low assessed risk research candidates" in response.text
+    assert "Recent change events shown (max 25)" in response.text
+    assert "Stale / Conflicted" not in response.text
 
 
 def test_run_page_reuses_one_query_service_instance(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -116,6 +152,27 @@ def test_run_page_reuses_one_query_service_instance(monkeypatch: pytest.MonkeyPa
 
     assert response.status_code == 200
     assert len(instances) == 1
+
+
+def test_missing_earnings_component_lineage_is_unknown(monkeypatch) -> None:
+    service = FakeCeriQueryService()
+    original_latest = service.latest
+
+    def latest(db, query):
+        payload = original_latest(db, query)
+        item = payload["items"][0]
+        item["ledgers"]["opportunity"] = {}
+        item["evidence_diagnostics"]["earnings"] = {
+            "source_status": "ABSENT", "source_present": False, "source_age_days": None,
+            "normalized_count": 0, "eligible_count": 0, "selected_count": 0,
+        }
+        return payload
+
+    monkeypatch.setattr(service, "latest", latest)
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: service)
+    response = TestClient(_app(ceri_ui_enabled=True)).get("/ceri")
+    assert response.status_code == 200
+    assert "Surprise component availability unknown" in response.text
 
 
 def test_ceri_dashboard_renders_empty_state(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -149,10 +206,10 @@ def test_ceri_ticker_detail_renders_provenance_and_warnings(
     assert "No event" not in response.text
     assert "Earnings Risk</span><strong>N/A" in response.text
     assert "Source: Fresh" in response.text
-    assert "Normalized: 36" in response.text
-    assert "Eligible: 8" in response.text
-    assert "Selected: 3" in response.text
-    assert "Blocker: none" in response.text
+    assert "Normalized estimate snapshots: 36" in response.text
+    assert "Usable same-session revision features: 8" in response.text
+    assert "Pinned revision feature IDs: 3" in response.text
+    assert "Blocker: none" not in response.text
     assert "Price Response" in response.text
 
 
@@ -229,6 +286,53 @@ def test_ceri_changes_render_groups_and_alert_actions(
     assert "N/A -&gt; N/A" not in response.text
     assert 'data-ceri-alert-action="/api/ceri/alerts/9/acknowledge"' in response.text
     assert "Alert actions update only alert state" in response.text
+    assert "Notification status" in response.text
+    assert "Alert validity" in response.text
+    assert "Current relevance unconfirmed" in response.text
+
+
+@pytest.mark.parametrize(
+    ("path", "name"),
+    [
+        ("/ceri", "opportunity_min"),
+        ("/ceri", "risk_max"),
+        ("/ceri/changes", "min_delta"),
+    ],
+)
+@pytest.mark.parametrize("value", ["NaN", "Inf", "-Infinity", "1e999"])
+def test_ceri_html_filters_reject_non_finite_values(monkeypatch, path, name, value) -> None:
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: FakeCeriQueryService())
+    client = TestClient(_app(ceri_ui_enabled=True), raise_server_exceptions=False)
+
+    response = client.get(path, params={name: value})
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["query", name]
+
+
+def test_ceri_changes_preserves_explicit_zero_run_bounds(monkeypatch) -> None:
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: FakeCeriQueryService())
+    client = TestClient(_app(ceri_ui_enabled=True))
+
+    response = client.get("/ceri/changes?from_run_id=0&to_run_id=0&min_delta=-0.125")
+
+    assert response.status_code == 200
+    assert 'name="from_run_id" type="number" value="0"' in response.text
+    assert 'name="to_run_id" type="number" value="0"' in response.text
+    assert 'name="min_delta" type="number" step="any" value="-0.125"' in response.text
+
+
+def test_changes_can_group_visible_records_by_ticker(monkeypatch) -> None:
+    monkeypatch.setattr(ceri_routes, "CeriQueryService", lambda: FakeCeriQueryService())
+    response = TestClient(_app(ceri_ui_enabled=True, ceri_admin_enabled=True)).get(
+        "/ceri/changes?group_by=ticker"
+    )
+    assert response.status_code == 200
+    assert "Changes grouped by ticker on this page" in response.text
+    assert "MSFT (2)" in response.text
+    assert "Revision up" in response.text
+    assert "Risk escalated" in response.text
+    assert response.text.count('/api/ceri/alerts/9/acknowledge') == 1
 
 
 def test_ceri_changes_template_tolerates_missing_comparison_context(
@@ -252,7 +356,7 @@ def test_ceri_changes_template_tolerates_missing_comparison_context(
 
     assert response.status_code == 200
     assert "No comparable run pair selected" in response.text
-    assert "0 excluded as non-comparable" in response.text
+    assert "referenced snapshots marked non-comparable" not in response.text
 
 
 def test_ceri_operations_render_health_checkpoints_and_preview_only_purge(
@@ -583,6 +687,9 @@ class FakeCeriQueryService:
             ],
             "total": 1,
         }
+
+    def feed_freshness(self, db):
+        return self.operations_status(db)["dataset_freshness"]
 
     def operations_status(self, _db):
         return {
