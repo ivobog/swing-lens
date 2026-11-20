@@ -24,7 +24,7 @@ from app.models.ceri_tables import (
 )
 from app.services.ceri.catalyst_taxonomy import CeriCatalystTaxonomy
 from app.services.ceri.earnings_normalizer import CeriEarningsNormalizer
-from app.services.ceri.enums import CeriDataset
+from app.services.ceri.enums import CeriDataset, CeriSourceProjection
 from app.services.ceri.estimate_normalizer import CeriEstimateNormalizer
 from app.services.ceri.guidance_comparison_service import compare_guidance
 from app.services.ceri.guidance_normalizer import (
@@ -33,6 +33,7 @@ from app.services.ceri.guidance_normalizer import (
 )
 from app.services.ceri.identity_resolver import CeriIdentityResolver
 from app.services.ceri.sec.issuer_succession import effective_symbol, ownership_conflict
+from app.services.ceri.sec.reporting_currency import CurrencyBinding, SecRevenueCurrencyCapture
 from app.services.domain_mutation import MutationDomain, MutationSemanticMode
 from app.services.redaction import redact_text
 from app.services.source_mutation_authority import source_mutation_writer, source_writer_member
@@ -77,12 +78,14 @@ class CeriNormalizationService:
         earnings_normalizer: CeriEarningsNormalizer | None = None,
         guidance_normalizer: CeriGuidanceNormalizer | None = None,
         catalyst_taxonomy: CeriCatalystTaxonomy | None = None,
+        sec_currency_capture: SecRevenueCurrencyCapture | None = None,
     ) -> None:
         self.identity_resolver = identity_resolver or CeriIdentityResolver()
         self.estimate_normalizer = estimate_normalizer or CeriEstimateNormalizer()
         self.earnings_normalizer = earnings_normalizer or CeriEarningsNormalizer()
         self.guidance_normalizer = guidance_normalizer or CeriGuidanceNormalizer()
         self.catalyst_taxonomy = catalyst_taxonomy or CeriCatalystTaxonomy()
+        self.sec_currency_capture = sec_currency_capture
 
     def replay_sec_identity(
         self, db: Session, *, original: CeriProcessingRun, ingestion_run_id: int, actor: str
@@ -209,7 +212,14 @@ class CeriNormalizationService:
                     "CERI_NORMALIZATION_SOURCE_MEMBERSHIP_MISSING:"
                     f"ingestion_run={ingestion_run_id}:fetched={ingestion.fetched_count}"
                 )
-        records = list(all_records)
+        records = [
+            source for source in all_records
+            if source.dataset != CeriSourceProjection.SEC_REPORTING_CURRENCY
+        ]
+        capture = self.sec_currency_capture
+        if capture is not None and capture.ingestion_run_id != ingestion_run_id:
+            capture = None
+        authorities = capture.prepare(db) if capture is not None else {}
         prepare_identity = getattr(self.identity_resolver, "prepare", None)
         if callable(prepare_identity):
             prepare_identity(db)
@@ -252,10 +262,16 @@ class CeriNormalizationService:
                         )
                     else:
                         reused = _has_normalized_representation(db, source_record)
+                        currency = None
+                        if capture is not None and not reused:
+                            currency = capture.resolve(
+                                source_record, authorities.get(resolution.company_id),
+                            )
                         created = self._normalize_record(
                             db,
                             source_record,
                             company_id=resolution.company_id,
+                            sec_currency=currency,
                         )
                         normalized += created
                         _mark_membership(
@@ -341,6 +357,7 @@ class CeriNormalizationService:
         source_record: CeriSourceRecord,
         *,
         company_id: int,
+        sec_currency: CurrencyBinding | None = None,
     ) -> int:
         # Source identity maintenance belongs to the same validated native
         # source transaction as normalization, including direct record calls.
@@ -349,7 +366,13 @@ class CeriNormalizationService:
         if dataset is CeriDataset.ESTIMATES:
             if _exists_by_source(db, CeriEstimateSnapshot, source_record.id):
                 return 0
-            db.add(self.estimate_normalizer.normalize(source_record, company_id=company_id))
+            if sec_currency is None:
+                estimate = self.estimate_normalizer.normalize(source_record, company_id=company_id)
+            else:
+                estimate = self.estimate_normalizer.normalize(
+                    source_record, company_id=company_id, sec_currency=sec_currency
+                )
+            db.add(estimate)
             return 1
         if dataset is CeriDataset.EARNINGS:
             if _exists_by_source(db, CeriEarningsActual, source_record.id):
@@ -505,7 +528,9 @@ def _source_records(db: Session, ingestion_run_id: int | None) -> list[CeriSourc
     scalars = getattr(db, "scalars", None)
     if not callable(scalars):
         return []
-    statement = select(CeriSourceRecord)
+    statement = select(CeriSourceRecord).where(
+        CeriSourceRecord.dataset != CeriSourceProjection.SEC_REPORTING_CURRENCY
+    )
     if ingestion_run_id is not None:
         statement = statement.join(
             CeriIngestionRunSourceRecord,
