@@ -316,7 +316,8 @@ def test_protected_writer_and_persisted_authority(tmp_path, disposable_postgres_
     engine = create_engine(disposable_postgres_database)
     CeriCompany.metadata.create_all(engine)
     with Session(engine) as db:
-        run, company, review = fixture(tmp_path, clock=datetime.now(UTC))
+        clock = datetime.now(UTC)
+        run, company, review = fixture(tmp_path, clock=clock)
         run.request_key = "f7-test"
         run.config_version = "test"
         run.config_hash = "test"
@@ -348,7 +349,12 @@ def test_protected_writer_and_persisted_authority(tmp_path, disposable_postgres_
                 provider="eodhd",
                 dataset=CeriDataset.ESTIMATES,
                 provider_record_id=key,
-                payload={"ticker": "AAPL", **estimate().restricted_normalized_json},
+                payload={
+                    "ticker": "AAPL",
+                    **estimate(
+                        fiscal_period_end=(clock.date() + timedelta(days=120)).isoformat()
+                    ).restricted_normalized_json,
+                },
                 published_at=None,
                 observed_at=None,
                 retrieved_at=datetime.now(UTC),
