@@ -135,12 +135,23 @@ def _default_providers() -> dict[str, CeriProvider]:
     }
 
 
+SEC_REPORTING_CURRENCY_FIELDS = frozenset({
+    "policy_version", "ticker", "provider_company_id", "cik", "reporting_entity",
+    "company_id", "eodhd_ingestion_run_id", "filing_registry_id", "filing_accession", "form",
+    "document_name", "fiscal_period_end", "period_family", "currency", "comparison_basis",
+    "document_sha256", "filing_date", "accepted_at", "document_received_at",
+    "submissions_received_at", "submissions_sha256",
+})
+
+
 def provider_storage_projection(
     provider: str,
     dataset: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
     """Project provider responses to fields permitted for persistence."""
+    if provider == "sec" and dataset == "sec_reporting_currency":
+        return {key: payload[key] for key in SEC_REPORTING_CURRENCY_FIELDS if key in payload}
     if provider not in {"eodhd", "sec"}:
         return dict(payload)
     allowed = {

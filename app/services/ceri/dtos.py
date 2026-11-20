@@ -15,6 +15,7 @@ from app.services.ceri.enums import (
     CeriMetric,
     CeriPeriodType,
     CeriProviderCapability,
+    CeriSourceProjection,
     DateConfidence,
     GuidanceAction,
     HistoricalViewMode,
@@ -105,7 +106,7 @@ class CatalystRequest:
 @dataclass(frozen=True)
 class RawProviderRecord:
     provider: str
-    dataset: CeriDataset
+    dataset: CeriDataset | CeriSourceProjection
     provider_record_id: str
     payload: dict[str, Any]
     published_at: datetime | None

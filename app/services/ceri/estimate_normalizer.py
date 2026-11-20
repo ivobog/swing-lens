@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.models.ceri_tables import CeriEstimateSnapshot, CeriSourceRecord
 from app.services.ceri.currency_conversion_service import (
@@ -13,6 +13,9 @@ from app.services.ceri.currency_conversion_service import (
 from app.services.ceri.effective_session_service import CeriEffectiveSessionService
 from app.services.ceri.enums import CeriMetric
 from app.services.ceri.fiscal_period_normalizer import CeriFiscalPeriodNormalizer
+
+if TYPE_CHECKING:
+    from app.services.ceri.sec.reporting_currency import CurrencyBinding
 
 
 class CeriEstimateNormalizer:
@@ -32,8 +35,17 @@ class CeriEstimateNormalizer:
         source_record: CeriSourceRecord,
         *,
         company_id: int,
+        sec_currency: CurrencyBinding | None = None,
     ) -> CeriEstimateSnapshot:
         payload = _payload(source_record)
+        if sec_currency is not None:
+            payload = {
+                **payload, "source_currency": sec_currency.currency, "source_scale": "1",
+                "canonical_currency": sec_currency.currency, "canonical_scale": "1",
+                "currency_basis": "filing_currency", "conversion_source": "filing_currency",
+                "conversion_source_record_id": sec_currency.source_record_id,
+                "conversion_effective_at": sec_currency.known_at.isoformat(),
+            }
         period = self.fiscal_periods.normalize(payload)
         observed_at = _datetime(payload.get("effective_at")) or source_record.observed_at
         source_date = _date(payload.get("source_date")) or _date(payload.get("published_date"))

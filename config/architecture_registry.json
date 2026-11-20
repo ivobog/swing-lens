@@ -11810,6 +11810,27 @@
       "reason": "Local set.add validates a contract; no database write."
     },
     {
+      "path": "app/services/ceri/sec/reporting_currency.py",
+      "function": "prepare",
+      "kind": "add",
+      "writer_ids": [],
+      "reason": "Tracks duplicate issuer IDs in a local set to reject ambiguous authority. The method only reads database rows."
+    },
+    {
+      "path": "app/services/ceri/sec/statement_currency.py",
+      "function": "_contexts",
+      "kind": "add",
+      "writer_ids": [],
+      "reason": "Collects matching consolidated XBRL context IDs in a local set during statement parsing."
+    },
+    {
+      "path": "app/services/ceri/sec/statement_currency.py",
+      "function": "extract_presentation_currency",
+      "kind": "add",
+      "writer_ids": [],
+      "reason": "Collects presentation currency candidates in a local set during statement parsing."
+    },
+    {
       "path": "app/services/ib_bar_admission_service.py",
       "function": "seal_bar_admission",
       "kind": "add",
