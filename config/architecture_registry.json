@@ -12546,6 +12546,34 @@
   ],
   "transaction_sites": [
     {
+      "path": "app/services/ceri/sec/prospective_capture.py",
+      "function": "_claim",
+      "primitive": "begin",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Lock and durably consume the exact approved, frozen capture-only acquisition before any provider attempt."
+    },
+    {
+      "path": "app/services/ceri/sec/prospective_capture.py",
+      "function": "capture_prospective_revenue",
+      "primitive": "begin",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Atomically persist and verify scoped SEC and EODHD evidence and normalized revenue, ending before downstream jobs."
+    },
+    {
+      "path": "app/services/ceri/sec/prospective_capture.py",
+      "function": "_capture",
+      "primitive": "begin_nested",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Roll back an unavailable issuer's evidence without affecting other qualified issuers in the same owned acquisition."
+    },
+    {
+      "path": "app/services/ceri/sec/prospective_capture.py",
+      "function": "_record_failure",
+      "primitive": "begin",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Record the consumed request budget and terminal status after the acquisition's data transaction rolls back."
+    },
+    {
       "path": "app/db.py",
       "function": "get_db",
       "primitive": "autonomous_session",
