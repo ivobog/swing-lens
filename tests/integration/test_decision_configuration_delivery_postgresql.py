@@ -297,11 +297,17 @@ def test_native_setup_lifecycle_winner_artifacts_retain_own_c1(
     with Session(engine) as db:
         bundle = resolve_pipeline_configurations(db)
         bundle.update({item.snapshot.family.namespace: item for item in extra})
+        aliases = resolve_fundamental_configuration().values["column_aliases"]
         cutoff, _, _ = seed_native_core(
             db,
             extra_configurations=tuple(bundle.values()),
             cutoff_at=datetime(2026, 7, 31, 21, 30, tzinfo=UTC),
-            raw_values={**_native_liquidity_source(), "upcoming_earnings_date": "2026-11-10"},
+            raw_values={
+                **_native_liquidity_source(),
+                aliases["net_income_ttm_currency"][0]: "USD",
+                aliases["net_income_estimate_ntm_currency"][0]: "USD",
+                "upcoming_earnings_date": "2026-11-10",
+            },
         )
         pipeline_id = db.scalar(select(PipelineRun.id).where(PipelineRun.upload_run_id == 7))
         job = enqueue_job(
