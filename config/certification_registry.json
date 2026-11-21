@@ -4337,6 +4337,10 @@
             "symbol": "main"
           },
           {
+            "path": "scripts/ops/ceri_prospective_revenue.py",
+            "symbol": "_run"
+          },
+          {
             "path": "app/services/ticker_intelligence_service.py",
             "symbol": "_ceri"
           }
@@ -4352,6 +4356,9 @@
           "app/templates/partials/_ceri_evidence_facts.html",
           "app/templates/partials/_ceri_risk_display.html",
           "tests/ceri/test_ceri_query_service.py",
+          "scripts/ops/ceri_prospective_revenue.py",
+          "tests/ceri/test_sec_prospective_operator.py",
+          "docs/operations/CERI_PROSPECTIVE_REVENUE_CAPTURE.md",
           "app/services/market_calculation_context_service.py",
           "tests/test_provider_replay_contracts.py",
           "app/services/alembic_heads.py",
@@ -4492,6 +4499,33 @@
           "tests/test_sec_continuation_executor.py"
         ],
         "tests": [
+          {
+            "id": "tests/ceri/test_sec_prospective_operator.py::test_preflight_reserve_and_exact_six_issuer_execute",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Read-only preflight, frozen reservation and exact-ID execution capture six approved issuers.",
+            "negative": "Reservation and execution replay are refused without extra requests or downstream work.",
+            "reviewed_test_sha256": "8f124f8775a830fd7ba84ebfcaf066b5e614f9d87b53df2d9ec8f1def7588c40"
+          },
+          {
+            "id": "tests/ceri/test_sec_prospective_operator.py::test_rejected_approval_context_has_no_provider_access",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Only the exact approved deployment, database and reserved envelope can proceed.",
+            "negative": "Changed owner context, issuer scope, time or budget is refused before provider access.",
+            "reviewed_test_sha256": "8f124f8775a830fd7ba84ebfcaf066b5e614f9d87b53df2d9ec8f1def7588c40"
+          },
+          {
+            "id": "tests/ceri/test_sec_prospective_operator.py::test_competitor_appearing_after_preflight_rolls_back_spot",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "The operator delegates source binding to the capture contract after preflight.",
+            "negative": "An intervening locally known competing SPOT filing prevents binding and rolls back issuer writes.",
+            "reviewed_test_sha256": "8f124f8775a830fd7ba84ebfcaf066b5e614f9d87b53df2d9ec8f1def7588c40"
+          },
           {
             "id": "tests/integration/test_ceri_evidence_quarantine_postgresql.py::test_owner_fallback_is_correlated_to_each_snapshot_upload",
             "tier": "NATIVE",
@@ -4790,7 +4824,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "f0a15f473d75d4bdb379fb8d02262f412e94cf60c995a70c7bf8be8618a01c3b",
+        "review_sha256": "10470aa9c3fa9a001da4da60567c42bc3cc4aa8757e2f45470b9ee9cc5246dea",
         "review_addenda": [
           {
             "task": "MSI-20261103",
