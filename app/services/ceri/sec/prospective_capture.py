@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from itertools import islice
@@ -48,6 +49,7 @@ from app.services.ceri.sec.reporting_currency import (
     _time,
     register_statement,
 )
+from app.services.ceri.sec.statement_currency import CURRENCIES
 from app.services.ceri.source_record_service import (
     CeriSourceRecordService,
     source_record_content_hash,
@@ -72,6 +74,7 @@ class _ReviewedFiling:
     currency: str
     accepted_at: datetime
     fiscal_targets: tuple[tuple[CeriPeriodType, date], ...] = ()
+    fiscal_reference: str = ""
 
 
 # Exact evidence in the approved F7 validation receipt. No alternate accession is selected.
@@ -187,6 +190,9 @@ _PERIODS = (
 _SEC = "https://data.sec.gov"
 _EODHD = "https://eodhd.com"
 CAPTURE_SCOPE_KIND = "CERI_PROSPECTIVE_REVENUE_CURRENCY"
+SIGNED_CYCLE_GRANT_PATTERN = (
+    r"cycle-v1:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+)
 
 
 @dataclass(frozen=True)
@@ -201,9 +207,13 @@ class RevenueCaptureScope:
     sec_attempts: int
     eodhd_attempts: int
     observations: int
+    reviewed_filings: tuple[tuple[str, _ReviewedFiling], ...] = ()
+
+    def filings(self) -> dict[str, _ReviewedFiling]:
+        return dict(self.reviewed_filings) or {symbol: _REVIEWED[symbol] for symbol in self.symbols}
 
     def envelope(self) -> dict:
-        return {
+        envelope = {
             "policy": POLICY,
             "operator": self.operator,
             "approval_reference": self.approval_reference,
@@ -214,6 +224,19 @@ class RevenueCaptureScope:
             "eodhd_attempts": self.eodhd_attempts,
             "observations": self.observations,
         }
+        if self.reviewed_filings:
+            envelope["reviewed_filings"] = {
+                symbol: {
+                    **asdict(proof),
+                    "accepted_at": proof.accepted_at.isoformat(),
+                    "fiscal_end": proof.fiscal_end.isoformat(),
+                    "fiscal_targets": {
+                        role.value: end.isoformat() for role, end in proof.fiscal_targets
+                    },
+                }
+                for symbol, proof in self.reviewed_filings
+            }
+        return envelope
 
     def validate(self) -> None:
         if not (
@@ -231,6 +254,46 @@ class RevenueCaptureScope:
             and 0 < self.observations <= 24
         ):
             raise ValueError("Invalid prospective revenue capture approval")
+        signed_cycle = re.fullmatch(
+            rf"ceri:prospective:{SIGNED_CYCLE_GRANT_PATTERN}", self.request_key
+        )
+        if bool(signed_cycle) != bool(self.reviewed_filings):
+            raise ValueError("Signed cycle requires its own reviewed filings")
+        if signed_cycle:
+            filings = dict(self.reviewed_filings)
+            if (
+                len(self.reviewed_filings) != len(self.symbols)
+                or filings.keys() != set(self.symbols)
+            ):
+                raise ValueError("Signed filings must match the exact issuer scope")
+            for symbol, proof in filings.items():
+                if not (
+                    proof.cik == _REVIEWED[symbol].cik
+                    and 0 < len(proof.entity.strip()) <= 160
+                    and proof.registry_id > 0
+                    and re.fullmatch(r"[0-9]{10}-[0-9]{2}-[0-9]{6}", proof.accession)
+                    and re.fullmatch(r"[a-f0-9]{64}", proof.sha256)
+                    and proof.family in {"ANNUAL", "QUARTERLY"}
+                    and proof.currency in CURRENCIES
+                    and proof.accepted_at.utcoffset() == timedelta(0)
+                    and proof.fiscal_end <= proof.accepted_at.date()
+                    and proof.accepted_at < self.starts_at
+                    and 0 < len(proof.fiscal_reference.strip()) <= 240
+                    and _ordered_targets(proof, self.cutoff_at.date())
+                ):
+                    raise ValueError("Reviewed filing or fiscal-period authority is invalid")
+
+
+def _ordered_targets(proof: _ReviewedFiling, cutoff: date) -> bool:
+    targets = dict(proof.fiscal_targets)
+    if len(proof.fiscal_targets) != len(_PERIODS) or targets.keys() != set(_PERIODS):
+        return False
+    quarter, next_quarter, year, next_year = (targets[role] for role in _PERIODS)
+    return (
+        proof.fiscal_end < quarter
+        and cutoff <= quarter < next_quarter <= next_year
+        and quarter <= year < next_year
+    )
 
 
 class _StopCapture(RuntimeError):
@@ -238,6 +301,10 @@ class _StopCapture(RuntimeError):
 
 
 class _SkipIssuer(RuntimeError):
+    pass
+
+
+class _DuplicateObservation(RuntimeError):
     pass
 
 
@@ -268,7 +335,7 @@ class _Requests:
         origin = f"{parts.scheme}://{parts.netloc}"
         if provider == "sec":
             allowed_paths = {
-                f"/submissions/CIK{_REVIEWED[symbol].cik}.json" for symbol in self.scope.symbols
+                f"/submissions/CIK{proof.cik}.json" for proof in self.scope.filings().values()
             }
             permitted = origin == _SEC and parts.path in allowed_paths and not parts.query
         else:
@@ -424,15 +491,16 @@ def _record_failure(db, scope, receipt, status, reason):
 
 def _finish(db, run, receipt, status):
     count = sum(len(row.get("observations", [])) for row in receipt["issuers"])
+    duplicates = sum(len(row.get("already_seen_period_roles", [])) for row in receipt["issuers"])
     receipt.update(status=status, normalized=count)
     CeriSourceRecordService().finish_ingestion_run(
         db,
         run,
         status=status,
         requested_count=len(receipt["scope"]["symbols"]),
-        fetched_count=count,
+        fetched_count=count + duplicates,
         inserted_count=count,
-        deduplicated_count=0,
+        deduplicated_count=duplicates,
         corrected_count=0,
         quarantined_count=0,
         failed_count=int(status == "FAILED"),
@@ -580,7 +648,7 @@ def _select_revenue_records(
 
 
 def _issuer(db, run, scope, symbol, cache_dir, sec, eodhd, *, remaining):
-    proof = _REVIEWED[symbol]
+    proof = scope.filings()[symbol]
     company = db.scalars(
         select(CeriCompany).where(
             CeriCompany.ticker == symbol.removesuffix(".US"),
@@ -626,7 +694,7 @@ def _issuer(db, run, scope, symbol, cache_dir, sec, eodhd, *, remaining):
     if possessed is None or not run.started_at <= possessed < scope.cutoff_at:
         raise _SkipIssuer("authority_possession_unproven")
     targets = None
-    if symbol == "ABBV.US":
+    if scope.reviewed_filings or symbol == "ABBV.US":
         targets = _fiscal_targets(proof, document.last_downloaded_at, possessed, scope.cutoff_at)
     acquisition = EstimateRequest(company.id, symbol, (CeriMetric.REVENUE,), _PERIODS)
     records = _select_revenue_records(
@@ -656,14 +724,24 @@ def _issuer(db, run, scope, symbol, cache_dir, sec, eodhd, *, remaining):
     }
     if targets is not None:
         row["fiscal_targets"] = targets
+    already_seen = []
     for record in sorted(records, key=lambda r: r.provider_record_id):
         amount = _qualify_observation(record, symbol, possessed, scope.cutoff_at)
-        stored = writer.store_source_record(
-            db,
-            ingestion_run_id=run.id,
-            record=record,
-            raw_payload_allowed=False,
-        )
+        try:
+            with db.begin_nested():
+                stored = writer.store_source_record(
+                    db,
+                    ingestion_run_id=run.id,
+                    record=record,
+                    raw_payload_allowed=False,
+                )
+                if scope.reviewed_filings and stored.deduplicated and not stored.quarantined:
+                    # The writer associated an older fact. Roll back that association so only
+                    # newly possessed facts owned by this run reach the normalizer.
+                    raise _DuplicateObservation
+        except _DuplicateObservation:
+            already_seen.append(record.payload["period_type"])
+            continue
         estimate = stored.source_record
         binding = capture.resolve(estimate, prepared)
         if (
@@ -687,6 +765,10 @@ def _issuer(db, run, scope, symbol, cache_dir, sec, eodhd, *, remaining):
         }
         row["observations"].append(link)
         observations[estimate.id] = (company.id, amount, link)
+    if not observations:
+        raise _SkipIssuer("no_new_provider_observations")
+    if already_seen:
+        row["already_seen_period_roles"] = already_seen
     return row, observations
 
 
