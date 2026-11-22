@@ -12568,6 +12568,13 @@
     },
     {
       "path": "app/services/ceri/sec/prospective_capture.py",
+      "function": "_issuer",
+      "primitive": "begin_nested",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Undo the writer's run membership for a previously seen observation before normalization while keeping independent new periods in the same reviewed issuer capture."
+    },
+    {
+      "path": "app/services/ceri/sec/prospective_capture.py",
       "function": "_record_failure",
       "primitive": "begin",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",

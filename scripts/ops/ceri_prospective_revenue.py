@@ -1,4 +1,4 @@
-"""Owner-approved foreground invocation for fixed, single-use prospective grants."""
+"""Owner-approved foreground invocation for single-use prospective acquisitions."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import ctypes
 import hashlib
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -41,6 +42,9 @@ GRANT = "f8:e6c5ba72e1de8190e48e296bdf72ea3de1411688:sec-reporting-currency-v1"
 REQUEST_KEY = f"ceri:prospective:{GRANT}"
 ABBV_GRANT = "c05:abbv-second:53538e9a34d58980d083365c0e8760019cc89350:sec-reporting-currency-v1"
 ABBV_REQUEST_KEY = f"ceri:prospective:{ABBV_GRANT}"
+GRANT_PATTERN = (
+    rf"^(?:{re.escape(GRANT)}|{re.escape(ABBV_GRANT)}|{capture.SIGNED_CYCLE_GRANT_PATTERN})$"
+)
 OWNER = "ivobog"
 NAMESPACE = "swinglens-ceri-prospective"
 ROOT = Path(__file__).resolve().parents[2]
@@ -56,8 +60,8 @@ class Approval(BaseModel):
 
     operation: Literal["reserve", "execute"]
     ingestion_run_id: int | None = Field(gt=0)
-    source_grant: Literal[GRANT, ABBV_GRANT]
-    request_key: Literal[REQUEST_KEY, ABBV_REQUEST_KEY]
+    source_grant: str = Field(pattern=GRANT_PATTERN)
+    request_key: str = Field(max_length=160)
     operator: str = Field(min_length=1, max_length=160)
     principal: str
     approval_reference: str = Field(min_length=1, max_length=160)
@@ -76,11 +80,12 @@ class Approval(BaseModel):
     entitlement_checked_at: datetime
     entitlement_valid_until: datetime
     included_calendar_units: int = Field(ge=1)
+    reviewed_filings: tuple[tuple[str, capture._ReviewedFiling], ...] = ()
 
     def scope(self) -> capture.RevenueCaptureScope:
-        if (self.source_grant, self.request_key) not in (
-            (GRANT, REQUEST_KEY),
-            (ABBV_GRANT, ABBV_REQUEST_KEY),
+        if not (
+            re.fullmatch(GRANT_PATTERN, self.source_grant)
+            and self.request_key == f"ceri:prospective:{self.source_grant}"
         ):
             raise Unavailable("source_grant_request_key_mismatch")
         if self.source_grant == ABBV_GRANT and (
@@ -90,9 +95,11 @@ class Approval(BaseModel):
             or self.observations > 4
         ):
             raise Unavailable("abbv_grant_scope_or_budget_mismatch")
-        fingerprint = _digest(
-            self.model_dump(mode="json", exclude={"operation", "ingestion_run_id"})
-        )
+        fingerprint_fields = {"operation", "ingestion_run_id"}
+        if not self.reviewed_filings:
+            # Preserve the original scope digest for already signed legacy envelopes.
+            fingerprint_fields.add("reviewed_filings")
+        fingerprint = _digest(self.model_dump(mode="json", exclude=fingerprint_fields))
         return capture.RevenueCaptureScope(
             ingestion_run_id=self.ingestion_run_id or 1,
             request_key=self.request_key,
@@ -104,6 +111,7 @@ class Approval(BaseModel):
             sec_attempts=self.sec_attempts,
             eodhd_attempts=self.eodhd_attempts,
             observations=self.observations,
+            reviewed_filings=self.reviewed_filings,
         )
 
     def validate_window(self, operation: str) -> None:
@@ -317,11 +325,12 @@ def _database(db: Session) -> tuple[str, str, str]:
     return _digest([cluster, name, oid, port]), role, head
 
 
-def _cache_checks(db: Session, symbols: tuple[str, ...], cache_dir: Path) -> dict[str, str]:
+def _cache_checks(
+    db: Session, filings: dict[str, capture._ReviewedFiling], cache_dir: Path
+) -> dict[str, str]:
     cache = SecDocumentContentCache(cache_dir)
     results = {}
-    for symbol in symbols:
-        proof = capture._REVIEWED[symbol]
+    for symbol, proof in sorted(filings.items()):
         company = db.scalars(
             select(CeriCompany).where(CeriCompany.ticker == symbol.removesuffix(".US"))
         ).one_or_none()
@@ -399,8 +408,8 @@ def _inspect(engine: Engine, runtime: Runtime, approval: Approval | None, operat
             )
         ):
             raise Unavailable("database_identity_or_schema_mismatch")
-        symbols = approval.symbols if approval else tuple(sorted(capture._REVIEWED))
-        evidence = _cache_checks(db, symbols, runtime.cache_dir)
+        filings = approval.scope().filings() if approval else capture._REVIEWED
+        evidence = _cache_checks(db, filings, runtime.cache_dir)
     return {
         "git_sha": runtime.git_sha,
         "principal": runtime.principal,

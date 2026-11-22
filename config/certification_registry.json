@@ -4341,6 +4341,10 @@
             "symbol": "_run"
           },
           {
+            "path": "app/services/ceri/sec/prospective_capture.py",
+            "symbol": "capture_prospective_revenue"
+          },
+          {
             "path": "app/services/ticker_intelligence_service.py",
             "symbol": "_ceri"
           }
@@ -4358,6 +4362,7 @@
           "tests/ceri/test_ceri_query_service.py",
           "scripts/ops/ceri_prospective_revenue.py",
           "tests/ceri/test_sec_prospective_operator.py",
+          "tests/ceri/test_ceri_signed_revenue_cycles.py",
           "docs/operations/CERI_PROSPECTIVE_REVENUE_CAPTURE.md",
           "app/services/market_calculation_context_service.py",
           "tests/test_provider_replay_contracts.py",
@@ -4525,6 +4530,51 @@
             "positive": "The operator delegates source binding to the capture contract after preflight.",
             "negative": "An intervening locally known competing SPOT filing prevents binding and rolls back issuer writes.",
             "reviewed_test_sha256": "e1c41969bacadebd8dd2a8252a5ab7be1b6efe5646b788afe23ef27062e53ed3"
+          },
+          {
+            "id": "tests/ceri/test_ceri_signed_revenue_cycles.py::test_signed_cycles_reserve_once_and_preserve_exact_evidence",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "A signed cycle binds its exact filing and persists independently observed provider facts. Mixed responses keep the new periods.",
+            "negative": "Forged, replayed or changed approvals cannot access providers. An already seen response creates no additional authority or estimates.",
+            "reviewed_test_sha256": "3282df7f95c7e04a1d6cd47629018b273aa9386b8e2000fd0292ce2139ad9adb"
+          },
+          {
+            "id": "tests/ceri/test_ceri_signed_revenue_cycles.py::test_concurrent_approved_cycle_uses_one_request_key",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "One durable reservation is created for the contested cycle.",
+            "negative": "A second attempt with different signed-envelope semantics and the same cycle key is refused without provider access.",
+            "reviewed_test_sha256": "3282df7f95c7e04a1d6cd47629018b273aa9386b8e2000fd0292ce2139ad9adb"
+          },
+          {
+            "id": "tests/ceri/test_ceri_signed_revenue_cycles.py::test_missing_or_conflicting_cycle_evidence_has_no_provider_access",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "A prospective cycle must match its approved key and exact issuer evidence set.",
+            "negative": "Missing calendar review, altered CIK, inaccessible cached proof or mismatched key cannot create a reservation or request a provider.",
+            "reviewed_test_sha256": "3282df7f95c7e04a1d6cd47629018b273aa9386b8e2000fd0292ce2139ad9adb"
+          },
+          {
+            "id": "tests/ceri/test_ceri_signed_revenue_cycles.py::test_independent_cycles_supply_revenue_windows",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Four independently dated, normalized captures supply same-period USD whole-unit baselines for the 7-, 30- and 90-day calculations.",
+            "negative": "Each window must select its exact earlier observation and carry accumulated-immutable lineage. A different baseline or incorrect percentage fails.",
+            "reviewed_test_sha256": "3282df7f95c7e04a1d6cd47629018b273aa9386b8e2000fd0292ce2139ad9adb"
+          },
+          {
+            "id": "tests/ceri/test_ceri_signed_revenue_cycles.py::test_revenue_windows_exclude_incomparable_and_unpossessed_baselines",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "The point-in-time selector retains the eligible current revenue observation and reports missing comparable history.",
+            "negative": "Currency, fiscal-period and unit mismatches, late possession, future existence, retrospective trends and too-late baselines cannot produce a revision.",
+            "reviewed_test_sha256": "3282df7f95c7e04a1d6cd47629018b273aa9386b8e2000fd0292ce2139ad9adb"
           },
           {
             "id": "tests/integration/test_ceri_evidence_quarantine_postgresql.py::test_owner_fallback_is_correlated_to_each_snapshot_upload",
@@ -4824,7 +4874,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "15225de066b890ce7c055e5103bdab7daf8013cc1d43ff3e31b00ee0921b9cbe",
+        "review_sha256": "058d28a22f31972b70afaedd9ede458e12955e444fe5fa8002bb7253ef1aab8b",
         "review_addenda": [
           {
             "task": "MSI-20261103",
