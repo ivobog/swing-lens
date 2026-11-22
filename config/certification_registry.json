@@ -4506,7 +4506,7 @@
             "lane": "python-regressions",
             "positive": "Read-only preflight, frozen reservation and exact-ID execution capture six approved issuers.",
             "negative": "Reservation and execution replay are refused without extra requests or downstream work.",
-            "reviewed_test_sha256": "4ddd0c7b347746beccd9c4f7a763d0b12b83fecbafc3f00d2ccb26f3f286afb8"
+            "reviewed_test_sha256": "e1c41969bacadebd8dd2a8252a5ab7be1b6efe5646b788afe23ef27062e53ed3"
           },
           {
             "id": "tests/ceri/test_sec_prospective_operator.py::test_rejected_approval_context_has_no_provider_access",
@@ -4515,7 +4515,7 @@
             "lane": "python-regressions",
             "positive": "Only the exact approved deployment, database and reserved envelope can proceed.",
             "negative": "Changed owner context, issuer scope, time or budget is refused before provider access.",
-            "reviewed_test_sha256": "4ddd0c7b347746beccd9c4f7a763d0b12b83fecbafc3f00d2ccb26f3f286afb8"
+            "reviewed_test_sha256": "e1c41969bacadebd8dd2a8252a5ab7be1b6efe5646b788afe23ef27062e53ed3"
           },
           {
             "id": "tests/ceri/test_sec_prospective_operator.py::test_competitor_appearing_after_preflight_rolls_back_spot",
@@ -4524,7 +4524,7 @@
             "lane": "python-regressions",
             "positive": "The operator delegates source binding to the capture contract after preflight.",
             "negative": "An intervening locally known competing SPOT filing prevents binding and rolls back issuer writes.",
-            "reviewed_test_sha256": "4ddd0c7b347746beccd9c4f7a763d0b12b83fecbafc3f00d2ccb26f3f286afb8"
+            "reviewed_test_sha256": "e1c41969bacadebd8dd2a8252a5ab7be1b6efe5646b788afe23ef27062e53ed3"
           },
           {
             "id": "tests/integration/test_ceri_evidence_quarantine_postgresql.py::test_owner_fallback_is_correlated_to_each_snapshot_upload",
@@ -4824,7 +4824,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "7f42480fdc5a43108d70504f08d0b3cf080e6435e565cc0a67bcaa765c2734bd",
+        "review_sha256": "15225de066b890ce7c055e5103bdab7daf8013cc1d43ff3e31b00ee0921b9cbe",
         "review_addenda": [
           {
             "task": "MSI-20261103",
