@@ -3,13 +3,14 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, timedelta
 
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 from test_sec_prospective_capture import _APPROVED, _FixtureTransport
+from test_sec_prospective_capture import capture_clock as capture_clock
 from test_sec_prospective_capture import capture_db as capture_db
 
 from app.models.ceri_tables import (
@@ -63,7 +64,8 @@ def _counts(db):
 
 
 @pytest.fixture
-def pilot_engine(capture_db):
+def pilot_engine(capture_db, monkeypatch):
+    monkeypatch.setattr(operator, "datetime", capture.datetime)
     engine, cache, submissions = capture_db
     with Session(engine) as db:
         fingerprint, role, head = operator._database(db)
@@ -79,7 +81,7 @@ def pilot_engine(capture_db):
         SecClientConfig(timeout_seconds=1, requests_per_second=1000),
         EodhdClientConfig(api_key="fixture-only", timeout_seconds=1),
     )
-    now = datetime.now(UTC)
+    now = operator.datetime.now(UTC)
     approval = operator.Approval(
         operation="reserve",
         ingestion_run_id=None,
@@ -237,7 +239,7 @@ def test_competing_spot_filing_blocks_existing_guard(pilot_engine):
                 document_name="other.htm",
                 form="6-K",
                 filing_date=reviewed.filing_date,
-                first_seen_at=datetime.now(UTC) - timedelta(seconds=10),
+                first_seen_at=operator.datetime.now(UTC) - timedelta(seconds=10),
             )
         )
     report = _invoke("inspect", engine, runtime, approval, transport)
@@ -268,7 +270,7 @@ def test_competitor_appearing_after_preflight_rolls_back_spot(pilot_engine):
                         document_name="other.htm",
                         form="6-K",
                         filing_date=reviewed.filing_date,
-                        first_seen_at=datetime.now(UTC) - timedelta(minutes=1),
+                        first_seen_at=operator.datetime.now(UTC) - timedelta(minutes=1),
                     )
                 )
         return transport(request, timeout=timeout)

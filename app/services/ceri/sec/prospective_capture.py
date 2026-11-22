@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -71,10 +71,23 @@ class _ReviewedFiling:
     family: str
     currency: str
     accepted_at: datetime
+    fiscal_targets: tuple[tuple[CeriPeriodType, date], ...] = ()
 
 
 # Exact evidence in the approved F7 validation receipt. No alternate accession is selected.
-def _filing(cik, entity, registry_id, accession, sha256, fiscal_end, family, currency, accepted):
+def _filing(
+    cik,
+    entity,
+    registry_id,
+    accession,
+    sha256,
+    fiscal_end,
+    family,
+    currency,
+    accepted,
+    *,
+    fiscal_targets=(),
+):
     return _ReviewedFiling(
         cik,
         entity,
@@ -85,6 +98,7 @@ def _filing(cik, entity, registry_id, accession, sha256, fiscal_end, family, cur
         family,
         currency,
         datetime.fromisoformat(accepted),
+        fiscal_targets,
     )
 
 
@@ -121,6 +135,14 @@ _REVIEWED = {
         "QUARTERLY",
         "USD",
         "2026-11-03T18:43:40Z",
+        # The exact 10-Q declares December 31 and shows consolidated 2026
+        # quarter closes on March 31, June 30, and September 30.
+        fiscal_targets=(
+            (CeriPeriodType.CURRENT_QUARTER, date(2026, 12, 31)),
+            (CeriPeriodType.NEXT_QUARTER, date(2027, 3, 31)),
+            (CeriPeriodType.CURRENT_FISCAL_YEAR, date(2026, 12, 31)),
+            (CeriPeriodType.NEXT_FISCAL_YEAR, date(2027, 12, 31)),
+        ),
     ),
     "LIN.US": _filing(
         "0001707925",
@@ -515,6 +537,48 @@ def _current_review(sec, proof, document, company):
     return review
 
 
+def _fiscal_targets(
+    proof: _ReviewedFiling, received_at: datetime | None, possessed: datetime, cutoff: datetime
+) -> dict[str, str]:
+    targets = dict(proof.fiscal_targets)
+    received_at = _time(received_at)
+    if not (
+        targets.keys() == set(_PERIODS)
+        and received_at
+        and proof.accepted_at <= received_at <= possessed < cutoff
+        and proof.fiscal_end < possessed.date()
+        and cutoff.date() <= targets[CeriPeriodType.CURRENT_QUARTER]
+    ):
+        raise _SkipIssuer("fiscal_calendar_authority_unavailable")
+    return {role.value: end.isoformat() for role, end in targets.items()}
+
+
+def _select_revenue_records(
+    candidates: Iterable[RawProviderRecord], remaining: int, targets: dict[str, str] | None
+) -> list[RawProviderRecord]:
+    limit = remaining
+    if targets is not None:
+        allow = set(targets.items())
+        candidates = (
+            record
+            for record in candidates
+            if (record.payload.get("period_type"), record.payload.get("fiscal_period_end")) in allow
+        )
+        # One extra match is sufficient to prove ambiguity. Unmatched history
+        # never consumes the observation budget.
+        limit = len(targets)
+    records = list(islice(candidates, limit + 1))
+    if len(records) > remaining and targets is None:
+        raise _StopCapture("observation_budget_exhausted")
+    if not records or len({record.payload.get("period_type") for record in records}) != len(
+        records
+    ):
+        raise _SkipIssuer("empty_or_duplicate_provider_rows")
+    if len(records) > remaining:
+        raise _StopCapture("observation_budget_exhausted")
+    return records
+
+
 def _issuer(db, run, scope, symbol, cache_dir, sec, eodhd, *, remaining):
     proof = _REVIEWED[symbol]
     company = db.scalars(
@@ -561,14 +625,13 @@ def _issuer(db, run, scope, symbol, cache_dir, sec, eodhd, *, remaining):
     possessed = source_record_historical_eligibility_at(source)
     if possessed is None or not run.started_at <= possessed < scope.cutoff_at:
         raise _SkipIssuer("authority_possession_unproven")
+    targets = None
+    if symbol == "ABBV.US":
+        targets = _fiscal_targets(proof, document.last_downloaded_at, possessed, scope.cutoff_at)
     acquisition = EstimateRequest(company.id, symbol, (CeriMetric.REVENUE,), _PERIODS)
-    records = list(islice(eodhd.fetch_estimate_snapshots(acquisition), remaining + 1))
-    if len(records) > remaining:
-        raise _StopCapture("observation_budget_exhausted")
-    if not records or len({record.payload.get("period_type") for record in records}) != len(
-        records
-    ):
-        raise _SkipIssuer("empty_or_duplicate_provider_rows")
+    records = _select_revenue_records(
+        eodhd.fetch_estimate_snapshots(acquisition), remaining, targets
+    )
     post_review = _current_review(sec, proof, document, company)
     capture = SecRevenueCurrencyCapture(ingestion_run_id=run.id, authority_source_ids=(source_id,))
     prepared = capture.prepare(db).get(company.id)
@@ -591,6 +654,8 @@ def _issuer(db, run, scope, symbol, cache_dir, sec, eodhd, *, remaining):
         "post_submissions_sha256": source_record_content_hash(post_review.submissions),
         "observations": [],
     }
+    if targets is not None:
+        row["fiscal_targets"] = targets
     for record in sorted(records, key=lambda r: r.provider_record_id):
         amount = _qualify_observation(record, symbol, possessed, scope.cutoff_at)
         stored = writer.store_source_record(
