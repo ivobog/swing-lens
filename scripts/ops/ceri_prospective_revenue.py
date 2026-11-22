@@ -1,4 +1,4 @@
-"""Owner-approved foreground invocation for the one F8 prospective capture."""
+"""Owner-approved foreground invocation for fixed, single-use prospective grants."""
 
 from __future__ import annotations
 
@@ -39,6 +39,8 @@ from app.settings import RuntimeMode, get_settings
 
 GRANT = "f8:e6c5ba72e1de8190e48e296bdf72ea3de1411688:sec-reporting-currency-v1"
 REQUEST_KEY = f"ceri:prospective:{GRANT}"
+ABBV_GRANT = "c05:abbv-second:53538e9a34d58980d083365c0e8760019cc89350:sec-reporting-currency-v1"
+ABBV_REQUEST_KEY = f"ceri:prospective:{ABBV_GRANT}"
 OWNER = "ivobog"
 NAMESPACE = "swinglens-ceri-prospective"
 ROOT = Path(__file__).resolve().parents[2]
@@ -54,8 +56,8 @@ class Approval(BaseModel):
 
     operation: Literal["reserve", "execute"]
     ingestion_run_id: int | None = Field(gt=0)
-    source_grant: Literal[GRANT]
-    request_key: Literal[REQUEST_KEY]
+    source_grant: Literal[GRANT, ABBV_GRANT]
+    request_key: Literal[REQUEST_KEY, ABBV_REQUEST_KEY]
     operator: str = Field(min_length=1, max_length=160)
     principal: str
     approval_reference: str = Field(min_length=1, max_length=160)
@@ -76,6 +78,18 @@ class Approval(BaseModel):
     included_calendar_units: int = Field(ge=1)
 
     def scope(self) -> capture.RevenueCaptureScope:
+        if (self.source_grant, self.request_key) not in (
+            (GRANT, REQUEST_KEY),
+            (ABBV_GRANT, ABBV_REQUEST_KEY),
+        ):
+            raise Unavailable("source_grant_request_key_mismatch")
+        if self.source_grant == ABBV_GRANT and (
+            self.symbols != ("ABBV.US",)
+            or self.sec_attempts > 2
+            or self.eodhd_attempts > 1
+            or self.observations > 4
+        ):
+            raise Unavailable("abbv_grant_scope_or_budget_mismatch")
         fingerprint = _digest(
             self.model_dump(mode="json", exclude={"operation", "ingestion_run_id"})
         )
@@ -406,7 +420,7 @@ def _reserve(engine: Engine, runtime: Runtime, approval: Approval) -> dict:
     scope = approval.scope()
     with Session(engine) as db, db.begin():
         # Serialize reservation of the one-use grant even if two callers arrive together.
-        lock = int.from_bytes(hashlib.sha256(REQUEST_KEY.encode()).digest()[:8], signed=True)
+        lock = int.from_bytes(hashlib.sha256(scope.request_key.encode()).digest()[:8], signed=True)
         db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock})
         if _database(db) != (
             approval.database_fingerprint,
@@ -416,7 +430,7 @@ def _reserve(engine: Engine, runtime: Runtime, approval: Approval) -> dict:
             raise Unavailable("database_identity_or_schema_mismatch")
         approval.validate_window("reserve")
         if db.scalar(
-            select(CeriIngestionRun.id).where(CeriIngestionRun.request_key == REQUEST_KEY)
+            select(CeriIngestionRun.id).where(CeriIngestionRun.request_key == scope.request_key)
         ):
             raise Unavailable("source_grant_already_reserved")
         authority = admit_frozen_operation(
