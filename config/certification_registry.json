@@ -5538,6 +5538,14 @@
           {
             "path": "app/services/process_identity.py",
             "symbol": "inspect_process_identity"
+          },
+          {
+            "path": "app/serve.py",
+            "symbol": "main"
+          },
+          {
+            "path": "app/services/parent_watchdog.py",
+            "symbol": "install_parent_watchdog"
           }
         ],
         "impact_patterns": [
@@ -5564,7 +5572,9 @@
           "tests/test_memory_failure_recovery.py",
           "tests/test_pipeline61_progress_diagnostics.py",
           "tests/test_pipeline_execution_authority.py",
-          "tests/test_worker_supervisor_reliability.py"
+          "tests/test_worker_supervisor_reliability.py",
+          "tests/ops/test_lifecycle_powershell.py",
+          "tests/ops/test_lifecycle_safety.py"
         ],
         "tests": [
           {
@@ -5623,7 +5633,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "ffb42030a939a4405d6b3ddd2a0fe0c4d03f1c6757627c6639cba58cca14473a",
+        "review_sha256": "45b47d4389c7acb84e2e7911a51b38d37f37da62ac4aa70cface9d2c3b619d0e",
         "review_addenda": [
           {
             "task": "FR02",

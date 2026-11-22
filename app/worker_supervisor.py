@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import signal
@@ -32,14 +31,22 @@ from app.services.background_job_service import (
     requeue_stalled_jobs,
 )
 from app.services.lifecycle_control import (
+    GRACEFUL_SHUTDOWN_FLAG,
     RUNTIME_FINGERPRINT_ENV,
+    RUNTIME_INSTANCE_ID_ENV,
     TOPOLOGY_VERSION,
     append_lifecycle_event,
     shutdown_request_path,
     supervisor_state_path,
 )
+from app.services.lifecycle_control import read_shutdown_request as _read_shutdown_request
 from app.services.lifecycle_safety import atomic_write_json
-from app.services.parent_watchdog import PARENT_PID_ENV, PARENT_STARTED_AT_ENV
+from app.services.parent_watchdog import (
+    PARENT_PID_ENV,
+    PARENT_RUNTIME_INSTANCE_ENV,
+    PARENT_SHUTDOWN_REQUEST_ENV,
+    PARENT_STARTED_AT_ENV,
+)
 from app.services.pipeline_execution_authority import job_execution_authority_predicate
 from app.services.process_identity import (
     inspect_process_identity,
@@ -60,6 +67,7 @@ from app.settings import ProcessRole, RuntimeMode, get_settings
 
 logger = logging.getLogger(__name__)
 WORKER_REGISTRATION_TIMEOUT_SECONDS = 120.0
+CONTROLLED_CHILD_EXIT_SECONDS = 45.0
 _liveness_suspicions = OrderedDict()
 
 
@@ -86,6 +94,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=getattr(settings, "app_port", 8000))
     parser.add_argument("--runtime-instance-id", default=f"manual-{os.getpid()}")
     parser.add_argument("--repo-root", default=str(Path.cwd()))
+    parser.add_argument(GRACEFUL_SHUTDOWN_FLAG, action="store_true")
     return parser.parse_args(argv)
 
 
@@ -206,6 +215,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         + getattr(settings, "job_watchdog_interval_seconds", 5)
     )
     request_path = shutdown_request_path(Path(args.repo_root).resolve(), args.runtime_instance_id)
+    controlled_shutdown = None
     try:
         while not stop.is_set():
             request = _read_shutdown_request(
@@ -215,6 +225,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                 supervisor_started_at=process_start,
             )
             if request is not None:
+                if os.name == "nt" and args.graceful_controller_shutdown:
+                    controlled_shutdown = request
                 log_event(
                     logger,
                     "runtime.shutdown_requested",
@@ -420,18 +432,23 @@ def main(argv: Sequence[str] | None = None) -> None:
             reason_code="SHUTDOWN_REQUESTED" if stop.is_set() else "MAIN_RETURNED",
         )
         operational_metrics.set_gauge("swinglens_supervisor_up", 0)
+        if controlled_shutdown is not None:
+            # Publish acceptance only after leaving the restart/recovery loop. The
+            # same request reaches all our children without Windows console signals.
+            _drain_controlled_children(request_path, controlled_shutdown, web, sector_child, child)
         if owns_supervision:
-            _shutdown_web(web, settings.worker_shutdown_grace_seconds)
-            _shutdown_owned_worker(
-                sector_worker_id,
-                sector_child,
-                certification_session_id=certification_session_id,
-            )
-            _shutdown_owned_worker(
-                args.worker_id,
-                child,
-                certification_session_id=certification_session_id,
-            )
+            if controlled_shutdown is None:
+                _shutdown_web(web, settings.worker_shutdown_grace_seconds)
+                _shutdown_owned_worker(
+                    sector_worker_id,
+                    sector_child,
+                    certification_session_id=certification_session_id,
+                )
+                _shutdown_owned_worker(
+                    args.worker_id,
+                    child,
+                    certification_session_id=certification_session_id,
+                )
             try:
                 with SessionLocal() as db:
                     release_supervisor(db, worker_id=args.worker_id, instance_id=instance_id)
@@ -456,48 +473,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         log_event(logger, "runtime.process_shutdown", stage="process_shutdown", result="success")
 
 
-def _read_shutdown_request(
+def _drain_controlled_children(
     path: Path,
-    *,
-    runtime_instance_id: str,
-    supervisor_pid: int,
-    supervisor_started_at: datetime,
-) -> dict[str, object] | None:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return None
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        logger.exception(
-            "runtime.shutdown_request_invalid",
-            extra={"reason_code": "INVALID_SHUTDOWN_REQUEST", "request_path": str(path)},
-        )
-        return None
-    if not isinstance(payload, dict):
-        return None
-    try:
-        requested_start = datetime.fromisoformat(
-            str(payload.get("supervisorCreatedAt") or "").replace("Z", "+00:00")
-        )
-    except ValueError:
-        requested_start = datetime.min.replace(tzinfo=UTC)
-    identity_mismatch = (
-        payload.get("runtimeInstanceId") != runtime_instance_id
-        or int(payload.get("supervisorPid") or 0) != supervisor_pid
-        or abs((requested_start - supervisor_started_at).total_seconds()) > 0.01
-    )
-    if identity_mismatch:
-        logger.error(
-            "runtime.shutdown_request_identity_mismatch",
-            extra={
-                "reason_code": "SHUTDOWN_REQUEST_IDENTITY_MISMATCH",
-                "requested_runtime_instance_id": payload.get("runtimeInstanceId"),
-                "requested_supervisor_pid": payload.get("supervisorPid"),
-                "requested_supervisor_created_at": payload.get("supervisorCreatedAt"),
-            },
-        )
-        return None
-    return payload
+    request: dict[str, object],
+    *children: LaunchedWorker | LaunchedWeb | None,
+) -> None:
+    atomic_write_json(path, {**request, "accepted": True})
+    deadline = monotonic() + CONTROLLED_CHILD_EXIT_SECONDS
+    for child in children:
+        if child is not None:
+            child.process.wait(timeout=max(0, deadline - monotonic()))
 
 
 def _main_with_fatal_observability(argv: Sequence[str] | None = None) -> None:
@@ -1020,6 +1005,12 @@ def _set_parent_identity(environment: dict[str, str]) -> None:
     process_id = os.getpid()
     environment[PARENT_PID_ENV] = str(process_id)
     environment[PARENT_STARTED_AT_ENV] = process_started_at(process_id).isoformat()
+    runtime_instance_id = environment.get(RUNTIME_INSTANCE_ID_ENV)
+    if os.name == "nt" and runtime_instance_id:
+        environment[PARENT_RUNTIME_INSTANCE_ENV] = runtime_instance_id
+        environment[PARENT_SHUTDOWN_REQUEST_ENV] = str(
+            shutdown_request_path(Path.cwd(), runtime_instance_id)
+        )
 
 
 def _worker_python_executable() -> str:
