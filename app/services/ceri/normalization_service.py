@@ -32,6 +32,10 @@ from app.services.ceri.guidance_normalizer import (
     apply_guidance_eligibility,
 )
 from app.services.ceri.identity_resolver import CeriIdentityResolver
+from app.services.ceri.pit_eligibility import (
+    source_record_historical_eligibility_at,
+    source_record_historical_eligibility_predicate,
+)
 from app.services.ceri.sec.issuer_succession import effective_symbol, ownership_conflict
 from app.services.ceri.sec.reporting_currency import CurrencyBinding, SecRevenueCurrencyCapture
 from app.services.domain_mutation import MutationDomain, MutationSemanticMode
@@ -385,9 +389,25 @@ class CeriNormalizationService:
             guidance = self.guidance_normalizer.normalize(source_record, company_id=company_id)
             db.add(guidance)
             db.flush()
-            prior = _prior_guidance(db, guidance)
-            comparison = compare_guidance(guidance, prior)
             if source_record.provider == "sec":
+                known_at = source_record_historical_eligibility_at(source_record)
+                prior = _prior_guidance(db, guidance, known_by=known_at) if known_at else None
+                comparison = compare_guidance(guidance, prior)
+                if (
+                    guidance.rejection_reason == "GUIDANCE_ACTION_UNKNOWN"
+                    and guidance.confidence.upper() in {"HIGH", "NORMAL"}
+                    and comparison.action != "UNKNOWN"
+                    and guidance.unit
+                    and (guidance.currency or guidance.unit == "%")
+                ):
+                    # UNKNOWN before comparison is provisional. Re-evaluate the
+                    # settled action through the same eligibility checks.
+                    guidance.accepted_for_scoring = True
+                    guidance.rejection_reason = None
+                    guidance.quality_warnings_json = [
+                        warning for warning in (guidance.quality_warnings_json or [])
+                        if warning != "guidance_action_unknown"
+                    ]
                 guidance.action = comparison.action
                 guidance.confidence = comparison.confidence
                 guidance.quality_warnings_json = sorted(
@@ -395,7 +415,10 @@ class CeriNormalizationService:
                     | set(comparison.warnings)
                     | ({"manual_review_required"} if comparison.action == "UNKNOWN" else set())
                 )
-                apply_guidance_eligibility(guidance)
+                apply_guidance_eligibility(
+                    guidance,
+                    payload=source_record.raw_json or source_record.restricted_normalized_json,
+                )
             return 1
         if dataset is CeriDataset.CATALYSTS:
             record = self.catalyst_taxonomy.normalize(source_record, company_id=company_id)
@@ -735,15 +758,22 @@ def _update_processing_checkpoint(
     processing_run.counts_json = {"quarantined": quarantined}
 
 
-def _prior_guidance(db: Session, current: CeriGuidanceEvent) -> CeriGuidanceEvent | None:
+def _prior_guidance(
+    db: Session, current: CeriGuidanceEvent, *, known_by: datetime
+) -> CeriGuidanceEvent | None:
     if current.effective_at is None:
         return None
     statement = (
         select(CeriGuidanceEvent)
+        .join(CeriSourceRecord)
         .where(CeriGuidanceEvent.company_id == current.company_id)
         .where(CeriGuidanceEvent.metric == current.metric)
         .where(CeriGuidanceEvent.period_type == current.period_type)
         .where(CeriGuidanceEvent.effective_at < current.effective_at)
+        .where(
+            CeriSourceRecord.quarantine_reason.is_(None),
+            source_record_historical_eligibility_predicate(known_by),
+        )
         .order_by(CeriGuidanceEvent.effective_at.desc(), CeriGuidanceEvent.id.desc())
         .limit(1)
     )
