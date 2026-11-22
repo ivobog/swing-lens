@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
+import pytest
+from sqlalchemy import create_engine
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import (
     CeriCatalystEvent,
@@ -240,7 +243,7 @@ def test_prior_guidance_uses_bounded_sql_lookup() -> None:
         effective_at=datetime(2026, 8, 1),
     )
 
-    assert _prior_guidance(Db(), current) is None
+    assert _prior_guidance(Db(), current, known_by=datetime(2026, 8, 1, tzinfo=UTC)) is None
     compiled = str(
         captured[0].compile(
             dialect=postgresql.dialect(),
@@ -250,11 +253,110 @@ def test_prior_guidance_uses_bounded_sql_lookup() -> None:
     assert "WHERE ceri_guidance_events.company_id = 42" in compiled
     assert "ceri_guidance_events.metric = 'REVENUE'" in compiled
     assert "ceri_guidance_events.period_type = 'CURRENT_FISCAL_YEAR'" in compiled
+    possession = "coalesce(ceri_source_records.retrieved_at, ceri_source_records.ingested_at)"
+    assert f"{possession} <=" in compiled
+    assert "ceri_source_records.quarantine_reason IS NULL" in compiled
     assert (
         "ORDER BY ceri_guidance_events.effective_at DESC, "
         "ceri_guidance_events.id DESC"
     ) in compiled
     assert "LIMIT 1" in compiled
+
+
+def test_sec_comparison_rechecks_only_provisional_action_rejection() -> None:
+    prior = CeriGuidanceEvent(
+        id=71,
+        source_record_id=100,
+        company_id=42,
+        action="UNKNOWN",
+        metric="REVENUE",
+        period_type="CURRENT_FISCAL_YEAR",
+        currency="USD",
+        unit="BILLION",
+        point_value=10,
+        effective_at=datetime(2026, 7, 10, 18, tzinfo=UTC),
+        accepted_for_scoring=False,
+    )
+    cases = (
+        (prior, {}, "RAISED", True, None),
+        (None, {}, "UNKNOWN", False, "GUIDANCE_ACTION_UNKNOWN"),
+        (prior, {"manual_review_required": True}, "RAISED", False, "GUIDANCE_REQUIRES_REVIEW"),
+        (prior, {"currency": "EUR"}, "UNKNOWN", False, "GUIDANCE_ACTION_UNKNOWN"),
+        (prior, {"confidence": "LOW"}, "RAISED", False, "GUIDANCE_ACTION_UNKNOWN"),
+    )
+    for comparison_prior, extra, action, accepted, reason in cases:
+        stamp = datetime(2026, 8, 10, 18, tzinfo=UTC)
+        source = CeriSourceRecord(
+            id=101,
+            provider="sec",
+            dataset="guidance",
+            provider_record_id="verified-fixture",
+            observed_at=stamp,
+            retrieved_at=stamp,
+            restricted_normalized_json={
+                "action": "UNKNOWN",
+                "metric": "REVENUE",
+                "period_type": "CURRENT_FISCAL_YEAR",
+                "currency": "USD",
+                "unit": "BILLION",
+                "confidence": "HIGH",
+                "point_value": "11",
+                **extra,
+            },
+        )
+        db = FakeDb([comparison_prior])
+        assert CeriNormalizationService()._normalize_record(db, source, company_id=42) == 1
+        result, = db.added
+        assert result.action == action
+        assert result.accepted_for_scoring is accepted
+        assert result.rejection_reason == reason
+        if accepted:
+            assert "guidance_action_unknown" not in (result.quality_warnings_json or [])
+
+
+@pytest.mark.integration
+def test_sec_prior_guidance_cannot_use_late_or_quarantined_source(
+    disposable_postgres_database,
+) -> None:
+    engine = create_engine(disposable_postgres_database)
+    CeriCompany.metadata.create_all(engine)
+    current_at = datetime(2026, 8, 10, 18, tzinfo=UTC)
+    try:
+        with Session(engine) as db, db.begin():
+            company = CeriCompany(ticker="TEST_GUIDANCE")
+            db.add(company)
+            db.flush()
+            events = []
+            for days, received_after_cutoff, quarantine in (
+                (20, False, None),
+                (10, True, None),
+                (5, False, "test quarantine"),
+            ):
+                announced_at = current_at - timedelta(days=days)
+                retrieved_at = (
+                    current_at + timedelta(days=1) if received_after_cutoff else announced_at
+                )
+                source = CeriSourceRecord(
+                    provider="sec", dataset="guidance", provider_record_id=str(days),
+                    content_hash=f"fixture-{days}", idempotency_key=f"fixture-{days}",
+                    observed_at=announced_at, retrieved_at=retrieved_at,
+                    quarantine_reason=quarantine,
+                )
+                db.add(source)
+                db.flush()
+                events.append(CeriGuidanceEvent(
+                    source_record_id=source.id, company_id=company.id, action="UNKNOWN",
+                    metric="REVENUE", period_type="CURRENT_FISCAL_YEAR", effective_at=announced_at,
+                ))
+            db.add_all(events)
+            db.flush()
+            current = CeriGuidanceEvent(
+                source_record_id=999, company_id=company.id, action="UNKNOWN",
+                metric="REVENUE", period_type="CURRENT_FISCAL_YEAR", effective_at=current_at,
+            )
+            assert _prior_guidance(db, current, known_by=current_at).id == events[0].id
+    finally:
+        engine.dispose()
 
 
 class FakeDb:
