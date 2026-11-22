@@ -283,7 +283,7 @@ def test_stop_targets_verified_runtime_boundary(tmp_path, monkeypatch) -> None:
             "supervisor": {"pid": 202, "createdAt": created_at},
         },
         "actual": {"pid": 303},
-        "launcher": {"pid": 202},
+        "launcher": {"pid": 202, "commandLine": [lifecycle_probe.GRACEFUL_SHUTDOWN_FLAG]},
         "processGroup": {"pid": 101},
     }
     signals = []
@@ -310,9 +310,38 @@ def test_stop_targets_verified_runtime_boundary(tmp_path, monkeypatch) -> None:
         assert request["supervisorPid"] == 202
         assert request["supervisorCreatedAt"] == created_at
         assert signals == []
+        lifecycle_probe.atomic_write_json(request_path, {**request, "accepted": True})
+        assert lifecycle_probe._signal_break(303, 303)["signaled"]
+        assert read_runtime_state(request_path)["accepted"] is True
     else:
         assert result == {"signaled": True, "signalPid": 101, "method": "SIGTERM"}
         assert signals[0][0] == 101
+
+
+def test_windows_stop_refuses_legacy_supervisor_without_writing_request(tmp_path, monkeypatch):
+    report = {
+        "valid": True,
+        "state": {
+            "runtimeInstanceId": "legacy",
+            "web": {"pid": 303},
+            "supervisor": {"pid": 202, "createdAt": datetime.now(UTC).isoformat()},
+        },
+        "launcher": {"pid": 202, "commandLine": ["-m", "app.worker_supervisor"]},
+    }
+    if lifecycle_probe.os.name != "nt":
+        pytest.skip("Windows controller protocol")
+    monkeypatch.setattr(
+        lifecycle_probe, "_runtime_state_report", lambda _listener, **_kwargs: report
+    )
+    request_path = tmp_path / "shutdown.json"
+    monkeypatch.setattr(
+        lifecycle_probe, "shutdown_request_path", lambda _root, _instance: request_path
+    )
+    result = lifecycle_probe._signal_break(303, 303)
+    assert not result["signaled"]
+    assert "does not support controlled no-force shutdown" in result["error"]
+    assert not request_path.exists()
+    assert not lifecycle_probe._signal_registered("supervisor")["signaled"]
 
 
 def test_listener_identity_uses_socket_owner_not_intermediate_windows_launcher(

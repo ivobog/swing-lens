@@ -76,7 +76,21 @@ def main(argv: Sequence[str] | None = None) -> None:
             error=redact_text(str(exc)),
         )
         raise
-    watchdog = install_parent_watchdog(lambda: os.kill(os.getpid(), signal.SIGTERM))
+    server_options = {
+        "host": args.host,
+        "port": args.port,
+        "log_config": None,
+    }
+    server = (
+        None if args.reload else uvicorn.Server(uvicorn.Config("app.main:app", **server_options))
+    )
+    if server is None:
+        watchdog = install_parent_watchdog(lambda: os.kill(os.getpid(), signal.SIGTERM))
+    else:
+        def request_stop() -> None:
+            server.should_exit = True
+
+        watchdog = install_parent_watchdog(request_stop)
     log_event(
         logger,
         "runtime.parent_watchdog_install",
@@ -141,14 +155,16 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     log_event(logger, "runtime.uvicorn_bind_begin", stage="uvicorn_bind_begin", port=args.port)
     try:
-        uvicorn.run(
-            "app.main:app",
-            host=args.host,
-            port=args.port,
-            reload=args.reload,
-            log_config=None,
-            reload_excludes=list(RUNTIME_RELOAD_EXCLUDES) if args.reload else None,
-        )
+        if server is not None:
+            if not server.should_exit:
+                server.run()
+        else:
+            uvicorn.run(
+                "app.main:app",
+                **server_options,
+                reload=True,
+                reload_excludes=list(RUNTIME_RELOAD_EXCLUDES),
+            )
     finally:
         log_event(logger, "runtime.process_shutdown", stage="process_shutdown")
 

@@ -29,10 +29,12 @@ from app.services.alembic_heads import database_alembic_heads, repository_alembi
 from app.services.canonical_runtime_launcher import build_canonical_runtime_launch
 from app.services.lifecycle_control import (
     GIT_SHA_ENV,
+    GRACEFUL_SHUTDOWN_FLAG,
     RUNTIME_FINGERPRINT_ENV,
     TOPOLOGY_VERSION,
     append_lifecycle_event,
     configuration_provenance,
+    read_shutdown_request,
     redacted_tail,
     runtime_generation,
     shutdown_request_path,
@@ -197,6 +199,8 @@ def _provenance_report() -> dict[str, object]:
 
 def _launch_runtime(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
     settings = _settings()
+    if os.name == "nt" and _role_processes():
+        raise LifecycleConflict("SwingLens role processes remain in this checkout")
     runtime_instance_id = uuid4().hex
     creationflags = (
         subprocess.CREATE_NEW_PROCESS_GROUP
@@ -219,6 +223,8 @@ def _launch_runtime(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
             runtime_instance_id=runtime_instance_id,
         )
         command = list(launch.command)
+        if os.name == "nt":
+            command.append(GRACEFUL_SHUTDOWN_FLAG)
         environment = launch.environment
         process = subprocess.Popen(
             command,
@@ -304,7 +310,15 @@ def _launch_runtime(stdout_path: Path, stderr_path: Path) -> dict[str, object]:
         )
         is None
     ):
-        _terminate_process_tree(process)
+        if os.name == "nt":
+            raise RuntimeError(
+                "WEB_LISTENER_IDENTITY_TIMEOUT: runtime retained after startup failed to "
+                f"prove a listener (instance={runtime_instance_id}, launcher_pid={process.pid})"
+            )
+        try:
+            process.terminate()
+        except OSError:
+            pass
         raise RuntimeError(
             "WEB_LISTENER_IDENTITY_TIMEOUT: SwingLens supervisor did not establish a verified "
             "WEB listener within 90 seconds"
@@ -353,21 +367,6 @@ def _listener_process_identity(
         ) and _process_descends_from(int(connection.pid), ancestor_pid):
             return identity
     return None
-
-
-def _terminate_process_tree(process: subprocess.Popen) -> None:
-    try:
-        if os.name == "nt":
-            subprocess.run(
-                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-        else:
-            process.terminate()
-    except (OSError, psutil.Error):
-        pass
 
 
 def _write_state(payload: str) -> dict[str, object]:
@@ -430,7 +429,11 @@ def _recorded_auxiliary_identities(state: dict[str, object]) -> list[tuple[str, 
     if str(value.get("runtime_instance_id") or "") != runtime_instance_id:
         return []
     identities: list[tuple[str, int, str]] = []
-    for role, module in (("web", "app.serve"), ("worker", "app.worker")):
+    for role, module in (
+        ("web", "app.serve"),
+        ("worker", "app.worker"),
+        ("sector_worker", "app.worker"),
+    ):
         record = value.get(role)
         if not isinstance(record, dict) or record.get("launcher_pid") is None:
             continue
@@ -1120,19 +1123,40 @@ def _signal_break(process_id: int, listener_pid: int | None) -> dict[str, object
             }
         signal_pid = int(second_group["pid"])
         if os.name == "nt":
-            supervisor = second["state"].get("supervisor") or second_group
-            request_path = shutdown_request_path(ROOT, str(second["state"]["runtimeInstanceId"]))
-            atomic_write_json(
+            runtime_instance_id = str(second["state"]["runtimeInstanceId"])
+            supervisor = second["state"].get("supervisor")
+            if (
+                not supervisor
+                or report["state"].get("supervisor") != supervisor
+                or report["state"]["runtimeInstanceId"] != runtime_instance_id
+                or int(second["state"]["web"]["pid"]) != process_id
+                or GRACEFUL_SHUTDOWN_FLAG not in second["launcher"].get("commandLine", [])
+            ):
+                return {
+                    "signaled": False,
+                    "conflict": True,
+                    "error": "verified supervisor does not support controlled no-force shutdown",
+                }
+            request_path = shutdown_request_path(ROOT, runtime_instance_id)
+            supervisor_pid = int(supervisor["pid"])
+            started_at = datetime.fromisoformat(supervisor["createdAt"])
+            if not read_shutdown_request(
                 request_path,
-                {
-                    "version": 1,
-                    "runtimeInstanceId": second["state"]["runtimeInstanceId"],
-                    "supervisorPid": int(supervisor["pid"]),
-                    "supervisorCreatedAt": supervisor["createdAt"],
-                    "requestedAt": datetime.now(UTC).isoformat(),
-                    "operationId": os.environ.get("SWINGLENS_LIFECYCLE_OPERATION_ID"),
-                },
-            )
+                runtime_instance_id=runtime_instance_id,
+                supervisor_pid=supervisor_pid,
+                supervisor_started_at=started_at,
+            ):
+                atomic_write_json(
+                    request_path,
+                    {
+                        "version": 1,
+                        "runtimeInstanceId": runtime_instance_id,
+                        "supervisorPid": supervisor_pid,
+                        "supervisorCreatedAt": supervisor["createdAt"],
+                        "requestedAt": datetime.now(UTC).isoformat(),
+                        "operationId": os.environ.get("SWINGLENS_LIFECYCLE_OPERATION_ID"),
+                    },
+                )
             return {
                 "signaled": True,
                 "signalPid": signal_pid,
@@ -1765,6 +1789,12 @@ def _registration_dict(row, role: str) -> dict[str, object] | None:
 
 
 def _signal_registered(role: str, *, sector_worker=False) -> dict[str, object]:
+    if os.name == "nt" and role == "supervisor":
+        return {
+            "signaled": False,
+            "conflict": True,
+            "error": "Windows supervisor requires a verified runtime shutdown request",
+        }
     module = f"app.worker_{role}" if role == "supervisor" else "app.worker"
     first = _registrations_report()
     key = "sectorWorker" if sector_worker and role == "worker" else role

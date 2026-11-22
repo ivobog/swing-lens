@@ -16,6 +16,7 @@ from app.services.lifecycle_safety import atomic_write_json, normalize_path
 from app.services.redaction import redact_sensitive, redact_text
 
 TOPOLOGY_VERSION = "supervisor-root-v1"
+GRACEFUL_SHUTDOWN_FLAG = "--graceful-controller-shutdown"
 LIFECYCLE_OPERATION_ID_ENV = "SWINGLENS_LIFECYCLE_OPERATION_ID"
 RUNTIME_INSTANCE_ID_ENV = "SWINGLENS_RUNTIME_INSTANCE_ID"
 RUNTIME_FINGERPRINT_ENV = "SWINGLENS_RUNTIME_CONFIG_FINGERPRINT"
@@ -270,6 +271,30 @@ def shutdown_request_path(root: Path, runtime_instance_id: str) -> Path:
 
     digest = hashlib.sha256(runtime_instance_id.encode("utf-8")).hexdigest()
     return root / "data" / "cache" / "shutdown-requests" / f"{digest}.json"
+
+
+def read_shutdown_request(
+    path: Path,
+    *,
+    runtime_instance_id: str,
+    supervisor_pid: int,
+    supervisor_started_at: datetime,
+) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            return None
+        started_at = datetime.fromisoformat(payload["supervisorCreatedAt"])
+    except (OSError, UnicodeError, KeyError, TypeError, ValueError):
+        return None
+    if (
+        payload.get("runtimeInstanceId") != runtime_instance_id
+        or payload.get("supervisorPid") != supervisor_pid
+        or started_at.tzinfo is None
+        or abs((started_at - supervisor_started_at).total_seconds()) > 0.01
+    ):
+        return None
+    return payload
 
 
 def _dotenv_keys(path: Path) -> set[str]:

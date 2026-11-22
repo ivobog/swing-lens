@@ -708,6 +708,18 @@ function Stop-SwingLensCore {
     $signal = Invoke-LifecycleProbe -Command 'signal-break' -Arguments @('--pid', [string]$runtime.state.web.pid, '--listener-pid', [string]$owner.ProcessId)
     if (-not $signal.signaled) { throw ('CONFLICT: verified runtime was not signaled: ' + $signal.error) }
     if ($null -ne $ShutdownCommitted) { $ShutdownCommitted.Value = $true }
+    if ($IsWindows) {
+        $supervisorPid = [int]$runtime.state.supervisor.pid
+        $groupPid = [int]$runtime.processGroup.pid
+        if (-not (Wait-ProcessExit -ProcessId $supervisorPid -TimeoutSeconds 60) -or
+            -not (Wait-ProcessExit -ProcessId $groupPid -TimeoutSeconds 5)) {
+            throw 'Controlled shutdown timed out. The runtime identity and worker fences were retained.'
+        }
+        if (-not (Retire-DeadStaleRuntimeState)) {
+            throw 'Controlled shutdown did not prove the full runtime generation exited.'
+        }
+        return
+    }
     Wait-PortReleased -Port ([int]$Config.web.port)
     $supervisorPid = [int]$runtime.state.supervisor.pid
     if (-not (Wait-ProcessExit -ProcessId $supervisorPid)) {

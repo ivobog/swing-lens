@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -408,19 +409,27 @@ def test_core_stop_waits_for_supervisor_exit_before_registered_cleanup(tmp_path)
         "metrics=[pscustomobject]@{enabled=$false;workerPort=0;supervisorPort=0}}; "
         "function Get-WebOwner { [pscustomobject]@{ProcessId=101} }; "
         "function Get-ValidatedRuntime { [pscustomobject]@{state=[pscustomobject]@{"
-        "web=[pscustomobject]@{pid=101};supervisor=[pscustomobject]@{pid=202}}} }; "
+        "web=[pscustomobject]@{pid=101};supervisor=[pscustomobject]@{pid=202}}; "
+        "processGroup=[pscustomobject]@{pid=201}} }; "
         "function Invoke-LifecycleProbe { param($Command,$Arguments); "
         "if ($Command -eq 'signal-break') { $script:events += 'request'; "
         "[pscustomobject]@{signaled=$true} } else { [pscustomobject]@{processes=@()} } }; "
         "function Wait-PortReleased { param($Port); $script:events += ('port-' + $Port) }; "
-        "function Wait-ProcessExit { param($ProcessId); "
+        "function Wait-ProcessExit { param($ProcessId,$TimeoutSeconds); "
         "$script:events += ('process-' + $ProcessId); $true }; "
         "function Stop-RegisteredRemainders { $script:events += 'remainders' }; "
+        "function Retire-DeadStaleRuntimeState { $script:events += 'prove-dead'; "
+        "Remove-Item -LiteralPath $script:RuntimeStatePath; $true }; "
         "Stop-SwingLensCore -Config $cfg; $script:events -join ','"
     )
     result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "request,port-8000,process-202,remainders,port-8000"
+    expected = (
+        "request,process-202,process-201,prove-dead"
+        if sys.platform == "win32"
+        else "request,port-8000,process-202,remainders,port-8000"
+    )
+    assert result.stdout.strip() == expected
     assert not state_path.exists()
 
 

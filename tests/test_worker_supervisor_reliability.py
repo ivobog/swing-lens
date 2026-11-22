@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from threading import Event
 
 import pytest
 
 from app import worker_supervisor
 from app.models.tables import BackgroundWorker
-from app.services import process_identity
+from app.services import parent_watchdog, process_identity
+from app.services.lifecycle_safety import atomic_write_json, read_runtime_state
 from app.services.operational_metrics import operational_metrics
 from app.services.process_memory import ProcessMemorySnapshot
 from app.settings import Settings
@@ -432,6 +435,59 @@ def test_shutdown_request_requires_runtime_and_supervisor_identity(tmp_path) -> 
         )
         is None
     )
+
+
+def test_children_wait_for_shutdown_acceptance_by_their_exact_parent(tmp_path, monkeypatch):
+    path = tmp_path / "request.json"
+    started_at = datetime.now(UTC).isoformat()
+    monkeypatch.setenv(parent_watchdog.PARENT_PID_ENV, "123")
+    monkeypatch.setenv(parent_watchdog.PARENT_STARTED_AT_ENV, started_at)
+    monkeypatch.setenv(parent_watchdog.PARENT_RUNTIME_INSTANCE_ENV, "runtime-a")
+    monkeypatch.setenv(parent_watchdog.PARENT_SHUTDOWN_REQUEST_ENV, str(path))
+    monkeypatch.setattr(parent_watchdog, "process_is_alive", lambda *_args: True)
+    payload = {
+        "runtimeInstanceId": "runtime-a",
+        "supervisorPid": 123,
+        "supervisorCreatedAt": started_at,
+    }
+    atomic_write_json(path, payload)
+    stopped = Event()
+    watcher = parent_watchdog.install_parent_watchdog(stopped.set)
+    assert watcher is not None
+    assert not stopped.wait(0.6)
+    atomic_write_json(path, {**payload, "accepted": True, "supervisorPid": 456})
+    assert not stopped.wait(0.6)
+    atomic_write_json(path, {**payload, "accepted": True})
+    assert stopped.wait(2)
+    watcher.join(2)
+
+
+@pytest.mark.parametrize("wedged", [False, True])
+def test_controlled_drain_uses_one_deadline_and_leaves_failed_request(
+    tmp_path, monkeypatch, wedged
+):
+    path = tmp_path / "request.json"
+    timeline = iter([10, 11, 16, 23])
+    monkeypatch.setattr(worker_supervisor, "monotonic", lambda: next(timeline))
+    waited = []
+
+    class OwnedProcess:
+        def wait(self, timeout):
+            assert read_runtime_state(path) == {"version": 1, "accepted": True}
+            waited.append(timeout)
+            if wedged and len(waited) == 2:
+                raise subprocess.TimeoutExpired("owned sector worker", timeout)
+
+    web = worker_supervisor.LaunchedWeb(OwnedProcess(), 0)
+    sector = worker_supervisor.LaunchedWorker(OwnedProcess(), 0)
+    worker = worker_supervisor.LaunchedWorker(OwnedProcess(), 0)
+    if wedged:
+        with pytest.raises(subprocess.TimeoutExpired):
+            worker_supervisor._drain_controlled_children(path, {"version": 1}, web, sector, worker)
+        assert waited == [44, 39]
+    else:
+        worker_supervisor._drain_controlled_children(path, {"version": 1}, web, sector, worker)
+        assert waited == [44, 39, 32]
 
 
 def test_unhandled_supervisor_failure_is_durably_logged(monkeypatch) -> None:
