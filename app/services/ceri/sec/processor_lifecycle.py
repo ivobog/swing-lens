@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriSecProcessorRelease
+from app.services.ceri.sec.processor_rollback import PROMOTION_RECEIPT, record_recoverable_promotion
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.pipeline_prerequisites import (
     SecProcessorPromotionRequiredError,
@@ -62,8 +63,7 @@ def lifecycle_state(db: Session) -> SecProcessorLifecycleState:
         sorted(
             row.processor_signature
             for row in releases
-            if row.status
-            in {SecProcessorReleaseStatus.CERTIFIED, SecProcessorReleaseStatus.ACTIVE}
+            if row.status in {SecProcessorReleaseStatus.CERTIFIED, SecProcessorReleaseStatus.ACTIVE}
         )
     )
     return SecProcessorLifecycleState(
@@ -172,7 +172,12 @@ def certify_processor(
         row.status = SecProcessorReleaseStatus.CERTIFIED
     row.certified_at = datetime.now(UTC)
     row.certified_by = actor
+    if PROMOTION_RECEIPT in evidence:
+        raise ValueError("Promotion receipt is reserved lifecycle evidence.")
+    preserved = (row.certification_evidence_json or {}).get(PROMOTION_RECEIPT)
     row.certification_evidence_json = dict(evidence)
+    if preserved is not None:
+        row.certification_evidence_json = {**evidence, PROMOTION_RECEIPT: preserved}
     db.flush()
     return row
 
@@ -182,9 +187,16 @@ def promote_processor(
     *,
     processor_signature: str,
     actor: str,
+    rollback_run_id: int | None = None,
+    rollback_candidate_git: str | None = None,
 ) -> CeriSecProcessorRelease:
     releases = list(
-        db.scalars(select(CeriSecProcessorRelease).with_for_update()).all()
+        db.scalars(
+            select(CeriSecProcessorRelease)
+            .order_by(CeriSecProcessorRelease.processor_signature)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        ).all()
     )
     target = next(
         (row for row in releases if row.processor_signature == processor_signature),
@@ -195,6 +207,25 @@ def promote_processor(
     if target is None or target.status != SecProcessorReleaseStatus.CERTIFIED:
         raise ValueError("SEC processor must be CERTIFIED before explicit promotion.")
     now = datetime.now(UTC)
+    if rollback_run_id is not None:
+        previous = next(
+            (row for row in releases if row.status == SecProcessorReleaseStatus.ACTIVE), None
+        )
+        if previous is None:
+            raise ValueError("A recoverable promotion requires an ACTIVE predecessor.")
+        receipt = record_recoverable_promotion(
+            db,
+            predecessor=previous,
+            candidate=target,
+            run_id=rollback_run_id,
+            candidate_git=rollback_candidate_git,
+            actor=actor,
+            now=now,
+        )
+        target.certification_evidence_json = {
+            **target.certification_evidence_json,
+            PROMOTION_RECEIPT: receipt,
+        }
     for row in releases:
         if row.status == SecProcessorReleaseStatus.ACTIVE:
             row.status = SecProcessorReleaseStatus.RETIRED

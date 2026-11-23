@@ -12,6 +12,11 @@
       "entry_point": "scripts/qa/check_certification_registry.py",
       "target_lifecycle": "ACTIVE_RELEASE_CERTIFICATION",
       "scope": "Registration-only static check introduced by A02; outside the frozen 156 baseline."
+    },
+    {
+      "entry_point": "scripts/ops/sec_processor_rollback.py",
+      "target_lifecycle": "MANUAL_OPERATIONAL_RECOVERY",
+      "scope": "Owner-authenticated one-promotion emergency recovery. Automatic execution denied."
     }
   ],
   "gates": [
@@ -4347,6 +4352,18 @@
           {
             "path": "app/services/ticker_intelligence_service.py",
             "symbol": "_ceri"
+          },
+          {
+            "path": "app/services/ceri/sec/processor_lifecycle.py",
+            "symbol": "promote_processor"
+          },
+          {
+            "path": "app/services/ceri/sec/processor_rollback.py",
+            "symbol": "rollback_committed_promotion"
+          },
+          {
+            "path": "scripts/ops/sec_processor_rollback.py",
+            "symbol": "main"
           }
         ],
         "impact_patterns": [
@@ -4501,7 +4518,13 @@
           "tests/integration/test_ceri_run_isolation_remediation.py",
           "tests/integration/test_ceri_systemic_remediation.py",
           "tests/integration/test_sec_readiness_repair_postgresql.py",
-          "tests/test_sec_continuation_executor.py"
+          "tests/test_sec_continuation_executor.py",
+          "app/services/ceri/sec/processor_lifecycle.py",
+          "app/services/ceri/sec/processor_rollback.py",
+          "scripts/manage_sec_processor.py",
+          "scripts/ops/sec_processor_rollback.py",
+          "docs/operations/sec_processor_recovery.md",
+          "tests/integration/test_sec_processor_rollback_postgresql.py"
         ],
         "tests": [
           {
@@ -4863,6 +4886,42 @@
             "positive": "An older genuinely attributed owner remains selectable when the newer snapshot loses its owner/context link.",
             "negative": "Removing both context links refuses the current projection despite matching upload histories.",
             "reviewed_test_sha256": "fd08a55636fc85be4494e4d78b81de84270f0a52b66a1248f7896df0744ff31c"
+          },
+          {
+            "id": "tests/integration/test_sec_processor_rollback_postgresql.py::test_exact_rollback_survives_interruption_concurrency_and_lost_ack",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "A recorded rollback restores only the exact predecessor and preserves every scope sync row.",
+            "negative": "An uncommitted reversal, contending connection, or replay cannot make a second durable transition.",
+            "reviewed_test_sha256": "4b35f9cc6d7d9fa44f9926d3af93fa1a82d1acb1352dce4c4afa322e9fc8c9a2"
+          },
+          {
+            "id": "tests/integration/test_sec_processor_rollback_postgresql.py::test_rejects_unrelated_expired_changed_or_intervening_transition",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "The exact committed transition state can be read before and after a rejection.",
+            "negative": "Unrelated signatures, a different Git revision, expiry, a changed readiness seal and an intervening promotion are rejected.",
+            "reviewed_test_sha256": "4b35f9cc6d7d9fa44f9926d3af93fa1a82d1acb1352dce4c4afa322e9fc8c9a2"
+          },
+          {
+            "id": "tests/integration/test_sec_processor_rollback_postgresql.py::test_incomplete_scope_blocks_recoverable_promotion",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "The previously active release and its readiness remain intact on a failed preparation.",
+            "negative": "Incomplete candidate readiness cannot create an actionable promotion receipt.",
+            "reviewed_test_sha256": "4b35f9cc6d7d9fa44f9926d3af93fa1a82d1acb1352dce4c4afa322e9fc8c9a2"
+          },
+          {
+            "id": "tests/integration/test_sec_processor_rollback_postgresql.py::test_running_lease_denies_rollback",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "The exact promoted state is preserved when durable work is present.",
+            "negative": "A running database job prevents rollback.",
+            "reviewed_test_sha256": "4b35f9cc6d7d9fa44f9926d3af93fa1a82d1acb1352dce4c4afa322e9fc8c9a2"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -4874,7 +4933,6 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "058d28a22f31972b70afaedd9ede458e12955e444fe5fa8002bb7253ef1aab8b",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -4976,7 +5034,8 @@
             "scope": "Exact retained report/artifact, runbook and prerequisite test/helper associations based on their contents and application imports. No new wildcard, exception, selector removal, scheduling-rule change or fidelity promotion.",
             "claim": "STATIC_INTENT only; original observations and failed broader scale result retained; current native financial, browser, stage-budget and authenticated golden approval requirements remain."
           }
-        ]
+        ],
+        "review_sha256": "dd804d1499a9d207711ac306ebe7b1700db8d01ba6d2e7d1d054b8ce99a143ae"
       },
       {
         "id": "REGIME_SECTOR_SELECTION",

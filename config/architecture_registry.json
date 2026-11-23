@@ -6030,6 +6030,15 @@
       "reason": "Exact production AST mutation family reviewed at R3."
     },
     {
+      "path": "app/services/ceri/sec/processor_rollback.py",
+      "function": "rollback_committed_promotion",
+      "kind": "state_assignment",
+      "writer_ids": [
+        "WRITE-052"
+      ],
+      "reason": "Locks the bounded lifecycle registry and requires exact owner-authorized predecessor recovery."
+    },
+    {
       "path": "app/services/ceri/sec/processor_lifecycle.py",
       "function": "register_deployed_processor",
       "kind": "add",
@@ -12292,6 +12301,7 @@
     "app/services/ceri/identity_resolver.py:reconcile_missing_provider_identity",
     "app/services/ceri/pipeline_containment_service.py:reconcile_unsuccessful_pipeline_ceri",
     "app/services/ceri/sec/processor_lifecycle.py:fence_worker_against_active_processor",
+    "app/services/ceri/sec/processor_rollback.py:record_recoverable_promotion",
     "app/services/certification_runtime.py:apply_certification_recovery_scope",
     "app/services/certification_runtime.py:certification_recovery_filter",
     "app/services/domain_mutation.py:fence_mutation_transaction",
@@ -13419,6 +13429,13 @@
       "primitive": "flush",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/sec/processor_rollback.py",
+      "function": "rollback_committed_promotion",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Locks the bounded lifecycle registry and requires exact owner-authorized predecessor recovery."
     },
     {
       "path": "app/services/ceri/sec/processor_lifecycle.py",
@@ -16131,6 +16148,18 @@
       "gap_id": "GLOBAL-READ-AUDIT"
     },
     {
+      "path": "app/services/ceri/sec/processor_rollback.py",
+      "function": "rollback_committed_promotion",
+      "line": 206,
+      "models": [
+        "CeriSecProcessorRelease"
+      ],
+      "shape": "PREDICATE_FREE_MATERIALIZATION",
+      "classification": "REVIEWED_EXISTING_READ",
+      "reason": "Locks the bounded lifecycle registry and requires exact owner-authorized predecessor recovery.",
+      "gap_id": "GLOBAL-READ-AUDIT"
+    },
+    {
       "path": "app/services/configuration_delivery.py",
       "function": "resolve_pipeline_configurations",
       "line": 640,
@@ -18039,6 +18068,10 @@
     {
       "path": "app/services/ceri/sec/processor_lifecycle.py",
       "function": "promote_processor"
+    },
+    {
+      "path": "app/services/ceri/sec/processor_rollback.py",
+      "function": "rollback_committed_promotion"
     },
     {
       "path": "app/services/ceri/sec/readiness_repair.py",
