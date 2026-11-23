@@ -4351,6 +4351,10 @@
           {
             "path": "app/services/ticker_intelligence_service.py",
             "symbol": "_ceri"
+          },
+          {
+            "path": "scripts/ops/validate_sec_cofiler.py",
+            "symbol": "verify_response"
           }
         ],
         "impact_patterns": [
@@ -4509,7 +4513,8 @@
           "tests/integration/test_ceri_run_isolation_remediation.py",
           "tests/integration/test_ceri_systemic_remediation.py",
           "tests/integration/test_sec_readiness_repair_postgresql.py",
-          "tests/test_sec_continuation_executor.py"
+          "tests/test_sec_continuation_executor.py",
+          "tests/ceri/fixtures/pbf-000043-sec-primary.body.gz"
         ],
         "tests": [
           {
@@ -4916,6 +4921,33 @@
             "positive": "An older genuinely attributed owner remains selectable when the newer snapshot loses its owner/context link.",
             "negative": "Removing both context links refuses the current projection despite matching upload histories.",
             "reviewed_test_sha256": "fd08a55636fc85be4494e4d78b81de84270f0a52b66a1248f7896df0744ff31c"
+          },
+          {
+            "id": "tests/ceri/test_sec_cofiler_identity.py::test_real_quarantined_filing_binds_cofilers_and_blocks_financial_attribution",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The retained SEC response and its original wire hash bind c-1 to PBF Energy and c-2/c-3 to PBF Holding.",
+            "negative": "Verified document identity cannot authorize production cache admission or publish financial records.",
+            "reviewed_test_sha256": "ac0bbb4f7f55ae1107e796ad5127431dae07186549e5893b86f072956464b8f4"
+          },
+          {
+            "id": "tests/ceri/test_sec_cofiler_identity.py::test_cik_scope_and_malformed_or_conflicting_roles_fail_closed",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Each negative control starts from the hash-verified retained joint filing and replaces an observed value.",
+            "negative": "Unregistered CIKs, conflicting or duplicate contexts, wrong form, and invalid axes or namespaces are rejected.",
+            "reviewed_test_sha256": "ac0bbb4f7f55ae1107e796ad5127431dae07186549e5893b86f072956464b8f4"
+          },
+          {
+            "id": "tests/ceri/test_sec_cofiler_identity.py::test_another_body_or_archive_path_cannot_borrow_retained_provenance",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The existing archive and wire evidence are independently bound to the retained accession.",
+            "negative": "Index paths, changed bytes or hashes, and a different accession cannot borrow the retained wire evidence.",
+            "reviewed_test_sha256": "ac0bbb4f7f55ae1107e796ad5127431dae07186549e5893b86f072956464b8f4"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -4927,7 +4959,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "ee22e1ac2ee1632d9655f45d83e2e5f4cf76db66c44ff40df8d87fc80468dfd5",
+        "review_sha256": "b0754940ced9a6466eda74af17cb47645384714790da916cb9ba3dbc855480f0",
         "review_addenda": [
           {
             "task": "MSI-20261103",
