@@ -4369,7 +4369,6 @@
           "tests/ceri/test_ceri_signed_revenue_cycles.py",
           "tests/ceri/test_sec_guidance_outlook_numbers.py",
           "tests/ceri/test_sec_guidance.py",
-          "tests/ceri/test_sec_processor_lifecycle.py",
           "tests/ceri/test_sec_processor_capability.py",
           "tests/ceri/fixtures/sec_guidance_real_corpus_manifest_v1.json",
           "docs/operations/CERI_PROSPECTIVE_REVENUE_CAPTURE.md",
@@ -4928,7 +4927,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "53fc3abc8694d16014d2f691fc03173953861c7bbde29472f00eef865a4f91bb",
+        "review_sha256": "ee22e1ac2ee1632d9655f45d83e2e5f4cf76db66c44ff40df8d87fc80468dfd5",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -5678,7 +5677,8 @@
           "tests/test_pipeline_execution_authority.py",
           "tests/test_worker_supervisor_reliability.py",
           "tests/ops/test_lifecycle_powershell.py",
-          "tests/ops/test_lifecycle_safety.py"
+          "tests/ops/test_lifecycle_safety.py",
+          "tests/e2e/test_windows_lifecycle_persistence.py"
         ],
         "tests": [
           {
@@ -5737,7 +5737,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "45b47d4389c7acb84e2e7911a51b38d37f37da62ac4aa70cface9d2c3b619d0e",
+        "review_sha256": "08f727d45588a96cc9b3a2b30b793fb9afe63f9612d9310ae83fb6cae2b8a330",
         "review_addenda": [
           {
             "task": "FR02",
