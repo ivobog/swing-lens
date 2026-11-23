@@ -4363,6 +4363,14 @@
           {
             "path": "app/services/ceri/sec/attribution.py",
             "symbol": "prove_document_attribution"
+          },
+          {
+            "path": "app/services/ceri/query_service.py",
+            "symbol": "accepted_guidance_at_cutoff"
+          },
+          {
+            "path": "app/services/ceri/guidance_normalizer.py",
+            "symbol": "CeriGuidanceNormalizer.normalize"
           }
         ],
         "impact_patterns": [
@@ -4524,7 +4532,8 @@
           "tests/test_sec_continuation_executor.py",
           "tests/ceri/fixtures/pbf-000043-sec-primary.body.gz",
           "tests/ceri/test_normalization_service.py",
-          "tests/integration/test_sec_incremental_ingestion_postgresql.py"
+          "tests/integration/test_sec_incremental_ingestion_postgresql.py",
+          "tests/integration/test_sec_guidance_temporal_postgresql.py"
         ],
         "tests": [
           {
@@ -4985,6 +4994,15 @@
             "positive": "The populated additive migration and an empty-ledger downgrade preserve the original legacy source hash and possession.",
             "negative": "Unproved held guidance cannot create a new normalized event.",
             "reviewed_test_sha256": "b536df2c8003e01c8518e427df41975a02dc19c29515d913da2450d8c7240f91"
+          },
+          {
+            "id": "tests/integration/test_sec_guidance_temporal_postgresql.py::test_sec_acceptance_possession_and_session_gate_the_real_selector",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Exact SEC acceptance and local possession preserve same-basis guidance values and a valid New York effective session in native SQL and the in-memory selector.",
+            "negative": "Premature, date-only or quarantined evidence cannot replace legitimately available guidance. Expiration does not revive a superseded predecessor.",
+            "reviewed_test_sha256": "f162ab35af6d56fc96ef6cc2bed69a85e79de16722739f57228adc00e65c40c0"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -4996,7 +5014,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "d96b19a94859182e5da355e2dec89610f20dbf9eb52a5a4b56c09118a4b028ba",
+        "review_sha256": "46d0982e47dc1c96cc877a35f70fc71cf37cae26f66752f354f8773cd401e4ae",
         "review_addenda": [
           {
             "task": "MSI-20261103",

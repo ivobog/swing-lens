@@ -74,6 +74,8 @@ def exact_filing(document, cik: str) -> dict:
         "filename": document.document_name,
         "form": document.form,
         "filing_date": date.fromisoformat(document.filing_date[:10]).isoformat(),
+        **({"accepted_at": Canonical.canonicalize(document.accepted_at)}
+           if document.accepted_at is not None else {}),
     }
 
 

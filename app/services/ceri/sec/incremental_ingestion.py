@@ -185,6 +185,10 @@ class SecGuidanceIncrementalIngestionService:
                         item["filename"],
                         item["form"],
                         item["filing_date"],
+                        (
+                            datetime.fromisoformat(item["accepted_at"])
+                            if item.get("accepted_at") else None
+                        ),
                     )
                     for item in payload(selected)["required"]
                 )
@@ -313,9 +317,11 @@ class SecGuidanceIncrementalIngestionService:
         db.commit()
         try:
             filing_text = cached
+            retrieved_at = None
             if filing_text is None:
                 filing_text = provider.download_guidance_document(document)
                 possessed_at = datetime.now(UTC)
+                retrieved_at = possessed_at
                 body_bytes = filing_text.encode("utf-8")
                 locked_events(db, generation)
                 self.state.heartbeat(
@@ -341,6 +347,7 @@ class SecGuidanceIncrementalIngestionService:
                 outcome.documents_cache_reused += 1
             records = provider.extract_guidance_document(
                 document, text=filing_text, require_financial_attribution=True,
+                retrieved_at=retrieved_at,
             )
             cancelled = _cancelled(should_cancel)
             locked_events(db, generation)
