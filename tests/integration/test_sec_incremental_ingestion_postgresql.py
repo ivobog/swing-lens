@@ -76,7 +76,10 @@ class _FakeSecClient:
         self.download_calls += 1
         if self.download_error is not None:
             raise self.download_error
-        return self.document_text
+        return (
+            "<SEC-HEADER>\nCENTRAL INDEX KEY: 0000123456\n</SEC-HEADER>\n"
+            + self.document_text
+        )
 
 
 class _CountingExtractor(GuidanceExtractionService):
@@ -381,10 +384,11 @@ def test_processor_signature_change_reuses_cached_filing_body(
     registry = CeriProviderRegistry(providers={"sec": provider}, config=config)
 
     with Session(engine) as db:
-        monkeypatch.setattr(
-            "app.services.ceri.sec.incremental_ingestion.sec_guidance_processor_signature",
-            lambda: "sec-guidance:old",
-        )
+        for module in ("incremental_ingestion", "scope_evidence"):
+            monkeypatch.setattr(
+                f"app.services.ceri.sec.{module}.sec_guidance_processor_signature",
+                lambda: "sec-guidance:old",
+            )
         old = CeriIngestionService(
             config=config,
             registry=registry,
@@ -392,10 +396,11 @@ def test_processor_signature_change_reuses_cached_filing_body(
         ).ingest(db, _request("signature-old"))
         db.commit()
 
-        monkeypatch.setattr(
-            "app.services.ceri.sec.incremental_ingestion.sec_guidance_processor_signature",
-            lambda: "sec-guidance:new",
-        )
+        for module in ("incremental_ingestion", "scope_evidence"):
+            monkeypatch.setattr(
+                f"app.services.ceri.sec.{module}.sec_guidance_processor_signature",
+                lambda: "sec-guidance:new",
+            )
         request = _request("signature-new")
         request = CeriIngestionRequest(
             **{**request.__dict__, "scope": {"ticker": "TEST", "repair": True}}

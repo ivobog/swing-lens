@@ -9,7 +9,6 @@ from app.models.ceri_tables import CeriCompany, CeriSecProcessorRelease, CeriSec
 from app.services.ceri.config import CeriConfigError
 from app.services.ceri.sec.coverage import build_sec_coverage
 from app.services.ceri.sec.pipeline_preflight import validate_sec_pipeline_preflight
-from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.ceri.sec.readiness_diagnostics import (
     SecTickerReadiness,
     SecTickerReadinessCategory,
@@ -37,8 +36,21 @@ class SequentialDb:
         return self.responses.pop(0)
 
 
+V3_SIGNATURE = "sec-guidance:eed017654682a0c9"
+
+
+@pytest.fixture(autouse=True)
+def _legacy_readiness_fixtures(monkeypatch):
+    # These sequential fixtures exercise the existing v3 sync contract.
+    # The new contract is verified using the actual PostgreSQL readiness path.
+    monkeypatch.setattr(
+        "app.services.ceri.sec.processor_lifecycle.sec_guidance_processor_signature",
+        lambda: V3_SIGNATURE,
+    )
+
+
 def _release():
-    signature = sec_guidance_processor_signature()
+    signature = V3_SIGNATURE
     return CeriSecProcessorRelease(processor_signature=signature, status="ACTIVE")
 
 
@@ -50,7 +62,7 @@ def _sync(cik: int, signature: str | None = None):
     return CeriSecSyncState(
         cik=str(cik).zfill(10),
         dataset="guidance",
-        processor_signature=signature or sec_guidance_processor_signature(),
+        processor_signature=signature or V3_SIGNATURE,
     )
 
 
@@ -133,12 +145,15 @@ def test_unattempted_unresolved_ticker_requires_bounded_identity_repair() -> Non
 
 
 def _pipeline_with_no_match_coverage():
-    signature = sec_guidance_processor_signature()
+    signature = V3_SIGNATURE
     pipeline = SimpleNamespace(id=56, scope_id="scope-56", result_json={})
-    readiness = SecUniverseReadiness(signature, (
-        SecTickerReadiness("AAA", SecTickerReadinessCategory.READY, ciks=("0000000001",)),
-        SecTickerReadiness("MISSING", SecTickerReadinessCategory.UNRESOLVED_MAPPING),
-    ))
+    readiness = SecUniverseReadiness(
+        signature,
+        (
+            SecTickerReadiness("AAA", SecTickerReadinessCategory.READY, ciks=("0000000001",)),
+            SecTickerReadiness("MISSING", SecTickerReadinessCategory.UNRESOLVED_MAPPING),
+        ),
+    )
     pipeline.result_json["sec_coverage"] = build_sec_coverage(
         pipeline=pipeline,
         readiness=readiness,

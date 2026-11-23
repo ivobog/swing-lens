@@ -57,7 +57,7 @@ def test_deployed_signature_is_not_implicitly_active() -> None:
         [
             CeriSecProcessorRelease(processor_signature="old", status="ACTIVE"),
             CeriSecProcessorRelease(
-                processor_signature="sec-guidance:b0bd408b6358d605", status="DEPLOYED"
+                processor_signature="sec-guidance:93a79fdb217f53f2", status="DEPLOYED"
             ),
         ]
     )
@@ -65,7 +65,7 @@ def test_deployed_signature_is_not_implicitly_active() -> None:
     state = lifecycle_state(db)
 
     assert state.active_signature == "old"
-    assert state.deployed_signature == "sec-guidance:b0bd408b6358d605"
+    assert state.deployed_signature == "sec-guidance:93a79fdb217f53f2"
     assert state.deployed_is_active is False
 
 
@@ -203,7 +203,7 @@ def test_stale_worker_is_fenced_from_claiming_for_a_different_active_signature()
         [
             CeriSecProcessorRelease(processor_signature="old", status="ACTIVE"),
             CeriSecProcessorRelease(
-                processor_signature="sec-guidance:b0bd408b6358d605", status="DEPLOYED"
+                processor_signature="sec-guidance:93a79fdb217f53f2", status="DEPLOYED"
             ),
         ]
     )

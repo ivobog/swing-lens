@@ -51,7 +51,10 @@ def test_refactored_document_boundary_preserves_cold_provider_output() -> None:
             }
 
         def archive_document(self, *_args):
-            return "The company expects revenue guidance of $100 to $110 million."
+            return (
+                "<SEC-HEADER>\nCENTRAL INDEX KEY: 0000123456\n</SEC-HEADER>\n"
+                "The company expects revenue guidance of $100 to $110 million."
+            )
 
     request = GuidanceRequest(company_id=None, ticker="TEST")
     legacy_shape = list(SecCeriProvider(client=Client()).fetch_guidance(request))

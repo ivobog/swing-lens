@@ -1,0 +1,470 @@
+"""Authoritative SEC guidance selection and document outcomes."""
+
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
+
+from sqlalchemy import func, select, text
+from sqlalchemy.orm import Session
+
+from app.models.ceri_tables import (
+    CeriCompany,
+    CeriIngestionRun,
+    CeriIngestionRunSourceRecord,
+    CeriSecFilingDocument,
+    CeriSecScopeEvidence,
+    CeriSourceRecord,
+)
+from app.models.tables import RefreshCycleRecord, WorkScopeMember, WorkScopeRecord
+from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+from app.services.ceri.sec.processor_signature import (
+    SEC_SCOPE_EVIDENCE_VERSION,
+    sec_guidance_processor_signature,
+)
+from app.services.work_scope_identity import (
+    ScopeIdentityStore,
+    ScopeMember,
+    ScopeMembershipPolicy,
+    WorkScopeSnapshot,
+)
+
+GUIDANCE = "guidance"
+SUCCESS = frozenset({"COMPLETED_NO_RECORDS", "COMPLETED_WITH_RECORDS"})
+OPEN = "OPEN"
+SELECTED = "SELECTED"
+OUTCOME = "DOCUMENT_OUTCOME"
+REFUSAL = "ATTRIBUTION_REFUSAL"
+
+
+class ScopeEvidenceError(ValueError):
+    """The current SEC scope cannot support the requested transition."""
+
+
+@dataclass(frozen=True)
+class ScopeGeneration:
+    cik: str
+    signature: str
+    number: int
+    run_id: int
+    parent_id: str
+
+    def predicate(self):
+        row = CeriSecScopeEvidence
+        return (
+            row.cik == self.cik,
+            row.dataset == GUIDANCE,
+            row.processor_signature == self.signature,
+        )
+
+
+def exact_filing(document, cik: str) -> dict:
+    if (
+        document.cik != cik
+        or not re.fullmatch(r"[0-9]{10}-[0-9]{2}-[0-9]{6}", document.accession_number)
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", document.document_name)
+        or document.form not in {"8-K", "10-Q", "10-K", "6-K", "20-F"}
+    ):
+        raise ScopeEvidenceError("SEC_REQUIRED_FILING_IDENTITY_INVALID")
+    return {
+        "cik": cik,
+        "accession": document.accession_number,
+        "filename": document.document_name,
+        "form": document.form,
+        "filing_date": date.fromisoformat(document.filing_date[:10]).isoformat(),
+    }
+
+
+def _lock(db: Session, cik: str, signature: str) -> None:
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+        {"key": f"ceri-sec-evidence:{cik}:{GUIDANCE}:{signature}"},
+    )
+
+
+def _seal(row, data: dict) -> dict:
+    return {
+        "cik": row.cik,
+        "dataset": row.dataset,
+        "processor_signature": row.processor_signature,
+        "generation": row.generation,
+        "ordinal": row.ordinal,
+        "kind": row.kind,
+        "ingestion_run_id": row.ingestion_run_id,
+        "scope_id": row.scope_id,
+        "recorded_at": Canonical.canonicalize(row.recorded_at),
+        "data": data,
+    }
+
+
+def payload(row: CeriSecScopeEvidence) -> dict:
+    data = json.loads(row.evidence)["data"]
+    envelope = _seal(row, data)
+    if row.evidence != Canonical.dumps(envelope) or row.evidence_sha256 != Canonical.fingerprint(
+        envelope
+    ):
+        raise ScopeEvidenceError("SEC_SCOPE_EVIDENCE_SEAL_INVALID")
+    return data
+
+
+def _append(db, generation, ordinal, kind, scope_id, data):
+    row = CeriSecScopeEvidence(
+        cik=generation.cik,
+        dataset=GUIDANCE,
+        processor_signature=generation.signature,
+        generation=generation.number,
+        ordinal=ordinal,
+        kind=kind,
+        ingestion_run_id=generation.run_id,
+        scope_id=scope_id,
+        recorded_at=datetime.now(UTC),
+    )
+    envelope = _seal(row, data)
+    row.evidence = Canonical.dumps(envelope)
+    row.evidence_sha256 = Canonical.fingerprint(envelope)
+    db.add(row)
+    db.flush()
+    return row
+
+
+def open_generation(
+    db: Session, run_id: int, ticker: str, cik: str, signature: str
+) -> ScopeGeneration:
+    """Admit an owning SEC run, or resume its exact generation after interruption."""
+    if signature != sec_guidance_processor_signature():
+        raise ScopeEvidenceError("SEC_UNRECOGNIZED_SCOPE_PROCESSOR")
+    _lock(db, cik, signature)
+    owning_issuers = set(
+        db.scalars(
+            select(CeriCompany.cik).where(
+                CeriCompany.ticker == ticker,
+                CeriCompany.sec_applicability != "NOT_APPLICABLE",
+            )
+        )
+    )
+    run = db.get(CeriIngestionRun, run_id, populate_existing=True)
+    parent = db.get(WorkScopeRecord, run.scope_id) if run and run.scope_id else None
+    refresh = (
+        db.get(RefreshCycleRecord, run.refresh_cycle_id) if run and run.refresh_cycle_id else None
+    )
+    if (
+        run is None
+        or owning_issuers != {cik}
+        or run.status != "RUNNING"
+        or run.provider != "sec"
+        or run.dataset != GUIDANCE
+        or (run.scope_json or {}).get("backfill")
+        or (run.scope_json or {}).get("ticker") != ticker
+        or parent is None
+        or parent.membership_policy != ScopeMembershipPolicy.FROZEN.value
+        or parent.scope_kind
+        not in {"ceri-source-acquisition", "full-pipeline-run", "retained-continuation"}
+        or parent.acquisition_plan_id != run.acquisition_plan_id
+        or refresh is None
+        or refresh.scope_id != run.scope_id
+        or not run.acquisition_plan_id
+        or db.get(WorkScopeMember, (run.scope_id, "TICKER", ticker)) is None
+    ):
+        raise ScopeEvidenceError("SEC_SCOPE_RUN_AUTHORITY_REQUIRED")
+    row = CeriSecScopeEvidence
+    latest = db.scalar(
+        select(row)
+        .where(
+            row.cik == cik,
+            row.dataset == GUIDANCE,
+            row.processor_signature == signature,
+            row.kind == OPEN,
+        )
+        .order_by(row.generation.desc())
+        .limit(1)
+    )
+    if latest is not None:
+        payload(latest)
+        if run_id < latest.ingestion_run_id:
+            raise ScopeEvidenceError("SEC_SCOPE_GENERATION_SUPERSEDED")
+        if latest.ingestion_run_id == run_id:
+            if latest.scope_id != run.scope_id:
+                raise ScopeEvidenceError("SEC_SCOPE_RUN_AUTHORITY_CHANGED")
+            return ScopeGeneration(cik, signature, latest.generation, run_id, run.scope_id)
+        if (run.scope_json or {}).get("repair") and generation_ready(db, cik, signature):
+            raise ScopeEvidenceError("SEC_REPAIR_CANNOT_SUPERSEDE_READY_GENERATION")
+    generation = ScopeGeneration(
+        cik, signature, 1 if latest is None else latest.generation + 1, run_id, run.scope_id
+    )
+    _append(
+        db,
+        generation,
+        0,
+        OPEN,
+        run.scope_id,
+        {
+            "ticker": ticker,
+            "refresh_cycle_id": run.refresh_cycle_id,
+            "acquisition_plan_id": run.acquisition_plan_id,
+        },
+    )
+    return generation
+
+
+def locked_events(db: Session, generation: ScopeGeneration) -> list[CeriSecScopeEvidence]:
+    _lock(db, generation.cik, generation.signature)
+    row = CeriSecScopeEvidence
+    latest = db.scalar(select(func.max(row.generation)).where(*generation.predicate()))
+    if latest != generation.number:
+        raise ScopeEvidenceError("SEC_SCOPE_GENERATION_SUPERSEDED")
+    events = list(
+        db.scalars(
+            select(row)
+            .where(*generation.predicate(), row.generation == latest)
+            .order_by(row.ordinal)
+        )
+    )
+    if (
+        not events
+        or events[0].kind != OPEN
+        or events[0].scope_id != generation.parent_id
+        or any(event.ingestion_run_id != generation.run_id for event in events)
+    ):
+        raise ScopeEvidenceError("SEC_SCOPE_GENERATION_OWNERSHIP_CHANGED")
+    return events
+
+
+def _members(required: list[dict]) -> tuple[ScopeMember, ...]:
+    return tuple(ScopeMember("SEC_FILING", Canonical.fingerprint(filing)) for filing in required)
+
+
+def retain_selection(db, generation, documents, *, discovery: dict) -> CeriSecScopeEvidence:
+    events = locked_events(db, generation)
+    required = sorted(
+        (exact_filing(item, generation.cik) for item in documents),
+        key=lambda item: (item["accession"], item["filename"]),
+    )
+    members = _members(required)
+    if len({item.subject_id for item in members}) != len(required):
+        raise ScopeEvidenceError("SEC_DUPLICATE_REQUIRED_FILING")
+    selection = {"required": required, "discovery": discovery}
+    if len(events) > 1:
+        if payload(events[1]) != Canonical.canonicalize(selection):
+            raise ScopeEvidenceError("SEC_FROZEN_SELECTION_CHANGED")
+        return events[1]
+    run = db.get(CeriIngestionRun, generation.run_id)
+    scope = WorkScopeSnapshot(
+        scope_kind="ceri-sec-guidance-selection",
+        subject_kind="sec-filing",
+        definition_version=SEC_SCOPE_EVIDENCE_VERSION,
+        scope_definition={"cik": generation.cik, "discovery": discovery},
+        selection_policy_identity=generation.signature,
+        membership_policy=ScopeMembershipPolicy.FROZEN,
+        members=members,
+        selected_at=datetime.now(UTC),
+        parent_scope_id=generation.parent_id,
+        acquisition_plan_id=run.acquisition_plan_id,
+    )
+    return _append(
+        db, generation, 1, SELECTED, ScopeIdentityStore.persist_scope(db, scope), selection
+    )
+
+
+def selected_event(db, generation) -> CeriSecScopeEvidence | None:
+    events = locked_events(db, generation)
+    return events[1] if len(events) > 1 else None
+
+
+def record_outcome(db, generation, filing: dict, result: dict, *, kind: str = OUTCOME) -> None:
+    events = locked_events(db, generation)
+    if len(events) < 2 or filing not in payload(events[1])["required"]:
+        raise ScopeEvidenceError("SEC_FILING_NOT_IN_FROZEN_SCOPE")
+    selection = events[1]
+    data = {"filing": filing, **result}
+    current = _document_outcomes(events[2:]).get(Canonical.fingerprint(filing))
+    if current == (kind, Canonical.canonicalize(data)):
+        return
+    _append(db, generation, events[-1].ordinal + 1, kind, selection.scope_id, data)
+
+
+def _document_outcomes(events):
+    outcomes = {}
+    for event in events:
+        result = payload(event)
+        outcomes[Canonical.fingerprint(result["filing"])] = (event.kind, result)
+    return outcomes
+
+
+def body_version(row: CeriSecFilingDocument) -> dict:
+    return {
+        "document_id": row.id,
+        "body_sha256": row.last_content_hash,
+        "possessed_at": Canonical.canonicalize(row.last_downloaded_at),
+    }
+
+
+def _matching_body(db, filing, body):
+    if not body or not body.get("body_sha256") or not body.get("possessed_at"):
+        return False
+    document = db.get(CeriSecFilingDocument, body["document_id"], populate_existing=True)
+    return (
+        document is not None
+        and (
+            document.cik,
+            document.accession_number,
+            document.document_name,
+            document.form,
+            document.filing_date,
+        )
+        == (
+            filing["cik"],
+            filing["accession"],
+            filing["filename"],
+            filing["form"],
+            date.fromisoformat(filing["filing_date"]),
+        )
+        and body_version(document) == body
+    )
+
+
+def _matches_sources(db, run_id, filing, result):
+    sources = result["sources"]
+    if result["status"] == "COMPLETED_NO_RECORDS":
+        return not sources
+    if not sources or len({item["id"] for item in sources}) != len(sources):
+        return False
+    retained = list(
+        db.scalars(
+            select(CeriSourceRecord)
+            .join(
+                CeriIngestionRunSourceRecord,
+                CeriIngestionRunSourceRecord.source_record_id == CeriSourceRecord.id,
+            )
+            .where(
+                CeriIngestionRunSourceRecord.ingestion_run_id == run_id,
+                CeriSourceRecord.id.in_(item["id"] for item in sources),
+                CeriSourceRecord.provider == "sec",
+                CeriSourceRecord.dataset == GUIDANCE,
+            )
+        )
+    )
+    expected = {item["id"]: item["hash"] for item in sources}
+    return len(retained) == len(sources) and all(
+        row.content_hash == expected[row.id]
+        and (row.company_hint_json or {}).get("cik") == filing["cik"]
+        and row.provider_record_id.startswith(filing["accession"] + ":")
+        and (row.source_reference or "").startswith(filing["accession"] + "/" + filing["filename"])
+        for row in retained
+    )
+
+
+def reusable_outcome(db, generation, filing, body):
+    """Only the same selection, source version and latest applicable success can be reused."""
+    events = locked_events(db, generation)
+    selected = payload(events[1])
+    latest = _document_outcomes(events[2:]).get(Canonical.fingerprint(filing))
+    run_id = generation.run_id
+    if latest is None and generation.number > 1:
+        row = CeriSecScopeEvidence
+        previous = list(
+            db.scalars(
+                select(row)
+                .where(*generation.predicate(), row.generation == generation.number - 1)
+                .order_by(row.ordinal)
+            )
+        )
+        if len(previous) > 1 and payload(previous[1])["required"] == selected["required"]:
+            run_id = previous[0].ingestion_run_id
+            latest = _document_outcomes(previous[2:]).get(Canonical.fingerprint(filing))
+    if latest is not None:
+        kind, result = latest
+        if (
+            kind == OUTCOME
+            and result["status"] in SUCCESS
+            and result["body"] == body
+            and _matches_sources(db, run_id, filing, result)
+        ):
+            return result
+    return None
+
+
+def generation_ready(
+    db: Session, cik: str, signature: str, *,
+    generation: ScopeGeneration | None = None, run_id: int | None = None,
+) -> bool:
+    """Read and certify the exact current generation, independent of legacy sync rows."""
+    row = CeriSecScopeEvidence
+    identity = (row.cik == cik, row.dataset == GUIDANCE, row.processor_signature == signature)
+    latest = select(func.max(row.generation)).where(*identity).scalar_subquery()
+    events = list(
+        db.scalars(select(row).where(*identity, row.generation == latest).order_by(row.ordinal))
+    )
+    if len(events) < 2 or (generation and events[0].generation != generation.number):
+        return False
+    opening, selection, *documents = events
+    if run_id is not None and opening.ingestion_run_id != run_id:
+        return False
+    payload(opening)
+    selected = payload(selection)
+    required = selected["required"]
+    retained = db.get(WorkScopeRecord, selection.scope_id)
+    members = set(
+        db.scalars(
+            select(WorkScopeMember.subject_id).where(
+                WorkScopeMember.scope_id == selection.scope_id,
+                WorkScopeMember.subject_type == "SEC_FILING",
+            )
+        )
+    )
+    if (
+        retained is None
+        or retained.parent_scope_id != opening.scope_id
+        or retained.membership_policy != ScopeMembershipPolicy.FROZEN.value
+        or retained.payload_json["selection_policy_identity"] != signature
+        or members != {item.subject_id for item in _members(required)}
+        or any(
+            event.scope_id != selection.scope_id
+            or event.ingestion_run_id != opening.ingestion_run_id
+            for event in [selection, *documents]
+        )
+    ):
+        return False
+    outcomes = _document_outcomes(documents)
+    for filing in required:
+        kind, result = outcomes.get(Canonical.fingerprint(filing), (None, {}))
+        if (
+            kind != OUTCOME
+            or result.get("status") not in SUCCESS
+            or not _matching_body(db, filing, result["body"])
+            or not _matches_sources(db, opening.ingestion_run_id, filing, result)
+        ):
+            return False
+    return len(outcomes) == len(required)
+
+
+def source_attribution_proved(db, source: CeriSourceRecord, company_cik: str | None) -> bool:
+    """Require an original, exact successful ownership proof for a held source."""
+    cik = (source.company_hint_json or {}).get("cik")
+    if not cik or cik != company_cik or source.quarantine_reason:
+        return False
+    row = CeriSecScopeEvidence
+    for event in db.scalars(
+        select(row)
+        .where(
+            row.cik == cik,
+            row.dataset == GUIDANCE,
+            row.kind.in_((OUTCOME, REFUSAL)),
+            row.processor_signature == sec_guidance_processor_signature(),
+        )
+        .order_by(row.generation.desc(), row.ordinal.desc())
+    ):
+        result = payload(event)
+        if result["filing"]["accession"] != source.provider_record_id.partition(":")[0]:
+            continue
+        if result["status"] not in SUCCESS:
+            return False
+        if (
+            result["status"] == "COMPLETED_WITH_RECORDS"
+            and _matching_body(db, result["filing"], result["body"])
+            and {"id": source.id, "hash": source.content_hash} in result["sources"]
+            and _matches_sources(db, event.ingestion_run_id, result["filing"], result)
+        ):
+            return True
+    return False

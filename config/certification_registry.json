@@ -4355,6 +4355,14 @@
           {
             "path": "scripts/ops/validate_sec_cofiler.py",
             "symbol": "verify_response"
+          },
+          {
+            "path": "app/services/ceri/sec/scope_evidence.py",
+            "symbol": "generation_ready"
+          },
+          {
+            "path": "app/services/ceri/sec/attribution.py",
+            "symbol": "prove_document_attribution"
           }
         ],
         "impact_patterns": [
@@ -4514,7 +4522,9 @@
           "tests/integration/test_ceri_systemic_remediation.py",
           "tests/integration/test_sec_readiness_repair_postgresql.py",
           "tests/test_sec_continuation_executor.py",
-          "tests/ceri/fixtures/pbf-000043-sec-primary.body.gz"
+          "tests/ceri/fixtures/pbf-000043-sec-primary.body.gz",
+          "tests/ceri/test_normalization_service.py",
+          "tests/integration/test_sec_incremental_ingestion_postgresql.py"
         ],
         "tests": [
           {
@@ -4948,6 +4958,33 @@
             "positive": "The existing archive and wire evidence are independently bound to the retained accession.",
             "negative": "Index paths, changed bytes or hashes, and a different accession cannot borrow the retained wire evidence.",
             "reviewed_test_sha256": "ac0bbb4f7f55ae1107e796ad5127431dae07186549e5893b86f072956464b8f4"
+          },
+          {
+            "id": "tests/integration/test_sec_scope_evidence_postgresql.py::test_exact_scope_versioned_ingestion_and_historical_preservation",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "A verified exact single-filer body persists attributed guidance and supports reuse with the original possession and processor.",
+            "negative": "Authentic joint filing refusal, changed membership and changed body hash block current SEC readiness while legacy sync remains intact.",
+            "reviewed_test_sha256": "b536df2c8003e01c8518e427df41975a02dc19c29515d913da2450d8c7240f91"
+          },
+          {
+            "id": "tests/integration/test_sec_scope_evidence_postgresql.py::test_generation_lock_interruption_replay_and_append_only",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "A committed owner reopens the same exact append-only generation after an uncertain response.",
+            "negative": "Interrupted writes, unrelated work, stale workers and attempts to mutate committed evidence cannot publish outcomes.",
+            "reviewed_test_sha256": "b536df2c8003e01c8518e427df41975a02dc19c29515d913da2450d8c7240f91"
+          },
+          {
+            "id": "tests/integration/test_sec_scope_evidence_postgresql.py::test_populated_migration_preserves_held_legacy_source",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "The populated additive migration and an empty-ledger downgrade preserve the original legacy source hash and possession.",
+            "negative": "Unproved held guidance cannot create a new normalized event.",
+            "reviewed_test_sha256": "b536df2c8003e01c8518e427df41975a02dc19c29515d913da2450d8c7240f91"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -4959,7 +4996,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "b0754940ced9a6466eda74af17cb47645384714790da916cb9ba3dbc855480f0",
+        "review_sha256": "d96b19a94859182e5da355e2dec89610f20dbf9eb52a5a4b56c09118a4b028ba",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -5561,7 +5598,7 @@
             "lane": "browser-smoke",
             "positive": "Owned ALFA prediction reaches committed matured outcomes and GUI parity.",
             "negative": "Omitting maturation cannot satisfy the reached positive assertion.",
-            "reviewed_test_sha256": "c3e730ef1699f513cb3fee0dc4210220d78f4b8092e30bb1628e48ca1db4d11b"
+            "reviewed_test_sha256": "0cc0472929f4bb4c5dcad4470c4df9b414e63bf5d0290f0efd95d2d7d8cbe7be"
           },
           {
             "id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_native_winner_fixture_preserves_v1_readiness_boundary[False]",
@@ -5601,7 +5638,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "e6fa9ea0c21384824f644d8f046508ca68dab17c13365cb16b2e4c346dce0aa0",
+        "review_sha256": "7bd462e997dda7e2e9ac9dbe5d597db8f9db16bc1143e3fdce253297e33d578f",
         "review_addenda": [
           {
             "task": "FR02",

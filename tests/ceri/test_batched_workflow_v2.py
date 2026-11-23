@@ -513,13 +513,15 @@ def test_sec_readiness_coverage_requires_current_signature_per_ticker() -> None:
                 CeriSecSyncState(
                     cik="0001041668",
                     dataset="guidance",
-                    processor_signature="sec-guidance:b0bd408b6358d605",
+                    processor_signature="sec-guidance:eed017654682a0c9",
                 )
             ],
         ]
     )
 
-    coverage = sec_readiness_coverage(db, tickers=["AIZ", "AMZN", "MISS"])
+    coverage = sec_readiness_coverage(
+        db, tickers=["AIZ", "AMZN", "MISS"], processor_signature="sec-guidance:eed017654682a0c9"
+    )
 
     assert coverage.ready_tickers == 1
     assert coverage.missing_tickers == ("AMZN", "MISS")

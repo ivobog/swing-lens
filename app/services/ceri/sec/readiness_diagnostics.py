@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 from app.models.ceri_tables import CeriCompany, CeriSecSyncState
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.sec.issuer_succession import reviewed_symbols
+from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+from app.services.ceri.sec.scope_evidence import generation_ready
 
 _VALID_TICKER = re.compile(r"^[A-Z0-9][A-Z0-9.-]{0,15}$")
 
@@ -138,6 +140,14 @@ def diagnose_sec_readiness(
     for row in sync_rows:
         signatures_by_cik.setdefault(str(row.cik), set()).add(row.processor_signature)
 
+    versioned = processor_signature == sec_guidance_processor_signature()
+    if versioned:
+        for cik in ciks:
+            signatures = signatures_by_cik.setdefault(cik, set())
+            signatures.discard(processor_signature)
+            if generation_ready(db, cik, processor_signature):
+                signatures.add(processor_signature)
+
     diagnostics: list[SecTickerReadiness] = []
     for ticker in symbols:
         if not _VALID_TICKER.fullmatch(ticker):
@@ -224,6 +234,9 @@ def diagnose_sec_readiness(
         if all_ciks_ready:
             category = SecTickerReadinessCategory.READY
             reason = None
+        elif versioned:
+            category = SecTickerReadinessCategory.SYNC_STATE_MISSING
+            reason = "Current SEC filing selection has no complete verified extraction evidence."
         elif missing_sync_state:
             category = SecTickerReadinessCategory.SYNC_STATE_MISSING
             reason = "At least one required CIK has no successful SEC bootstrap sync state."

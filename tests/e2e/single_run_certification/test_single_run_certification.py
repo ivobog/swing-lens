@@ -2967,8 +2967,35 @@ def _activate_disposable_sec_processor(database_url: str) -> None:
 def _seed_disposable_sec_readiness(database_url: str) -> None:
     """Freeze SEC mapping/readiness only; provider jobs still create all run evidence."""
 
-    from app.models.ceri_tables import CeriCompany, CeriSecSyncState
-    from app.services.ceri.sec.processor_lifecycle import require_deployed_processor_active
+    from app.models.ceri_tables import CeriCompany
+    from app.services.ceri.config import load_ceri_config
+    from app.services.ceri.enums import CeriDataset
+    from app.services.ceri.orchestration import CeriIngestionRequest, CeriIngestionService
+    from app.services.ceri.provider_registry import CeriProviderRegistry
+    from app.services.ceri.sec.client import SecClientConfig
+    from app.services.ceri.sec.provider import SecCeriProvider
+    from app.settings import SecDocumentIncrementalMode, Settings
+
+    class EmptySyntheticIssuerSubmissions:
+        config = SecClientConfig()
+
+        def submissions(self, cik):
+            return {
+                "cik": cik,
+                "filings": {"recent": {
+                    "form": [], "accessionNumber": [], "primaryDocument": [], "filingDate": [],
+                }},
+            }
+
+    config = load_ceri_config()
+    provider = SecCeriProvider(client=EmptySyntheticIssuerSubmissions())
+    ingestion = CeriIngestionService(
+        config=config,
+        registry=CeriProviderRegistry(providers={"sec": provider}, config=config),
+        settings=Settings(
+            _env_file=None, sec_document_incremental_mode=SecDocumentIncrementalMode.SHADOW,
+        ),
+    )
 
     exact_ten = ("BHE", "BLLN", "KLIC", "LSCC", "PDFS", "ACMR", "RDVT", "AVT", "DVN", "JNJ")
     tickers = tuple(
@@ -2977,8 +3004,6 @@ def _seed_disposable_sec_readiness(database_url: str) -> None:
     engine = create_engine(database_url)
     try:
         with Session(engine) as db:
-            release = require_deployed_processor_active(db)
-            signature = release.active_signature or release.deployed_signature
             existing = {
                 row.ticker: row
                 for row in db.scalars(select(CeriCompany).where(CeriCompany.ticker.in_(tickers)))
@@ -2996,18 +3021,14 @@ def _seed_disposable_sec_readiness(database_url: str) -> None:
                     "eodhd": f"{ticker}.US",
                     "sec": cik,
                 }
-                db.add(
-                    CeriSecSyncState(
-                        cik=cik,
-                        dataset="guidance",
-                        processor_signature=signature,
-                        bootstrap_completed_at=now,
-                        last_discovered_at=now,
-                        latest_filing_date=now.date(),
-                        document_count=1,
-                    )
-                )
             db.commit()
+            for ticker in tickers:
+                result = ingestion.ingest(db, CeriIngestionRequest(
+                    provider="sec", dataset=CeriDataset.GUIDANCE, ticker=ticker,
+                    end=now.date(), request_key=f"a04-synthetic-sec-bootstrap:{ticker}",
+                ))
+                assert result.status == "COMPLETED" and result.run_evidence_status == "READY"
+                db.commit()
     finally:
         engine.dispose()
 
