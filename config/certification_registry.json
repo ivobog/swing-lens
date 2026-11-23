@@ -4345,6 +4345,10 @@
             "symbol": "capture_prospective_revenue"
           },
           {
+            "path": "app/services/ceri/sec/guidance_extractor.py",
+            "symbol": "GuidanceExtractionService.extract"
+          },
+          {
             "path": "app/services/ticker_intelligence_service.py",
             "symbol": "_ceri"
           }
@@ -4363,6 +4367,10 @@
           "scripts/ops/ceri_prospective_revenue.py",
           "tests/ceri/test_sec_prospective_operator.py",
           "tests/ceri/test_ceri_signed_revenue_cycles.py",
+          "tests/ceri/test_sec_guidance_outlook_numbers.py",
+          "tests/ceri/test_sec_guidance.py",
+          "tests/ceri/test_sec_processor_capability.py",
+          "tests/ceri/fixtures/sec_guidance_real_corpus_manifest_v1.json",
           "docs/operations/CERI_PROSPECTIVE_REVENUE_CAPTURE.md",
           "app/services/market_calculation_context_service.py",
           "tests/test_provider_replay_contracts.py",
@@ -4575,6 +4583,51 @@
             "positive": "The point-in-time selector retains the eligible current revenue observation and reports missing comparable history.",
             "negative": "Currency, fiscal-period and unit mismatches, late possession, future existence, retrospective trends and too-late baselines cannot produce a revision.",
             "reviewed_test_sha256": "3282df7f95c7e04a1d6cd47629018b273aa9386b8e2000fd0292ce2139ad9adb"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_amzn_sales_range_takes_precedence_over_fx_assumption",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The SEC provider emits the exact USD-billion range and filing lineage from the issuer outlook.",
+            "negative": "An FX assumption is not substituted for sales and no guidance action is inferred without comparison.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_emr_revenue_outlook_retains_explicit_percent_unit",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The current fiscal-year consolidated sales outlook preserves its source percent unit.",
+            "negative": "The extractor does not infer a currency or guidance action.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_ambiguous_ranges_have_no_numeric_outlook",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The extraction boundary preserves the need for comparable monetary endpoints.",
+            "negative": "Mixed currencies and descending forecasts fail closed despite a neighboring numeric FX assumption.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_ccep_split_reaffirmed_sales_growth_preserves_manual_review",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "An adjacent revenue bullet retains the numeric range and reaffirmation with the exact paragraph span.",
+            "negative": "The parser leaves the guidance action unsettled, preserves manual review and requires the explicit reaffirmed context.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_abbv_eps_ranges_use_their_locally_stated_fiscal_period",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Two current EPS ranges retain their independently labeled quarter and fiscal year.",
+            "negative": "Nearby historical-year text does not become an earnings value or swap fiscal periods.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
           },
           {
             "id": "tests/integration/test_ceri_evidence_quarantine_postgresql.py::test_owner_fallback_is_correlated_to_each_snapshot_upload",
@@ -4874,7 +4927,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "058d28a22f31972b70afaedd9ede458e12955e444fe5fa8002bb7253ef1aab8b",
+        "review_sha256": "ee22e1ac2ee1632d9655f45d83e2e5f4cf76db66c44ff40df8d87fc80468dfd5",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -5624,7 +5677,8 @@
           "tests/test_pipeline_execution_authority.py",
           "tests/test_worker_supervisor_reliability.py",
           "tests/ops/test_lifecycle_powershell.py",
-          "tests/ops/test_lifecycle_safety.py"
+          "tests/ops/test_lifecycle_safety.py",
+          "tests/e2e/test_windows_lifecycle_persistence.py"
         ],
         "tests": [
           {
@@ -5683,7 +5737,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "45b47d4389c7acb84e2e7911a51b38d37f37da62ac4aa70cface9d2c3b619d0e",
+        "review_sha256": "08f727d45588a96cc9b3a2b30b793fb9afe63f9612d9310ae83fb6cae2b8a330",
         "review_addenda": [
           {
             "task": "FR02",

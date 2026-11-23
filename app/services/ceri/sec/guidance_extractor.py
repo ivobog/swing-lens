@@ -55,7 +55,7 @@ class _ParsedRow:
 
 _AMOUNT = r"\(?-?\d[\d,]*(?:\.\d+)?\)?"
 _CURRENCY = r"(?:USD|EUR|GBP|\$)"
-_UNIT = r"(?:billion|million|%|bps)"
+_UNIT = r"(?:billion|million|percent\b|%|bps)"
 _RANGE_PATTERN = re.compile(
     rf"(?P<low_currency>{_CURRENCY})?\s*(?P<low>{_AMOUNT})\s*"
     rf"(?P<low_unit>{_UNIT})?\s*(?:to|[-\u2013\u2014])\s*"
@@ -86,6 +86,25 @@ _METRIC_PATTERN = re.compile(
     r"\b(?:total\s+revenue|net\s+revenues?|revenues?|net\s+sales|sales|"
     r"adjusted\s+earnings\s+per\s+share|diluted\s+net\s+earnings\s+per\s+share|"
     r"net\s+earnings\s+per\s+share|earnings\s+per\s+share|adjusted\s+eps|eps)\b",
+    re.IGNORECASE,
+)
+_EXPECTED_REVENUE_RANGE = re.compile(
+    rf"\s+(?:is|are)\s+expected\s+to\s+be\s+between\s+"
+    rf"(?P<low_currency>{_CURRENCY})\s*(?P<low>{_AMOUNT})\s*(?P<low_unit>billion|million)?"
+    rf"\s+and\s+(?P<high_currency>{_CURRENCY})\s*(?P<high>{_AMOUNT})\s*"
+    rf"(?P<high_unit>billion|million)\b",
+    re.IGNORECASE,
+)
+_RECONFIRMED_REVENUE_ROW = re.compile(
+    rf"^outlook\s+for\s+fy\d{{2,4}}\s+unchanged\b[^\n]*\n\s*\n"
+    rf"revenue\s*\n\s*\n:\s*growth\s+of\s+(?P<low>{_AMOUNT})\s*%\s+to\s+"
+    rf"(?P<high>{_AMOUNT})\s*%",
+    re.IGNORECASE,
+)
+_DATED_DILUTED_EPS_OUTLOOK = re.compile(
+    r"\b(?P<period>full[- ]year|(?:first|second|third|fourth)[- ]quarter)\s+20\d{2}\s+"
+    r"(?:adjusted\s+)?diluted\s+earnings\s+per\s+share\s+guidance\s+range"
+    r"[^.;]{0,160}?\bis\s+",
     re.IGNORECASE,
 )
 
@@ -161,6 +180,12 @@ def _guidance_blocks(paragraphs: list[str]) -> list[_Block]:
         if index in consumed or not paragraph:
             continue
         lowered = paragraph.lower()
+        if index + 2 < len(paragraphs) and lowered.startswith("outlook for fy"):
+            block = _make_block(paragraphs, index, index + 2)
+            if _RECONFIRMED_REVENUE_ROW.match(block.text):
+                blocks.append(block)
+                consumed.update(range(index, index + 3))
+                continue
         if "the following table summarizes" in lowered and any(
             token in lowered for token in ("target", "guidance", "outlook")
         ):
@@ -251,6 +276,13 @@ def _parse_guidance_rows(text: str) -> list[_ParsedRow]:
     default_period = _period(payload.lower())
     if default_period is None:
         return []
+    if revenue := _RECONFIRMED_REVENUE_ROW.match(text):
+        low = _decimal_token(revenue["low"])
+        high = _decimal_token(revenue["high"])
+        if low is None or high is None or low > high:
+            return []
+        number = _Number(revenue.start(), revenue.end(), low=low, high=high, unit="%")
+        return [_ParsedRow("REVENUE", default_period, number, "MAINTAINED")]
     default_action = _block_action(payload)
     specialized_rows = _unitedhealth_eps_rows(payload, default_action)
     if specialized_rows:
@@ -259,11 +291,15 @@ def _parse_guidance_rows(text: str) -> list[_ParsedRow]:
     if specialized_rows:
         return specialized_rows
     rows = _column_table_rows(payload, default_period, default_action)
+    exact_eps = _dated_diluted_eps_ranges(payload, default_action)
+    if exact_eps:
+        rows = [row for row in rows if row.metric != "EPS_DILUTED"] + exact_eps
     metric_matches = list(_METRIC_PATTERN.finditer(payload))
     for match_index, metric_match in enumerate(metric_matches):
         metric = _metric(metric_match.group(0).lower())
         if (
             metric is None
+            or (metric == "EPS_DILUTED" and exact_eps)
             or _historical_metric_occurrence(payload, metric_match.start())
             or _skip_generic_metric(payload, metric)
         ):
@@ -294,6 +330,34 @@ def _parse_guidance_rows(text: str) -> list[_ParsedRow]:
         claim = _nullable_action(_action(local_context.lower())) or default_action
         rows.extend(_ParsedRow(metric, period, number, claim) for number in numbers)
     return _deduplicate_rows(rows)
+
+
+def _dated_diluted_eps_ranges(text: str, default_action: str | None) -> list[_ParsedRow]:
+    rows = []
+    for label in _DATED_DILUTED_EPS_OUTLOOK.finditer(text):
+        amount = _RANGE_PATTERN.match(text, label.end())
+        if amount is None or amount["low_unit"] or amount["high_unit"]:
+            continue
+        currency = _currency(amount["low_currency"])
+        if currency is None or currency != _currency(amount["high_currency"]):
+            continue
+        low = _decimal_token(amount["low"])
+        high = _decimal_token(amount["high"])
+        if low is None or high is None or low > high:
+            continue
+        period = (
+            "CURRENT_FISCAL_YEAR"
+            if label["period"].lower().startswith("full")
+            else "CURRENT_QUARTER"
+        )
+        number = _Number(
+            amount.start(), amount.end(), low=low, high=high,
+            unit="PER_SHARE", currency=currency,
+        )
+        context = text[max(0, label.start() - 100) : amount.end()]
+        claim = _nullable_action(_action(context.lower())) or default_action
+        rows.append(_ParsedRow("EPS_DILUTED", period, number, claim))
+    return rows
 
 
 def _unitedhealth_eps_rows(
@@ -545,6 +609,26 @@ def _select_current_column_numbers(
 
 
 def _numbers(segment: str, *, metric: str) -> list[_Number]:
+    if metric == "REVENUE" and (label := _METRIC_PATTERN.match(segment)):
+        if forecast := _EXPECTED_REVENUE_RANGE.match(segment, label.end()):
+            low = _decimal_token(forecast["low"])
+            high = _decimal_token(forecast["high"])
+            low_currency = _currency(forecast["low_currency"])
+            high_currency = _currency(forecast["high_currency"])
+            unit = _unit(forecast["high_unit"], metric=metric)
+            low_unit = _unit(forecast["low_unit"], metric=metric)
+            if low is None or high is None or low_currency != high_currency:
+                return []
+            low = _convert_unit(low, low_unit, unit)
+            if low > high:
+                return []
+            # An explicit range takes precedence over explanatory figures in this segment.
+            return [
+                _Number(
+                    forecast.start(), forecast.end(), low=low, high=high,
+                    unit=unit, currency=high_currency,
+                )
+            ]
     numbers: list[_Number] = []
     occupied: list[tuple[int, int]] = []
     for match in _PLUS_MINUS_PATTERN.finditer(segment):
@@ -736,7 +820,8 @@ def _period(text: str) -> str | None:
 
 def _unit(value: str | None, *, metric: str) -> str | None:
     if value:
-        return value.upper()
+        normalized = value.upper()
+        return "%" if normalized == "PERCENT" else normalized
     return "PER_SHARE" if metric == "EPS_DILUTED" else None
 
 

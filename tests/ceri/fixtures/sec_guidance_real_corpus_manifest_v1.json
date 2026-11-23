@@ -48,8 +48,13 @@
       "sha256": "2bb544c91ff4151a5d5fa1c5041405dfef04454e1edf19cc48eef234b4930bee"
     }
   ],
-  "certification_reference": {
+  "previous_certification_reference": {
     "processor_signature": "sec-guidance:eed017654682a0c9",
+    "output_fingerprint_sha256": "e7165fccfbdc6e731bcc26230ac31981f1c5fbeafad6604dcb995e8f04c2d806",
+    "certified": true
+  },
+  "certification_reference": {
+    "processor_signature": "sec-guidance:b0bd408b6358d605",
     "output_fingerprint_sha256": "e7165fccfbdc6e731bcc26230ac31981f1c5fbeafad6604dcb995e8f04c2d806",
     "certified": true
   }
