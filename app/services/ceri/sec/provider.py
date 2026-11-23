@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -45,6 +46,7 @@ class SecGuidanceDocument:
     document_name: str
     form: str
     filing_date: str
+    accepted_at: datetime | None = None
 
 
 class SecCeriProvider:
@@ -200,11 +202,19 @@ class SecCeriProvider:
         accessions = recent.get("accessionNumber", [])
         documents = recent.get("primaryDocument", [])
         filing_dates = recent.get("filingDate", [])
+        acceptance_times = recent.get("acceptanceDateTime")
+        acceptance_aligned = (
+            str(submissions.get("cik", "")).zfill(10) == str(resolved_cik).zfill(10)
+            and isinstance(acceptance_times, list)
+            and len(acceptance_times) == len(forms) == len(accessions) == len(documents)
+            and len(acceptance_times) == len(filing_dates)
+        )
+        accession_counts = Counter(str(accession) for accession in accessions)
         upper_bound = request.end or datetime.now(UTC).date()
         lower_bound = request.start or (upper_bound - timedelta(days=self.guidance_lookback_days))
         selected: list[SecGuidanceDocument] = []
-        for form, accession, document, filing_date in zip(
-            forms, accessions, documents, filing_dates, strict=False
+        for index, (form, accession, document, filing_date) in enumerate(
+            zip(forms, accessions, documents, filing_dates, strict=False)
         ):
             if form not in GUIDANCE_FORMS:
                 continue
@@ -220,7 +230,12 @@ class SecCeriProvider:
                     accession_number=str(accession),
                     document_name=str(document),
                     form=str(form),
-                    filing_date=str(filing_date),
+                    filing_date=parsed_filing_date.isoformat(),
+                    accepted_at=(
+                        _parse_acceptance_time(acceptance_times[index])
+                        if acceptance_aligned and accession_counts[str(accession)] == 1
+                        else None
+                    ),
                 )
             )
         selected.sort(
@@ -244,9 +259,14 @@ class SecCeriProvider:
         )
 
     def extract_guidance_document(
-        self, document: SecGuidanceDocument, *, text: str | None = None
+        self, document: SecGuidanceDocument, *, text: str | None = None,
+        retrieved_at: datetime | None = None,
     ) -> tuple[RawProviderRecord, ...]:
-        filing_text = text if text is not None else self.download_guidance_document(document)
+        if text is None:
+            filing_text = self.download_guidance_document(document)
+            retrieved_at = datetime.now(UTC)
+        else:
+            filing_text = text
         records: list[RawProviderRecord] = []
         locator = f"{document.accession_number}/{document.document_name}"
         for extraction in self.extractor.extract(filing_text, locator=locator):
@@ -268,13 +288,16 @@ class SecCeriProvider:
                 "extraction_confidence": extraction.confidence,
                 "comparison_confidence": extraction.comparison_confidence,
                 "manual_review_required": extraction.management_claim is not None,
-                "announced_at": f"{document.filing_date}T00:00:00+00:00",
                 "source_date": document.filing_date,
                 "comparison_basis": extraction.matched_text,
                 "source_reference": extraction.evidence_locator,
                 "evidence_locator": extraction.evidence_locator,
                 "filing_accession": document.accession_number,
-                "source_timestamp": f"{document.filing_date}T00:00:00+00:00",
+                # SEC acceptance is an external event clock. Submissions does
+                # not separately attest the exact public dissemination instant.
+                "source_timestamp": (
+                    document.accepted_at.isoformat() if document.accepted_at is not None else None
+                ),
             }
             record_id = f"{document.accession_number}:{extraction.evidence_locator}"
             records.append(
@@ -283,9 +306,9 @@ class SecCeriProvider:
                     CeriDataset.GUIDANCE,
                     record_id,
                     payload,
-                    _date_time(document.filing_date),
-                    _date_time(document.filing_date),
                     None,
+                    None,
+                    retrieved_at,
                     ExportPolicy.RESTRICTED.value,
                 )
             )
@@ -298,8 +321,16 @@ class SecCeriProvider:
         return self.resolve_cik(ticker)
 
 
-def _date_time(value: Any) -> datetime:
-    return datetime.fromisoformat(str(value)[:10]).replace(tzinfo=UTC)
+def _parse_acceptance_time(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        timestamp = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if timestamp.utcoffset() is None:
+        return None
+    return timestamp.astimezone(UTC)
 
 
 def _parse_filing_date(value: Any) -> date | None:

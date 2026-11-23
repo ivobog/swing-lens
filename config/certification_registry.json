@@ -4347,6 +4347,14 @@
           {
             "path": "app/services/ticker_intelligence_service.py",
             "symbol": "_ceri"
+          },
+          {
+            "path": "app/services/ceri/query_service.py",
+            "symbol": "accepted_guidance_at_cutoff"
+          },
+          {
+            "path": "app/services/ceri/guidance_normalizer.py",
+            "symbol": "CeriGuidanceNormalizer.normalize"
           }
         ],
         "impact_patterns": [
@@ -4501,7 +4509,10 @@
           "tests/integration/test_ceri_run_isolation_remediation.py",
           "tests/integration/test_ceri_systemic_remediation.py",
           "tests/integration/test_sec_readiness_repair_postgresql.py",
-          "tests/test_sec_continuation_executor.py"
+          "tests/test_sec_continuation_executor.py",
+          "tests/integration/test_sec_guidance_temporal_postgresql.py",
+          "tests/ceri/test_sec_guidance.py",
+          "tests/ceri/test_sec_processor_capability.py"
         ],
         "tests": [
           {
@@ -4863,6 +4874,15 @@
             "positive": "An older genuinely attributed owner remains selectable when the newer snapshot loses its owner/context link.",
             "negative": "Removing both context links refuses the current projection despite matching upload histories.",
             "reviewed_test_sha256": "fd08a55636fc85be4494e4d78b81de84270f0a52b66a1248f7896df0744ff31c"
+          },
+          {
+            "id": "tests/integration/test_sec_guidance_temporal_postgresql.py::test_sec_acceptance_possession_and_session_gate_the_real_selector",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Exact SEC acceptance and local possession preserve same-basis guidance values and a valid New York effective session in native SQL and the in-memory selector.",
+            "negative": "Premature, date-only or quarantined evidence cannot replace legitimately available guidance. Expiration does not revive a superseded predecessor.",
+            "reviewed_test_sha256": "f162ab35af6d56fc96ef6cc2bed69a85e79de16722739f57228adc00e65c40c0"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -4874,7 +4894,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "058d28a22f31972b70afaedd9ede458e12955e444fe5fa8002bb7253ef1aab8b",
+        "review_sha256": "340647904e033bac5bbc88310e34017f9ce22a8fb1b7ba5901db82e5a4083160",
         "review_addenda": [
           {
             "task": "MSI-20261103",

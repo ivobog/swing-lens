@@ -513,7 +513,7 @@ def test_sec_readiness_coverage_requires_current_signature_per_ticker() -> None:
                 CeriSecSyncState(
                     cik="0001041668",
                     dataset="guidance",
-                    processor_signature="sec-guidance:eed017654682a0c9",
+                    processor_signature="sec-guidance:590d866a56b4685a",
                 )
             ],
         ]

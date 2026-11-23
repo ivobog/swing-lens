@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -289,9 +289,10 @@ class SecGuidanceIncrementalIngestionService:
                 if registered.last_content_hash
                 else None
             )
-            downloaded = filing_text is None
+            retrieved_at = None
             if filing_text is None:
                 filing_text = provider.download_guidance_document(document)
+                retrieved_at = datetime.now(UTC)
                 self.content_cache.store(document, filing_text)
                 outcome.documents_downloaded += 1
                 content_bytes = len(filing_text.encode("utf-8"))
@@ -300,11 +301,14 @@ class SecGuidanceIncrementalIngestionService:
                     document_id=registered.id,
                     content_hash=hashlib.sha256(filing_text.encode("utf-8")).hexdigest(),
                     content_bytes=content_bytes,
+                    possessed_at=retrieved_at,
                 )
                 db.commit()
             else:
                 outcome.documents_cache_reused += 1
-            records = provider.extract_guidance_document(document, text=filing_text)
+            records = provider.extract_guidance_document(
+                document, text=filing_text, retrieved_at=retrieved_at,
+            )
             if _cancelled(should_cancel):
                 if claim and claim.acquired and claim.execution_token:
                     self.state.cancel(
@@ -346,7 +350,7 @@ class SecGuidanceIncrementalIngestionService:
                     record_count=len(records),
                     content_hash=hashlib.sha256(filing_text.encode("utf-8")).hexdigest(),
                     content_bytes=content_bytes,
-                    downloaded=downloaded,
+                    downloaded=False,
                 )
             # Source records and the authoritative successful state commit together.
             db.commit()
