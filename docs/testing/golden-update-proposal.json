@@ -79,6 +79,8 @@
     "input_version": "a05-v8"
   },
   "contract_change": {
+    "capture_guard_revision": "bd13668659a69f631bf1bb852053576b71239bb0",
+    "capture_guard_sha256": "f3e1b5962bdf5f50362e1064a826645e1b814f063f16220fdfc84eaf204395c9",
     "configuration_sha256": {
       "config/ceri.yaml": "c1ce6f065cddb239cc9774533d3b9238855083ab62754daaa821190527ead7e7",
       "config/ceri_catalyst_taxonomy.yaml": "dfbac62e23d72b8ccabd884cb812947bea3af1eba146f03dec6a82330e0a4a66",
@@ -1471,7 +1473,7 @@
     "input_version": "a05-v3"
   },
   "review_request": {
-    "candidate_digest": "539845f25e5f93a9eca32ec0284b2808e66f9e0f5ef4ae24662e9d97e8e3fb22",
+    "candidate_digest": "ea86b18b7c9a365d655bc24ce08e17aa0872dea423f27e7ee542b55b9ee91713",
     "expectation_revision": "a05b-r8",
     "input_version": "a05-v8",
     "producer": "INDEPENDENT_FORMULA_AUTHOR",
