@@ -23,6 +23,7 @@ from dataclasses import field as dataclass_field
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from urllib.parse import parse_qsl, urljoin, urlsplit
 
 import psycopg
 import pytest
@@ -1465,7 +1466,11 @@ def _compare_current_surface(
 
 
 def _compare_ceri(page: Page, engine, recorder: CertificationRecorder, run_id: int) -> None:
-    gui_rows = _table_rows(page, {"Ticker", "Opportunity", "Risk", "Confidence", "Posture"})
+    gui_rows = _table_rows(
+        page,
+        {"Ticker", "Opportunity", "Risk", "Confidence", "Posture"},
+        cell_selectors={"Confidence": ":scope > span.badge"},
+    )
     produced_rows = query_rows(
         engine,
         """
@@ -1520,7 +1525,9 @@ def _compare_ceri(page: Page, engine, recorder: CertificationRecorder, run_id: i
             "Posture": str(db["posture"]),
         }
         for field, expected in comparisons.items():
-            actual = gui[field].splitlines()[0].strip()
+            actual = gui[field]
+            if field != "Confidence":
+                actual = actual.partition("\n")[0].strip()
             matches = actual.startswith(expected) if field == "Risk" else actual == expected
             recorder.check(
                 matches,
@@ -1626,24 +1633,10 @@ def _assert_ceri_upgrade_baseline(
 
 
 def _compare_ceri_alerts(page: Page, engine, recorder: CertificationRecorder, run_id: int) -> None:
-    gui_rows = _table_rows(
-        page,
-        {
-            "Ticker",
-            "Alert",
-            "Importance",
-            "Change",
-            "Risk",
-            "Confidence",
-            "When",
-            "Status",
-            "Action",
-        },
-    )
     db_rows = query_rows(
         engine,
         """
-        select a.ticker, a.importance, a.status, c.change_type
+        select a.id, a.ticker, a.importance, a.status, c.change_type
         from ceri_alert_events a
         join ceri_change_events c on c.id=a.source_change_event_id
         join ceri_score_snapshots s on s.id=c.to_snapshot_id
@@ -1651,45 +1644,78 @@ def _compare_ceri_alerts(page: Page, engine, recorder: CertificationRecorder, ru
         """,
         {"run_id": run_id},
     )
+    produced = ("ALFA", "OPPORTUNITY_UPGRADED", "NOTABLE", "UNREAD")
+    created = {
+        row["id"]: (row["ticker"], row["change_type"], row["importance"], row["status"])
+        for row in db_rows
+    }
     recorder.check(
-        bool(db_rows),
-        "CERI run produced user-visible alerts",
+        produced in created.values(),
+        "CERI run persisted the expected ALFA alert",
         area="CERI",
-        expected=">0",
-        actual=len(db_rows),
+        expected=produced,
+        actual=list(created.values()),
     )
-    recorder.check(
-        len(gui_rows) == len(db_rows),
-        "CERI visible alert count matches DB",
-        area="CERI",
-        expected=len(db_rows),
-        actual=len(gui_rows),
-    )
+
+    # The alerts panel uses its own query on the Changes page. It shares these
+    # filters with the alerts API and starts from the first page of newest alerts.
+    filters = {"ticker", "status", "importance", "signal_class", "history_scope", "limit"}
+    params = {
+        key: value for key, value in parse_qsl(urlsplit(page.url).query) if key in filters
+    }
+    response = page.request.get(urljoin(page.url, "/api/ceri/alerts"), params=params)
+    expect(response).to_be_ok()
     expected_rows = Counter(
         (
-            str(row["ticker"]),
-            str(row["change_type"]).replace("_", " ").title(),
-            str(row["importance"]).title(),
-            str(row["status"]),
+            f"ceri-alert-{row['id']}",
+            row["ticker"],
+            row["alert_type"].replace("_", " ").title(),
+            row["importance"].title(),
+            row["status"],
         )
-        for row in db_rows
+        for row in response.json()["items"]
     )
-    actual_rows = Counter(
-        (
-            row["Ticker"].strip(),
-            row["Alert"].strip(),
-            row["Importance"].strip(),
-            row["Status"].strip(),
-        )
-        for row in gui_rows
+
+    panel = page.locator("[data-ceri-alerts]")
+    expect(panel).to_be_visible()
+    gui_rows = panel.locator("[data-ceri-alert-row]:visible").all()
+    if expected_rows or gui_rows:
+        expect(panel.get_by_role("columnheader")).to_have_text([
+            "Ticker", "Alert", "Importance", "Change", "Alert-time risk", "Current risk assessment",
+            "Confidence", "When", "Notification status", "Alert validity", "Action",
+        ])
+    actual_rows = Counter()
+    for row in gui_rows:
+        ticker, alert_type, importance, *_ = row.get_by_role("cell").all_text_contents()
+        status = row.locator("[data-ceri-alert-status]").inner_text()
+        actual_rows[(
+            row.get_attribute("id"), ticker.strip(), alert_type.strip(), importance.strip(),
+            status.strip(),
+        )] += 1
+    recorder.check(
+        len(gui_rows) == expected_rows.total(),
+        "CERI visible alert count matches the filtered alert query",
+        area="CERI",
+        expected=expected_rows.total(),
+        actual=len(gui_rows),
     )
     recorder.check(
         actual_rows == expected_rows,
-        "CERI visible alert identities match DB including multiple alerts per ticker",
+        "CERI visible alert identities match the filtered alert query",
         area="CERI",
-        expected=sorted(expected_rows.elements()),
-        actual=sorted(actual_rows.elements()),
+        expected=list(expected_rows.elements()),
+        actual=list(actual_rows.elements()),
     )
+    if not params:
+        visible_ids = {row[0] for row in actual_rows}
+        recorder.check(
+            any(f"ceri-alert-{alert_id}" in visible_ids and identity == produced
+                for alert_id, identity in created.items()),
+            "CERI default alerts panel displays the run's expected ALFA alert",
+            area="CERI",
+            expected=produced[0],
+            actual=[row[1] for row in actual_rows],
+        )
 
 
 def _compare_winner(page: Page, engine, recorder: CertificationRecorder, run_id: int) -> None:
@@ -2769,10 +2795,15 @@ def _dynamic_routes(engine, run_id: int) -> list[tuple[int, str, str, str]]:
     return routes
 
 
-def _table_rows(page: Page, required_headers: set[str]) -> list[dict[str, str]]:
+def _table_rows(
+    page: Page,
+    required_headers: set[str],
+    *,
+    cell_selectors: dict[str, str] | None = None,
+) -> list[dict[str, str]]:
     return page.locator("table").evaluate_all(
         """
-        (tables, required) => {
+        (tables, {required, selectors}) => {
           for (const table of tables) {
             const headers = Array.from(table.querySelectorAll('thead th')).map(
               th => th.textContent.trim()
@@ -2780,16 +2811,23 @@ def _table_rows(page: Page, required_headers: set[str]) -> list[dict[str, str]]:
             if (!required.every(header => headers.includes(header))) continue;
             return Array.from(table.querySelectorAll('tbody tr:not([hidden])')).map(row => {
               const result = {};
-              Array.from(row.cells).forEach(
-                (cell, index) => result[headers[index]] = cell.textContent.trim()
-              );
+              Array.from(row.cells).forEach((cell, index) => {
+                const header = headers[index];
+                const selector = selectors[header];
+                const elements = selector ? cell.querySelectorAll(selector) : [cell];
+                const target = elements.length === 1 ? elements[0] : null;
+                const visible = target && (!selector ||
+                  (target.getClientRects().length > 0 &&
+                    getComputedStyle(target).visibility === 'visible'));
+                result[header] = visible ? target.textContent.trim() : '';
+              });
               return result;
             });
           }
           return [];
         }
         """,
-        sorted(required_headers),
+        {"required": sorted(required_headers), "selectors": cell_selectors or {}},
     )
 
 
