@@ -299,6 +299,18 @@ class CeriSourceRecordService:
             quarantined=bool(quarantine_reason),
         )
 
+    def retain_reused_sources(
+        self, db: Session, *, ingestion_run_id: int, source_ids: list[int]
+    ) -> None:
+        """Associate already verified immutable facts with this acquisition run."""
+        for source_id in source_ids:
+            source = db.get(CeriSourceRecord, source_id)
+            if source is None or source.quarantine_reason:
+                raise ValueError("SEC_REUSED_SOURCE_UNAVAILABLE")
+            _associate_source_record(
+                db, ingestion_run_id=ingestion_run_id, source=source, outcome="DEDUPLICATED"
+            )
+
     def finish_ingestion_run(
         self,
         db: Session,

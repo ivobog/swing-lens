@@ -126,6 +126,7 @@ class SecDocumentStateService:
         processor_signature: str,
         worker_id: str,
         lease_seconds: int,
+        reprocess_completed: bool = False,
     ) -> SecDocumentClaim:
         now = _utcnow()
         if db.bind is not None and db.bind.dialect.name == "postgresql":
@@ -165,7 +166,7 @@ class SecDocumentStateService:
         )
         assert current is not None
         if (
-            current.status in COMPLETED_STATUSES
+            (current.status in COMPLETED_STATUSES and not reprocess_completed)
             or current.status == SecExtractionStatus.FAILED_PERMANENT
         ):
             return SecDocumentClaim(False, current.id, current.status, None)
@@ -183,6 +184,7 @@ class SecDocumentStateService:
                 [
                     SecExtractionStatus.PENDING.value,
                     SecExtractionStatus.CANCELLED.value,
+                    *(COMPLETED_STATUSES if reprocess_completed else ()) ,
                 ]
             ),
             and_(
@@ -292,8 +294,9 @@ class SecDocumentStateService:
         document_id: int,
         content_hash: str,
         content_bytes: int,
+        possessed_at: datetime | None = None,
     ) -> None:
-        now = _utcnow()
+        now = possessed_at or _utcnow()
         db.execute(
             update(CeriSecFilingDocument)
             .where(CeriSecFilingDocument.id == document_id)
@@ -401,6 +404,13 @@ class SecDocumentStateService:
     def is_bootstrap_certified(
         self, db: Session, *, cik: str, dataset: str, processor_signature: str
     ) -> bool:
+        from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+        from app.services.ceri.sec.scope_evidence import generation_ready
+
+        if processor_signature == sec_guidance_processor_signature():
+            return dataset == "guidance" and generation_ready(
+                db, _normalize_cik(cik), processor_signature,
+            )
         return (
             db.scalar(
                 select(CeriSecSyncState.id).where(

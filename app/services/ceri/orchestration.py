@@ -3,10 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, date, datetime
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -72,6 +73,17 @@ class CeriIngestionResult:
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def _sec_run_still_ready(db: Session, ticker: str, run_id: int) -> bool:
+    from app.models.ceri_tables import CeriCompany
+    from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+    from app.services.ceri.sec.scope_evidence import generation_ready
+
+    ciks = set(db.scalars(select(CeriCompany.cik).where(CeriCompany.ticker == ticker.upper())))
+    if len(ciks) != 1 or None in ciks:
+        return False
+    return generation_ready(db, ciks.pop(), sec_guidance_processor_signature(), run_id=run_id)
 
 
 class CeriIngestionService:
@@ -160,7 +172,19 @@ class CeriIngestionService:
             semantic_authority=authority,
         )
         if ingestion_run.status in {"COMPLETED", "PARTIAL"}:
-            return self._result_from_run(ingestion_run)
+            result = self._result_from_run(ingestion_run)
+            if (
+                isinstance(db, Session)
+                and request.provider == "sec"
+                and request.dataset is CeriDataset.GUIDANCE
+                and result.run_evidence_status == "READY"
+                and not _sec_run_still_ready(db, request.ticker, ingestion_run.id)
+            ):
+                return replace(
+                    result, status="PARTIAL", readiness_state="BOOTSTRAP_REQUIRED",
+                    run_evidence_status="REJECTED", readiness_reason="SEC_RUN_EVIDENCE_SUPERSEDED",
+                )
+            return result
 
         if (
             request.provider == "sec"

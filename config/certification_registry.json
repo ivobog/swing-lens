@@ -4345,8 +4345,32 @@
             "symbol": "capture_prospective_revenue"
           },
           {
+            "path": "app/services/ceri/sec/guidance_extractor.py",
+            "symbol": "GuidanceExtractionService.extract"
+          },
+          {
             "path": "app/services/ticker_intelligence_service.py",
             "symbol": "_ceri"
+          },
+          {
+            "path": "scripts/ops/validate_sec_cofiler.py",
+            "symbol": "verify_response"
+          },
+          {
+            "path": "app/services/ceri/sec/scope_evidence.py",
+            "symbol": "generation_ready"
+          },
+          {
+            "path": "app/services/ceri/sec/attribution.py",
+            "symbol": "prove_document_attribution"
+          },
+          {
+            "path": "app/services/ceri/query_service.py",
+            "symbol": "accepted_guidance_at_cutoff"
+          },
+          {
+            "path": "app/services/ceri/guidance_normalizer.py",
+            "symbol": "CeriGuidanceNormalizer.normalize"
           }
         ],
         "impact_patterns": [
@@ -4363,6 +4387,10 @@
           "scripts/ops/ceri_prospective_revenue.py",
           "tests/ceri/test_sec_prospective_operator.py",
           "tests/ceri/test_ceri_signed_revenue_cycles.py",
+          "tests/ceri/test_sec_guidance_outlook_numbers.py",
+          "tests/ceri/test_sec_guidance.py",
+          "tests/ceri/test_sec_processor_capability.py",
+          "tests/ceri/fixtures/sec_guidance_real_corpus_manifest_v1.json",
           "docs/operations/CERI_PROSPECTIVE_REVENUE_CAPTURE.md",
           "app/services/market_calculation_context_service.py",
           "tests/test_provider_replay_contracts.py",
@@ -4501,7 +4529,11 @@
           "tests/integration/test_ceri_run_isolation_remediation.py",
           "tests/integration/test_ceri_systemic_remediation.py",
           "tests/integration/test_sec_readiness_repair_postgresql.py",
-          "tests/test_sec_continuation_executor.py"
+          "tests/test_sec_continuation_executor.py",
+          "tests/ceri/fixtures/pbf-000043-sec-primary.body.gz",
+          "tests/ceri/test_normalization_service.py",
+          "tests/integration/test_sec_incremental_ingestion_postgresql.py",
+          "tests/integration/test_sec_guidance_temporal_postgresql.py"
         ],
         "tests": [
           {
@@ -4575,6 +4607,51 @@
             "positive": "The point-in-time selector retains the eligible current revenue observation and reports missing comparable history.",
             "negative": "Currency, fiscal-period and unit mismatches, late possession, future existence, retrospective trends and too-late baselines cannot produce a revision.",
             "reviewed_test_sha256": "3282df7f95c7e04a1d6cd47629018b273aa9386b8e2000fd0292ce2139ad9adb"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_amzn_sales_range_takes_precedence_over_fx_assumption",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The SEC provider emits the exact USD-billion range and filing lineage from the issuer outlook.",
+            "negative": "An FX assumption is not substituted for sales and no guidance action is inferred without comparison.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_emr_revenue_outlook_retains_explicit_percent_unit",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The current fiscal-year consolidated sales outlook preserves its source percent unit.",
+            "negative": "The extractor does not infer a currency or guidance action.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_ambiguous_ranges_have_no_numeric_outlook",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The extraction boundary preserves the need for comparable monetary endpoints.",
+            "negative": "Mixed currencies and descending forecasts fail closed despite a neighboring numeric FX assumption.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_ccep_split_reaffirmed_sales_growth_preserves_manual_review",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "An adjacent revenue bullet retains the numeric range and reaffirmation with the exact paragraph span.",
+            "negative": "The parser leaves the guidance action unsettled, preserves manual review and requires the explicit reaffirmed context.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_abbv_eps_ranges_use_their_locally_stated_fiscal_period",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Two current EPS ranges retain their independently labeled quarter and fiscal year.",
+            "negative": "Nearby historical-year text does not become an earnings value or swap fiscal periods.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
           },
           {
             "id": "tests/integration/test_ceri_evidence_quarantine_postgresql.py::test_owner_fallback_is_correlated_to_each_snapshot_upload",
@@ -4863,6 +4940,69 @@
             "positive": "An older genuinely attributed owner remains selectable when the newer snapshot loses its owner/context link.",
             "negative": "Removing both context links refuses the current projection despite matching upload histories.",
             "reviewed_test_sha256": "fd08a55636fc85be4494e4d78b81de84270f0a52b66a1248f7896df0744ff31c"
+          },
+          {
+            "id": "tests/ceri/test_sec_cofiler_identity.py::test_real_quarantined_filing_binds_cofilers_and_blocks_financial_attribution",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The retained SEC response and its original wire hash bind c-1 to PBF Energy and c-2/c-3 to PBF Holding.",
+            "negative": "Verified document identity cannot authorize production cache admission or publish financial records.",
+            "reviewed_test_sha256": "ac0bbb4f7f55ae1107e796ad5127431dae07186549e5893b86f072956464b8f4"
+          },
+          {
+            "id": "tests/ceri/test_sec_cofiler_identity.py::test_cik_scope_and_malformed_or_conflicting_roles_fail_closed",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Each negative control starts from the hash-verified retained joint filing and replaces an observed value.",
+            "negative": "Unregistered CIKs, conflicting or duplicate contexts, wrong form, and invalid axes or namespaces are rejected.",
+            "reviewed_test_sha256": "ac0bbb4f7f55ae1107e796ad5127431dae07186549e5893b86f072956464b8f4"
+          },
+          {
+            "id": "tests/ceri/test_sec_cofiler_identity.py::test_another_body_or_archive_path_cannot_borrow_retained_provenance",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The existing archive and wire evidence are independently bound to the retained accession.",
+            "negative": "Index paths, changed bytes or hashes, and a different accession cannot borrow the retained wire evidence.",
+            "reviewed_test_sha256": "ac0bbb4f7f55ae1107e796ad5127431dae07186549e5893b86f072956464b8f4"
+          },
+          {
+            "id": "tests/integration/test_sec_scope_evidence_postgresql.py::test_exact_scope_versioned_ingestion_and_historical_preservation",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "A verified exact single-filer body persists attributed guidance and supports reuse with the original possession and processor.",
+            "negative": "Authentic joint filing refusal, changed membership and changed body hash block current SEC readiness while legacy sync remains intact.",
+            "reviewed_test_sha256": "b536df2c8003e01c8518e427df41975a02dc19c29515d913da2450d8c7240f91"
+          },
+          {
+            "id": "tests/integration/test_sec_scope_evidence_postgresql.py::test_generation_lock_interruption_replay_and_append_only",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "A committed owner reopens the same exact append-only generation after an uncertain response.",
+            "negative": "Interrupted writes, unrelated work, stale workers and attempts to mutate committed evidence cannot publish outcomes.",
+            "reviewed_test_sha256": "b536df2c8003e01c8518e427df41975a02dc19c29515d913da2450d8c7240f91"
+          },
+          {
+            "id": "tests/integration/test_sec_scope_evidence_postgresql.py::test_populated_migration_preserves_held_legacy_source",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "The populated additive migration and an empty-ledger downgrade preserve the original legacy source hash and possession.",
+            "negative": "Unproved held guidance cannot create a new normalized event.",
+            "reviewed_test_sha256": "b536df2c8003e01c8518e427df41975a02dc19c29515d913da2450d8c7240f91"
+          },
+          {
+            "id": "tests/integration/test_sec_guidance_temporal_postgresql.py::test_sec_acceptance_possession_and_session_gate_the_real_selector",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Exact SEC acceptance and local possession preserve same-basis guidance values and a valid New York effective session in native SQL and the in-memory selector.",
+            "negative": "Premature, date-only or quarantined evidence cannot replace legitimately available guidance. Expiration does not revive a superseded predecessor.",
+            "reviewed_test_sha256": "f162ab35af6d56fc96ef6cc2bed69a85e79de16722739f57228adc00e65c40c0"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -4874,7 +5014,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "058d28a22f31972b70afaedd9ede458e12955e444fe5fa8002bb7253ef1aab8b",
+        "review_sha256": "46d0982e47dc1c96cc877a35f70fc71cf37cae26f66752f354f8773cd401e4ae",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -5476,7 +5616,7 @@
             "lane": "browser-smoke",
             "positive": "Owned ALFA prediction reaches committed matured outcomes and GUI parity.",
             "negative": "Omitting maturation cannot satisfy the reached positive assertion.",
-            "reviewed_test_sha256": "a883029f025ef09c91cad1861fb3d17724589903eb09ba2328e6754626c01934"
+            "reviewed_test_sha256": "534f7cdc0da2dc1903e473ccb00ad6875ba0d2d3a640da3cb3550e510e2b2f3d"
           },
           {
             "id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_native_winner_fixture_preserves_v1_readiness_boundary[False]",
@@ -5516,7 +5656,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "6bdb31bd5da780f7e3baa1784911f0a1d550a3e50ced6cd9a64673c3c2e08d7c",
+        "review_sha256": "d12fe29a25db2bae12890434c8c71e9c5cf82ceee6b51232cf4fe2c4da4d60cc",
         "review_addenda": [
           {
             "task": "FR02",
@@ -5624,7 +5764,8 @@
           "tests/test_pipeline_execution_authority.py",
           "tests/test_worker_supervisor_reliability.py",
           "tests/ops/test_lifecycle_powershell.py",
-          "tests/ops/test_lifecycle_safety.py"
+          "tests/ops/test_lifecycle_safety.py",
+          "tests/e2e/test_windows_lifecycle_persistence.py"
         ],
         "tests": [
           {
@@ -5683,7 +5824,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "45b47d4389c7acb84e2e7911a51b38d37f37da62ac4aa70cface9d2c3b619d0e",
+        "review_sha256": "08f727d45588a96cc9b3a2b30b793fb9afe63f9612d9310ae83fb6cae2b8a330",
         "review_addenda": [
           {
             "task": "FR02",
