@@ -16,8 +16,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundSupervisor, BackgroundWorker
+from app.services.ceri.sec.processor_lifecycle import register_deployed_processor
+from app.services.entrypoint_authority import require_disposable_tool_target
 from app.services.lifecycle_control import TOPOLOGY_VERSION
 from app.services.lifecycle_safety import normalize_path
+from app.services.runtime_mutation_authority import RuntimeMutationAuthority
 from scripts.ops import lifecycle_probe
 
 pytestmark = [
@@ -122,6 +125,20 @@ def _migrate(database_url: str) -> None:
         timeout=180,
     )
     assert result.returncode == 0, result.stderr
+
+    # Register the deployed signature before read-only certification startup.
+    require_disposable_tool_target(database_url)
+    engine = create_engine(database_url)
+    try:
+        with Session(engine) as db, db.begin():
+            register_deployed_processor(
+                db,
+                authority=RuntimeMutationAuthority.normal(
+                    "test.windows_lifecycle_processor_registration"
+                ),
+            )
+    finally:
+        engine.dispose()
 
 
 def _lifecycle_environment(

@@ -292,8 +292,9 @@ class SecDocumentStateService:
         document_id: int,
         content_hash: str,
         content_bytes: int,
+        possessed_at: datetime | None = None,
     ) -> None:
-        now = _utcnow()
+        now = possessed_at or _utcnow()
         db.execute(
             update(CeriSecFilingDocument)
             .where(CeriSecFilingDocument.id == document_id)

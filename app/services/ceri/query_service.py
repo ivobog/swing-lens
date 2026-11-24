@@ -8,8 +8,10 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from math import isclose, isfinite
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import (
+    DateTime,
     Float,
     String,
     and_,
@@ -64,6 +66,7 @@ from app.services.ceri.change_semantics import (
 )
 from app.services.ceri.config import CeriConfig, load_ceri_config
 from app.services.ceri.constants import (
+    CERI_DAILY_CUTOFF_TIMEZONE,
     CERI_HIGH_OPPORTUNITY_THRESHOLD,
     CERI_LOW_RISK_THRESHOLD,
     PURGE_INVALIDATION_FLAG,
@@ -89,6 +92,10 @@ from app.services.ceri.legacy_alert_audit import (
     classify_legacy_alert,
     invalidation_reason,
     uses_legacy_freshness_semantics,
+)
+from app.services.ceri.pit_eligibility import (
+    source_record_historical_eligibility_predicate,
+    source_record_is_eligible,
 )
 from app.services.ceri.provider_cost_ledger import ProviderCostLedger
 from app.services.ceri.snapshot_selection import (
@@ -2413,17 +2420,38 @@ def _current_revision_summary(db: Session, snapshot: CeriScoreSnapshot) -> dict[
     return result
 
 
+def _guidance_cutoff_session(cutoff: datetime) -> date:
+    if cutoff.utcoffset() is None:
+        raise ValueError("cutoff_at must be timezone-aware")
+    return cutoff.astimezone(ZoneInfo(CERI_DAILY_CUTOFF_TIMEZONE)).date()
+
+
+def _guidance_visible(row, source, cutoff: datetime, session: date) -> bool:
+    return (
+        (row.effective_session is None or row.effective_session <= session)
+        and (row.effective_at is None or row.effective_at <= cutoff)
+        and (row.accepted_at is None or row.accepted_at <= cutoff)
+        and source is not None
+        and source.quarantine_reason is None
+        and not _is_purged_source(source)
+        and source_record_is_eligible(source, cutoff)
+    )
+
+
 def _guidance_visibility_predicate(guidance, cutoff: datetime):
     source_visible = exists(
         select(CeriSourceRecord.id).where(
             CeriSourceRecord.id == guidance.source_record_id,
             CeriSourceRecord.quarantine_reason.is_(None),
             CeriSourceRecord.export_policy != "purged",
-            _source_observed_at() <= cutoff,
+            source_record_historical_eligibility_predicate(cutoff),
         )
     ).correlate(guidance)
     return and_(
-        or_(guidance.effective_session.is_(None), guidance.effective_session <= cutoff.date()),
+        or_(
+            guidance.effective_session.is_(None),
+            guidance.effective_session <= _guidance_cutoff_session(cutoff),
+        ),
         or_(guidance.effective_at.is_(None), guidance.effective_at <= cutoff),
         or_(guidance.accepted_at.is_(None), guidance.accepted_at <= cutoff),
         source_visible,
@@ -2435,26 +2463,12 @@ def accepted_guidance_at_cutoff(db: Session, company_id: int, cutoff: datetime):
     if _uses_fixture_collections(db):
         sources = {row.id: row for row in _load(db, CeriSourceRecord)}
 
-        def visible(row):
-            source = sources.get(row.source_record_id)
-            observed = (
-                (source.observed_at or source.published_at or source.ingested_at)
-                if source
-                else None
-            )
-            return (
-                row.accepted_for_scoring is True
-                and (row.effective_session is None or row.effective_session <= cutoff.date())
-                and (row.effective_at is None or row.effective_at <= cutoff)
-                and (row.accepted_at is None or row.accepted_at <= cutoff)
-                and source is not None
-                and not source.quarantine_reason
-                and not _is_purged_source(source)
-                and observed is not None
-                and observed <= cutoff
-            )
-
-        rows = [r for r in _rows_for_company(db, CeriGuidanceEvent, company_id) if visible(r)]
+        session = _guidance_cutoff_session(cutoff)
+        rows = [
+            row for row in _rows_for_company(db, CeriGuidanceEvent, company_id)
+            if row.accepted_for_scoring is True
+            and _guidance_visible(row, sources.get(row.source_record_id), cutoff, session)
+        ]
         superseded = {r.supersedes_id for r in rows}
         return max(
             (
@@ -2479,7 +2493,8 @@ def accepted_guidance_at_cutoff(db: Session, company_id: int, cutoff: datetime):
         )
     ).correlate(guidance)
     effective = func.coalesce(
-        guidance.effective_at, cast(guidance.effective_session, guidance.effective_at.type)
+        guidance.effective_at,
+        func.timezone("UTC", cast(guidance.effective_session, DateTime(timezone=False))),
     )
     return db.scalar(
         select(guidance)
@@ -2501,16 +2516,20 @@ def _guidance_summary(
     db: Session, company_id: int, cutoff: date | datetime, *, include_rejected: bool = True
 ) -> dict[str, Any]:
     cutoff_at = cutoff if isinstance(cutoff, datetime) else datetime.combine(cutoff, time.max, UTC)
-    rows = (
-        [
-            row
-            for row in _rows_for_company(db, CeriGuidanceEvent, company_id)
-            if (row.effective_session is None or row.effective_session <= cutoff_at.date())
-            and (row.effective_at is None or row.effective_at <= cutoff_at)
-        ]
-        if include_rejected
-        else []
-    )
+    rows = []
+    if include_rejected:
+        if _uses_fixture_collections(db):
+            sources = {row.id: row for row in _load(db, CeriSourceRecord)}
+            session = _guidance_cutoff_session(cutoff_at)
+            rows = [
+                row for row in _rows_for_company(db, CeriGuidanceEvent, company_id)
+                if _guidance_visible(row, sources.get(row.source_record_id), cutoff_at, session)
+            ]
+        else:
+            rows = list(db.scalars(select(CeriGuidanceEvent).where(
+                CeriGuidanceEvent.company_id == company_id,
+                _guidance_visibility_predicate(CeriGuidanceEvent, cutoff_at),
+            ).order_by(CeriGuidanceEvent.id)))
     selected = accepted_guidance_at_cutoff(db, company_id, cutoff_at)
     rejected = [
         {"id": row.id, "reason": guidance_eligibility_reason(row)}
