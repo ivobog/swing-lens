@@ -40,6 +40,9 @@ def candidate_specimen(historical_specimen):  # noqa: F811
     bundle = specimen["bundle"]
     bundle["expected-manifest.json"] = copy.deepcopy(manifest)
     bundle["certificate-contract.json"] = copy.deepcopy(contract)
+    bundle["pipeline-evidence.json"]["delivered_settings"]["sec_document_incremental_mode"] = (
+        manifest["flags"]["sec_document_incremental_mode"]
+    )
     oracle = bundle["db-results/independent-complete-oracle.json"]
     oracle["expected"] = copy.deepcopy(manifest["completion"])
     # Seed current-candidate unit doubles, as the retained specimen seeds v3.
@@ -76,7 +79,7 @@ def test_candidate_file_finalizer_requires_exact_known_capture_owner(candidate_s
     assert len(result["gates"]) == 620
     assert result["relationship_count"] == 541
     assert sum(result["actual_counts"].values()) == 402
-    assert result["candidate_validation"]["input_version"] == "a05-v7"
+    assert result["candidate_validation"]["input_version"] == specimen["manifest"]["version"]
     assert result["candidate_validation"]["owner_authorization"] == "NOT_EVALUATED"
     assert result["candidate_validation"]["activation_authorized"] is False
 

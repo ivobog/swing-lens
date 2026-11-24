@@ -104,7 +104,9 @@ def test_sec_type_and_unsupported_pagination_drift_are_detected():
         request, cik="2488")] == ["0000002488-26-000121"]
     payload = {"filings": {"files": [{"name": "new-page.json"}], "next": "new-page.json"}}
     provider.client._cache.clear()
-    assert provider.discover_guidance_documents(request, cik="2488") == ()
+    # A malformed discovery cannot become a successful empty selection receipt.
+    with pytest.raises(KeyError, match="recent"):
+        provider.discover_guidance_documents(request, cik="2488")
     assert len(urls) == 2 and all(url.endswith("CIK0000002488.json") for url in urls)
 
 

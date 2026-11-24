@@ -98,7 +98,10 @@ def _clone_declared_data(tmp_path):
 def test_changed_candidate_literals_fail_even_after_prior_success(tmp_path, monkeypatch):
     proposal = _clone_declared_data(tmp_path)
     monkeypatch.setattr(validation, "ROOT", tmp_path)
-    assert validation.expected_manifest(True, candidate=True)["version"] == "a05-v7"
+    assert (
+        validation.expected_manifest(True, candidate=True)["version"]
+        == proposal["candidate"]["input_version"]
+    )
     old = "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json"
     path = tmp_path / proposal["candidate"]["expectation_artifacts"][old]
     changed = json.loads(path.read_text())
@@ -144,12 +147,13 @@ if sys.argv[1] == 'True':
 else:
     _enable_native_browser_candidate()
     from single_run_certification import candidate_validation
-    assert candidate_validation.VERSION == 'a05-v7'
+    assert candidate_validation.VERSION == sys.argv[2]
     candidate_validation.require_complete(candidate_validation.expected_manifest(True))
     assert candidate_validation.candidate_binding()['activation_authorized'] is False
 """
+    expected_version = validation.candidate_proposal()["candidate"]["input_version"]
     result = subprocess.run(
-        [sys.executable, "-c", program, str(historical_adapter_imported)],
+        [sys.executable, "-c", program, str(historical_adapter_imported), expected_version],
         cwd=Path(__file__).resolve().parents[1],
         capture_output=True,
         text=True,
