@@ -26,6 +26,8 @@ from app.models.tables import CoreCalculationEvidence, PriceBar, PriceBarRevisio
 from app.services.calculation_identity import IdentityState
 from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.config import CeriConfig, ceri_config_hash, ceri_config_payload
+from app.services.ceri.enums import CeriDataset
+from app.services.ceri.pit_eligibility import source_record_historical_eligibility_at
 from app.services.combined_ranking_identity import calculation_identity_from_debug
 from app.services.contextual_calculation_identity import build_ibmi_feature_identity
 from app.services.core_calculation_evidence import (
@@ -262,6 +264,14 @@ def build_ceri_source_manifest(
     )
     for source in sources:
         known_at = source.observed_at or source.published_at or source.ingested_at
+        if (
+            source.provider == "sec"
+            and source.dataset == CeriDataset.GUIDANCE.value
+            and source.source_timestamp is not None
+            and source.retrieved_at is not None
+        ):
+            # SEC guidance carries original body possession and filing acceptance.
+            known_at = source_record_historical_eligibility_at(source)
         if known_at is None or (
             lineage.get("historical_view_mode", "AS_KNOWN") == "AS_KNOWN"
             and _normalize_db_datetime(known_at) > _normalize_db_datetime(snapshot.cutoff_at)
