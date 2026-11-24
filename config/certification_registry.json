@@ -5476,7 +5476,7 @@
             "lane": "browser-smoke",
             "positive": "Owned ALFA prediction reaches committed matured outcomes and GUI parity.",
             "negative": "Omitting maturation cannot satisfy the reached positive assertion.",
-            "reviewed_test_sha256": "c3e730ef1699f513cb3fee0dc4210220d78f4b8092e30bb1628e48ca1db4d11b"
+            "reviewed_test_sha256": "a883029f025ef09c91cad1861fb3d17724589903eb09ba2328e6754626c01934"
           },
           {
             "id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_native_winner_fixture_preserves_v1_readiness_boundary[False]",
@@ -5516,7 +5516,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "e6fa9ea0c21384824f644d8f046508ca68dab17c13365cb16b2e4c346dce0aa0",
+        "review_sha256": "6bdb31bd5da780f7e3baa1784911f0a1d550a3e50ced6cd9a64673c3c2e08d7c",
         "review_addenda": [
           {
             "task": "FR02",
@@ -6870,6 +6870,18 @@
           {
             "path": "scripts/qa/release_evidence.py",
             "symbol": "_enable_native_browser_candidate"
+          },
+          {
+            "path": "scripts/qa/golden_provenance.py",
+            "symbol": "reviewed_c06_offline_filings"
+          },
+          {
+            "path": "tests/e2e/single_run_certification/frozen_ceri.py",
+            "symbol": "c06_offline_sec_provider"
+          },
+          {
+            "path": "tests/e2e/single_run_certification/certification_server.py",
+            "symbol": "_install_frozen_ceri_providers"
           }
         ],
         "impact_patterns": [
@@ -7043,6 +7055,33 @@
             "positive": "A fresh isolated native browser adapter validates and selects the complete proposed candidate.",
             "negative": "An adapter initialized against historical data cannot silently substitute for the declared native candidate.",
             "reviewed_test_sha256": "9067440a4d43199641a35611dc88fdf2db914225cabe52d3d1e1e86017e0b9ae"
+          },
+          {
+            "id": "tests/test_c06_golden_contract.py::test_reviewed_c06_rekeys_and_runtime_flags",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "A sealed review admits exactly ten guidance rekeys and enables SHADOW in both A04 variants.",
+            "negative": "The prior reviewed specimen, OFF flags and rejection of unrelated changes are preserved.",
+            "reviewed_test_sha256": "9708a5193e1fc5f38c95b9f6eef5b512e905ac6ddd6bb3380a4a6f96ebb09eee"
+          },
+          {
+            "id": "tests/test_c06_golden_contract.py::test_c06_rejects_unreviewed_candidate_payload",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The approved candidate is checked against separately pinned synthetic evidence.",
+            "negative": "Changed counts, keys, filing identity, attribution, financial values and self-resealed data fail.",
+            "reviewed_test_sha256": "9708a5193e1fc5f38c95b9f6eef5b512e905ac6ddd6bb3380a4a6f96ebb09eee"
+          },
+          {
+            "id": "tests/test_c06_golden_contract.py::test_reviewed_c06_environment_is_offline_disposable",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The explicit deterministic SHADOW candidate accepts its named disposable PostgreSQL binding.",
+            "negative": "Wrong mode, production, external, overridden or non-disposable targets are rejected.",
+            "reviewed_test_sha256": "9708a5193e1fc5f38c95b9f6eef5b512e905ac6ddd6bb3380a4a6f96ebb09eee"
           }
         ],
         "oracle": "Unchanged A05 v3/A05B-r3 seals and independent derivations; A13-R10 requires live sole-owner acknowledgement, never automatic activation.",
@@ -7053,7 +7092,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "27c315a781c7aefe08136c1b7ba1642f01f17d7af6673638bf25e35c685398c7",
+        "review_sha256": "adbb2f854a4529542fb773ac51c0d34482b03fcb79f6414e14d9dd24362f6601",
         "policy_amendment": {
           "id": "A13-R10",
           "date": "2026-11-01",

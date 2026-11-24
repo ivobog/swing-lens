@@ -87,24 +87,42 @@ def artifact(name: str):
     return json.loads((directory / name).read_text(encoding="utf-8"))
 
 
+def c06_offline_filings() -> dict | None:
+    from scripts.qa.golden_provenance import C06_VERSIONS, reviewed_c06_offline_filings
+
+    if not candidate_requested() or VERSION != C06_VERSIONS[0]:
+        return None
+    return reviewed_c06_offline_filings(candidate_proposal(), ROOT)
+
+
+def _candidate_runtime_flags(proposal: dict, specimen: dict, handoff: bool) -> dict:
+    from scripts.qa.golden_provenance import reviewed_c06_offline_filings
+
+    reviewed_specimen = dict(retained.artifact("runtime-settings.json"))
+    flags = retained.expected_manifest(handoff)["flags"]
+    if reviewed_c06_offline_filings(proposal, ROOT) is not None:
+        reviewed_specimen["sec_document_incremental_mode"] = "SHADOW"
+        flags = {**flags, "sec_document_incremental_mode": "SHADOW"}
+    if specimen != reviewed_specimen:
+        raise OracleMismatch("CANDIDATE_RUNTIME_SPECIMEN_CHANGE_REQUIRES_REVIEW")
+    return flags
+
+
 def expected_manifest(handoff: bool, *, candidate: bool | None = None) -> dict:
     selected = candidate_requested() if candidate is None else candidate
     if not selected:
         return retained.expected_manifest(handoff)
     if type(handoff) is not bool:
         raise OracleMismatch("HANDOFF_MUST_BE_BOOLEAN")
-    declaration = candidate_proposal()["candidate"]
+    proposal = candidate_proposal()
+    declaration = proposal["candidate"]
     directory = (ROOT / declaration["input_manifest"]).parent
     inputs = load_golden(candidate=True)
 
     def data(name):
         return json.loads((directory / name).read_text(encoding="utf-8"))
 
-    # This proposal retains the exact runtime input population/flags. Expansion
-    # requires the existing trusted-verifier review, not inferred defaults here.
-    if data("runtime-settings.json") != retained.artifact("runtime-settings.json"):
-        raise OracleMismatch("CANDIDATE_RUNTIME_SPECIMEN_CHANGE_REQUIRES_REVIEW")
-    flags = retained.expected_manifest(handoff)["flags"]
+    flags = _candidate_runtime_flags(proposal, data("runtime-settings.json"), handoff)
     supplement = json.loads((ROOT / declaration["completion_manifest"]).read_text(encoding="utf-8"))
     completion_directory = (ROOT / declaration["completion_manifest"]).parent
     domains, variants = {}, {}

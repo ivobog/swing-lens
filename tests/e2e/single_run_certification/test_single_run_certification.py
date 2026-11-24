@@ -20,9 +20,10 @@ from collections.abc import Iterator
 from contextlib import nullcontext
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from urllib.parse import parse_qsl, urljoin, urlsplit
 
 import psycopg
 import pytest
@@ -377,7 +378,13 @@ def certification_environment(
         )
     _activate_disposable_sec_processor(database_url)
     if certification_provider_ingest_enabled and not live_mode:
-        _seed_disposable_sec_readiness(database_url)
+        from single_run_certification.candidate_validation import c06_offline_filings
+
+        specimen = c06_offline_filings() if golden_expected else None
+        if specimen is None:
+            _seed_disposable_sec_readiness(database_url)
+        else:
+            _bootstrap_reviewed_sec_readiness(database_url, env, specimen)
     port = _available_port()
     env["APP_PORT"] = str(port)
     base_url = f"http://127.0.0.1:{port}"
@@ -1459,7 +1466,11 @@ def _compare_current_surface(
 
 
 def _compare_ceri(page: Page, engine, recorder: CertificationRecorder, run_id: int) -> None:
-    gui_rows = _table_rows(page, {"Ticker", "Opportunity", "Risk", "Confidence", "Posture"})
+    gui_rows = _table_rows(
+        page,
+        {"Ticker", "Opportunity", "Risk", "Confidence", "Posture"},
+        cell_selectors={"Confidence": ":scope > span.badge"},
+    )
     produced_rows = query_rows(
         engine,
         """
@@ -1514,7 +1525,9 @@ def _compare_ceri(page: Page, engine, recorder: CertificationRecorder, run_id: i
             "Posture": str(db["posture"]),
         }
         for field, expected in comparisons.items():
-            actual = gui[field].splitlines()[0].strip()
+            actual = gui[field]
+            if field != "Confidence":
+                actual = actual.partition("\n")[0].strip()
             matches = actual.startswith(expected) if field == "Risk" else actual == expected
             recorder.check(
                 matches,
@@ -1620,24 +1633,10 @@ def _assert_ceri_upgrade_baseline(
 
 
 def _compare_ceri_alerts(page: Page, engine, recorder: CertificationRecorder, run_id: int) -> None:
-    gui_rows = _table_rows(
-        page,
-        {
-            "Ticker",
-            "Alert",
-            "Importance",
-            "Change",
-            "Risk",
-            "Confidence",
-            "When",
-            "Status",
-            "Action",
-        },
-    )
     db_rows = query_rows(
         engine,
         """
-        select a.ticker, a.importance, a.status, c.change_type
+        select a.id, a.ticker, a.importance, a.status, c.change_type
         from ceri_alert_events a
         join ceri_change_events c on c.id=a.source_change_event_id
         join ceri_score_snapshots s on s.id=c.to_snapshot_id
@@ -1645,45 +1644,78 @@ def _compare_ceri_alerts(page: Page, engine, recorder: CertificationRecorder, ru
         """,
         {"run_id": run_id},
     )
+    produced = ("ALFA", "OPPORTUNITY_UPGRADED", "NOTABLE", "UNREAD")
+    created = {
+        row["id"]: (row["ticker"], row["change_type"], row["importance"], row["status"])
+        for row in db_rows
+    }
     recorder.check(
-        bool(db_rows),
-        "CERI run produced user-visible alerts",
+        produced in created.values(),
+        "CERI run persisted the expected ALFA alert",
         area="CERI",
-        expected=">0",
-        actual=len(db_rows),
+        expected=produced,
+        actual=list(created.values()),
     )
-    recorder.check(
-        len(gui_rows) == len(db_rows),
-        "CERI visible alert count matches DB",
-        area="CERI",
-        expected=len(db_rows),
-        actual=len(gui_rows),
-    )
+
+    # The alerts panel uses its own query on the Changes page. It shares these
+    # filters with the alerts API and starts from the first page of newest alerts.
+    filters = {"ticker", "status", "importance", "signal_class", "history_scope", "limit"}
+    params = {
+        key: value for key, value in parse_qsl(urlsplit(page.url).query) if key in filters
+    }
+    response = page.request.get(urljoin(page.url, "/api/ceri/alerts"), params=params)
+    expect(response).to_be_ok()
     expected_rows = Counter(
         (
-            str(row["ticker"]),
-            str(row["change_type"]).replace("_", " ").title(),
-            str(row["importance"]).title(),
-            str(row["status"]),
+            f"ceri-alert-{row['id']}",
+            row["ticker"],
+            row["alert_type"].replace("_", " ").title(),
+            row["importance"].title(),
+            row["status"],
         )
-        for row in db_rows
+        for row in response.json()["items"]
     )
-    actual_rows = Counter(
-        (
-            row["Ticker"].strip(),
-            row["Alert"].strip(),
-            row["Importance"].strip(),
-            row["Status"].strip(),
-        )
-        for row in gui_rows
+
+    panel = page.locator("[data-ceri-alerts]")
+    expect(panel).to_be_visible()
+    gui_rows = panel.locator("[data-ceri-alert-row]:visible").all()
+    if expected_rows or gui_rows:
+        expect(panel.get_by_role("columnheader")).to_have_text([
+            "Ticker", "Alert", "Importance", "Change", "Alert-time risk", "Current risk assessment",
+            "Confidence", "When", "Notification status", "Alert validity", "Action",
+        ])
+    actual_rows = Counter()
+    for row in gui_rows:
+        ticker, alert_type, importance, *_ = row.get_by_role("cell").all_text_contents()
+        status = row.locator("[data-ceri-alert-status]").inner_text()
+        actual_rows[(
+            row.get_attribute("id"), ticker.strip(), alert_type.strip(), importance.strip(),
+            status.strip(),
+        )] += 1
+    recorder.check(
+        len(gui_rows) == expected_rows.total(),
+        "CERI visible alert count matches the filtered alert query",
+        area="CERI",
+        expected=expected_rows.total(),
+        actual=len(gui_rows),
     )
     recorder.check(
         actual_rows == expected_rows,
-        "CERI visible alert identities match DB including multiple alerts per ticker",
+        "CERI visible alert identities match the filtered alert query",
         area="CERI",
-        expected=sorted(expected_rows.elements()),
-        actual=sorted(actual_rows.elements()),
+        expected=list(expected_rows.elements()),
+        actual=list(actual_rows.elements()),
     )
+    if not params:
+        visible_ids = {row[0] for row in actual_rows}
+        recorder.check(
+            any(f"ceri-alert-{alert_id}" in visible_ids and identity == produced
+                for alert_id, identity in created.items()),
+            "CERI default alerts panel displays the run's expected ALFA alert",
+            area="CERI",
+            expected=produced[0],
+            actual=[row[1] for row in actual_rows],
+        )
 
 
 def _compare_winner(page: Page, engine, recorder: CertificationRecorder, run_id: int) -> None:
@@ -2763,10 +2795,15 @@ def _dynamic_routes(engine, run_id: int) -> list[tuple[int, str, str, str]]:
     return routes
 
 
-def _table_rows(page: Page, required_headers: set[str]) -> list[dict[str, str]]:
+def _table_rows(
+    page: Page,
+    required_headers: set[str],
+    *,
+    cell_selectors: dict[str, str] | None = None,
+) -> list[dict[str, str]]:
     return page.locator("table").evaluate_all(
         """
-        (tables, required) => {
+        (tables, {required, selectors}) => {
           for (const table of tables) {
             const headers = Array.from(table.querySelectorAll('thead th')).map(
               th => th.textContent.trim()
@@ -2774,16 +2811,23 @@ def _table_rows(page: Page, required_headers: set[str]) -> list[dict[str, str]]:
             if (!required.every(header => headers.includes(header))) continue;
             return Array.from(table.querySelectorAll('tbody tr:not([hidden])')).map(row => {
               const result = {};
-              Array.from(row.cells).forEach(
-                (cell, index) => result[headers[index]] = cell.textContent.trim()
-              );
+              Array.from(row.cells).forEach((cell, index) => {
+                const header = headers[index];
+                const selector = selectors[header];
+                const elements = selector ? cell.querySelectorAll(selector) : [cell];
+                const target = elements.length === 1 ? elements[0] : null;
+                const visible = target && (!selector ||
+                  (target.getClientRects().length > 0 &&
+                    getComputedStyle(target).visibility === 'visible'));
+                result[header] = visible ? target.textContent.trim() : '';
+              });
               return result;
             });
           }
           return [];
         }
         """,
-        sorted(required_headers),
+        {"required": sorted(required_headers), "selectors": cell_selectors or {}},
     )
 
 
@@ -3008,6 +3052,57 @@ def _seed_disposable_sec_readiness(database_url: str) -> None:
                     )
                 )
             db.commit()
+    finally:
+        engine.dispose()
+
+
+def _bootstrap_reviewed_sec_readiness(database_url: str, env: dict, specimen: dict) -> None:
+    from app.models.ceri_tables import CeriCompany
+    from app.services.ceri.enums import CeriDataset
+    from app.services.ceri.orchestration import CeriIngestionRequest, CeriIngestionService
+    from app.services.ceri.provider_registry import CeriProviderRegistry
+    from app.settings import Settings
+    from single_run_certification.frozen_ceri import c06_offline_sec_clock, c06_offline_sec_provider
+
+    # Readiness before the reviewed filings existed must be backed by the real
+    # scope writer. The subsequent native jobs discover and own the ten records.
+    at = min(datetime.fromisoformat(row["acceptance_utc"]) for row in specimen["filings"])
+    prior = at - timedelta(days=1)
+    provider = c06_offline_sec_provider(env, database_url, bootstrap=True)
+    settings = Settings(
+        _env_file=None, runtime_mode="CERTIFICATION", database_url=database_url,
+        sec_document_incremental_mode=env["SEC_DOCUMENT_INCREMENTAL_MODE"],
+        cache_dir=env["CACHE_DIR"],
+    )
+    ingest = CeriIngestionService(
+        registry=CeriProviderRegistry(providers={"sec": provider}), settings=settings,
+    )
+    ciks = {row["ticker"]: row["cik"] for row in specimen["filings"]}
+    tickers = tuple(dict.fromkeys((*ciks, *CANONICAL_TICKERS, *(f"F{i:04d}" for i in range(90)))))
+    engine = create_engine(database_url)
+    try:
+        with Session(engine) as db, c06_offline_sec_clock(prior):
+            companies = {row.ticker: row for row in db.scalars(
+                select(CeriCompany).where(CeriCompany.ticker.in_(tickers))
+            )}
+            for index, ticker in enumerate(tickers, start=1):
+                company = companies.get(ticker)
+                if company is None:
+                    company = CeriCompany(ticker=ticker, exchange="US")
+                    db.add(company)
+                company.cik = ciks.get(ticker, str(900_000_000 + index).zfill(10))
+                company.sec_applicability = "REQUIRED"
+                company.current_provider_ids_json = {"eodhd": f"{ticker}.US", "sec": company.cik}
+            db.commit()
+            for ticker in tickers:
+                result = ingest.ingest(db, CeriIngestionRequest(
+                    provider="sec", dataset=CeriDataset.GUIDANCE, ticker=ticker,
+                    end=prior.date(), request_key=f"a04-synthetic-sec-bootstrap:{ticker}",
+                ))
+                assert (result.status, result.run_evidence_status, result.inserted) == (
+                    "COMPLETED", "READY", 0,
+                )
+                db.commit()
     finally:
         engine.dispose()
 

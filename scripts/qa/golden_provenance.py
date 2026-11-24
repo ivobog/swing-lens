@@ -25,6 +25,35 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 ROOT = Path(__file__).resolve().parents[2]
 GOLDEN = Path("tests/e2e/single_run_certification/golden/v3")
+C06_GOLDEN = GOLDEN.with_name("v8")
+C06_SOURCE = "c2f10521b20c15cc69dc9a922dfa7979cb6475b2"
+C06_PROCESSOR = "sec-guidance:57b3fae0e0886038"
+C06_VERSIONS = ("a05-v8", "a05b-r8")
+
+# Trusted review of the independent worksheet and the ten disposable source
+# projections. A self-resealed proposal cannot change either of these pins.
+C06_WORKSHEET = "docs/testing/golden-provenance/a05b-r8/sec-independent-worksheet.json"
+C06_WORKSHEET_SHA256 = "358323e2e153a4776d9f7a7beb957685be0bbcf3a0957db8405ac058ebec8335"
+C06_INPUTS = {
+    "input_manifest_sha256": "4f7265cb3bcd8518bbd25d919d8a6a505aee76d922bf4a7b61f4042bc71491f5",
+    "completion_manifest_sha256": (
+        "6ec822976c6c1167919e429bf518c65b6e517eeea3b46237eb0c709d629323b7"
+    ),
+    "input_identity": "f6f71d6d7504c2ccdde3fb572d3a7164abf3a808449abb5da4b898d93d29b012",
+}
+C06_OFFLINE_SHA256 = "5f76867582e47bfaf1469c802b06cae55acb5157432bde8e260c7d9bd267334c"
+C06_PROJECTED_HASHES = {
+    "BHE": "bdd5277b2d8b71931fce9ea9ca25c61f4fc772f853ce2e80c3e7aff4b0a253a1",
+    "BLLN": "5202385ea9eb07bfd8a1caa90df8f9e4d4cd09732ac79aa8d5c3f05c0ae0a512",
+    "KLIC": "2e8cbc56bfccc6107f9ac15bc97f7fa29800f14aabc2625f4ce8acc0e25cd0c0",
+    "LSCC": "4f06fb762e541f86fd8570ee2cfaf48c4dd5677e7fa356b4dddbf199566c1365",
+    "PDFS": "e5dc20040057dc136e0cebfcf2dabe59ac8e4aeaf7ad18459aec4d6802620db5",
+    "ACMR": "581599e291e7dc39c40eded9ddd4169e531270cdf32628edee148a3413514359",
+    "RDVT": "c8b13b634a2c5ada50d2e24df7ce370b74d7b0cb0ff3a51df31c43e01bb2dade",
+    "AVT": "2873188fa56d9bbf3e6566cd188236cfffaaeab2847a91e848179c758c844f00",
+    "DVN": "996eb124fb135682cda4db2dcb211882b5c21173844dcc5a47b95983688d2b08",
+    "JNJ": "e94f0f13c0f505514aed84a4410b90d724ade43deff324f4a6d84b1b152bea6f",
+}
 
 
 class ProvenanceError(ValueError):
@@ -646,6 +675,42 @@ def _owner_acknowledgement(api, repo: dict, pr: dict, owners: dict, digest: str)
     return login
 
 
+def reviewed_c06_offline_filings(proposal: dict, root: Path) -> dict | None:
+    candidate = proposal["candidate"]
+    pair = candidate["input_version"], candidate["expectation_revision"]
+    if not any(version in C06_VERSIONS for version in pair):
+        return None
+    input_path = (C06_GOLDEN / "manifest.json").as_posix()
+    completion_path = (C06_GOLDEN / "oracle-completion/manifest.json").as_posix()
+    code = "C06_GOLDEN_TRUSTED_FIXTURE_MISMATCH"
+    _require(
+        pair == C06_VERSIONS
+        and proposal["contract_change"]["source_revision"] == C06_SOURCE
+        and candidate["input_manifest"] == input_path
+        and candidate["completion_manifest"] == completion_path
+        and all(candidate.get(key) == sha for key, sha in C06_INPUTS.items())
+        and all(
+            new == (C06_GOLDEN / Path(old).relative_to(GOLDEN)).as_posix()
+            for old, new in candidate["expectation_artifacts"].items()
+        )
+        and proposal["independent_derivation"]["artifacts"].get(C06_WORKSHEET)
+        == C06_WORKSHEET_SHA256,
+        code,
+    )
+    _sealed(root, input_path, C06_INPUTS["input_manifest_sha256"])
+    _sealed(root, completion_path, C06_INPUTS["completion_manifest_sha256"])
+    replay_path = (C06_GOLDEN / "provider-replay.json").as_posix()
+    _sealed(root, replay_path, C06_OFFLINE_SHA256)
+    _sealed(root, C06_WORKSHEET, C06_WORKSHEET_SHA256)
+    specimen = _read(root / replay_path)["sec"]["offline_filings"]
+    _require(
+        specimen["schema"] == "swinglens.a04-offline-sec-filings.v1"
+        and specimen["source_class"] == "SYNTHETIC_TEST_ONLY_NOT_EDGAR",
+        code,
+    )
+    return specimen
+
+
 def _require_candidate_complete(proposal: dict, root: Path) -> None:
     """Retain the existing reviewed corpus/contract shape; never derive numbers.
 
@@ -656,6 +721,7 @@ def _require_candidate_complete(proposal: dict, root: Path) -> None:
     from single_run_certification import golden_oracle as oracle
 
     candidate = proposal["candidate"]
+    c06 = reviewed_c06_offline_filings(proposal, root)
     inputs = _read(root / candidate["input_manifest"])
     supplement = _read(root / candidate["completion_manifest"])
     baseline_inputs = oracle.load_golden(root / GOLDEN, verify_sources=False)
@@ -707,9 +773,27 @@ def _require_candidate_complete(proposal: dict, root: Path) -> None:
             all(isinstance(row, dict) and fields <= row.keys() for row in rows),
             "GITHUB_INDEPENDENT_ORACLE_INCOMPLETE",
         )
+        actual_keys = sorted(completion.relationship_key(section, row) for row in rows)
+        if c06 is not None and section == "guidance":
+            filings = c06["filings"]
+            replacements = {
+                (row["ticker"], row["legacy_record_key"]): row["independent_expected"]["record_key"]
+                for row in filings
+            }
+            _require(
+                len(filings) == len(replacements) == len(expected) == len(C06_PROJECTED_HASHES)
+                and {ticker for ticker, _ in replacements} == C06_PROJECTED_HASHES.keys()
+                and {(row["ticker"], row["record_key"]) for row in expected}
+                == replacements.keys()
+                and len(set(replacements.values())) == len(replacements),
+                "C06_GOLDEN_GUIDANCE_REKEY_MISMATCH",
+            )
+            expected = [
+                {**row, "record_key": replacements[(row["ticker"], row["record_key"])]}
+                for row in expected
+            ]
         _require(
-            sorted(completion.relationship_key(section, row) for row in rows)
-            == sorted(completion.relationship_key(section, row) for row in expected),
+            actual_keys == sorted(completion.relationship_key(section, row) for row in expected),
             "GITHUB_INDEPENDENT_ORACLE_INCOMPLETE",
         )
     _require(
