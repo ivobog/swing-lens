@@ -341,11 +341,38 @@ def _observe_production_handler(original_handler) -> None:
 def _install_frozen_ceri_providers() -> None:
     """Freeze external payloads while retaining the production asynchronous DAG."""
 
+    from scripts.qa.golden_provenance import C06_VERSIONS
+    from single_run_certification.candidate_validation import c06_offline_filings
+    from single_run_certification.frozen_ceri import (
+        c06_offline_sec_clock,
+        c06_offline_sec_provider,
+        frozen_ceri_registry,
+    )
+
+    sec_provider = None
+    if os.environ.get("CERTIFICATION_GOLDEN_VERSION") == C06_VERSIONS[0]:
+        from app.settings import get_settings
+
+        database_url = os.environ.get("DATABASE_URL", "")
+        sec_provider = c06_offline_sec_provider(os.environ, database_url)
+        specimen = c06_offline_filings()
+        settings = get_settings()
+        if (
+            specimen is None
+            or settings.sec_document_incremental_mode.value != "SHADOW"
+            or settings.runtime_mode.value != "CERTIFICATION"
+            or settings.database_url != database_url
+        ):
+            raise RuntimeError("C06_GOLDEN_REQUIRES_EFFECTIVE_SHADOW")
+        receipt_times = {row["body_possession_utc"] for row in specimen["filings"]}
+        received, = receipt_times
+        global _c06_sec_clock
+        _c06_sec_clock = c06_offline_sec_clock(datetime.fromisoformat(received))
+        _c06_sec_clock.__enter__()
     if os.environ.get("CERTIFICATION_FROZEN_CERI_PROVIDERS") != "true":
         return
-    from frozen_ceri import frozen_ceri_registry
 
-    registry = frozen_ceri_registry()
+    registry = frozen_ceri_registry(sec_provider=sec_provider)
 
     from app.services.ceri import batched_job_handlers, batched_workflow
 

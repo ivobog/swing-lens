@@ -20,7 +20,7 @@ from collections.abc import Iterator
 from contextlib import nullcontext
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -377,7 +377,13 @@ def certification_environment(
         )
     _activate_disposable_sec_processor(database_url)
     if certification_provider_ingest_enabled and not live_mode:
-        _seed_disposable_sec_readiness(database_url)
+        from single_run_certification.candidate_validation import c06_offline_filings
+
+        specimen = c06_offline_filings() if golden_expected else None
+        if specimen is None:
+            _seed_disposable_sec_readiness(database_url)
+        else:
+            _bootstrap_reviewed_sec_readiness(database_url, env, specimen)
     port = _available_port()
     env["APP_PORT"] = str(port)
     base_url = f"http://127.0.0.1:{port}"
@@ -3008,6 +3014,57 @@ def _seed_disposable_sec_readiness(database_url: str) -> None:
                     )
                 )
             db.commit()
+    finally:
+        engine.dispose()
+
+
+def _bootstrap_reviewed_sec_readiness(database_url: str, env: dict, specimen: dict) -> None:
+    from app.models.ceri_tables import CeriCompany
+    from app.services.ceri.enums import CeriDataset
+    from app.services.ceri.orchestration import CeriIngestionRequest, CeriIngestionService
+    from app.services.ceri.provider_registry import CeriProviderRegistry
+    from app.settings import Settings
+    from single_run_certification.frozen_ceri import c06_offline_sec_clock, c06_offline_sec_provider
+
+    # Readiness before the reviewed filings existed must be backed by the real
+    # scope writer. The subsequent native jobs discover and own the ten records.
+    at = min(datetime.fromisoformat(row["acceptance_utc"]) for row in specimen["filings"])
+    prior = at - timedelta(days=1)
+    provider = c06_offline_sec_provider(env, database_url, bootstrap=True)
+    settings = Settings(
+        _env_file=None, runtime_mode="CERTIFICATION", database_url=database_url,
+        sec_document_incremental_mode=env["SEC_DOCUMENT_INCREMENTAL_MODE"],
+        cache_dir=env["CACHE_DIR"],
+    )
+    ingest = CeriIngestionService(
+        registry=CeriProviderRegistry(providers={"sec": provider}), settings=settings,
+    )
+    ciks = {row["ticker"]: row["cik"] for row in specimen["filings"]}
+    tickers = tuple(dict.fromkeys((*ciks, *CANONICAL_TICKERS, *(f"F{i:04d}" for i in range(90)))))
+    engine = create_engine(database_url)
+    try:
+        with Session(engine) as db, c06_offline_sec_clock(prior):
+            companies = {row.ticker: row for row in db.scalars(
+                select(CeriCompany).where(CeriCompany.ticker.in_(tickers))
+            )}
+            for index, ticker in enumerate(tickers, start=1):
+                company = companies.get(ticker)
+                if company is None:
+                    company = CeriCompany(ticker=ticker, exchange="US")
+                    db.add(company)
+                company.cik = ciks.get(ticker, str(900_000_000 + index).zfill(10))
+                company.sec_applicability = "REQUIRED"
+                company.current_provider_ids_json = {"eodhd": f"{ticker}.US", "sec": company.cik}
+            db.commit()
+            for ticker in tickers:
+                result = ingest.ingest(db, CeriIngestionRequest(
+                    provider="sec", dataset=CeriDataset.GUIDANCE, ticker=ticker,
+                    end=prior.date(), request_key=f"a04-synthetic-sec-bootstrap:{ticker}",
+                ))
+                assert (result.status, result.run_evidence_status, result.inserted) == (
+                    "COMPLETED", "READY", 0,
+                )
+                db.commit()
     finally:
         engine.dispose()
 
