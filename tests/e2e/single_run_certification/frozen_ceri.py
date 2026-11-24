@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import os
+import re
 from contextlib import contextmanager
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime
 from hashlib import sha256
 from unittest.mock import patch
@@ -12,6 +13,132 @@ from app.services.ceri.provider_registry import CeriProviderRegistry
 from app.services.ceri.providers.manual_provider import ManualCeriProvider
 
 EXACT_TEN = ("BHE", "BLLN", "KLIC", "LSCC", "PDFS", "ACMR", "RDVT", "AVT", "DVN", "JNJ")
+SCALE_TICKERS = EXACT_TEN + tuple(f"F{index:04d}" for index in range(90))
+SCALE_SEC_TEST_ENV = "SWINGLENS_CERTIFICATION_SCALE_SEC_TEST"
+SCALE_SEC_POSSESSED_AT = datetime.fromisoformat("2026-09-23T19:00:00+00:00")
+
+
+@dataclass(frozen=True)
+class ScaleSecFiling:
+    ticker: str
+    cik: str
+    accession: str
+    filename: str
+    point: int
+    body: str
+
+    @property
+    def locator(self) -> str:
+        return f"{self.accession}/{self.filename}#paragraph-2"
+
+    @property
+    def record_key(self) -> str:
+        return f"{self.accession}:{self.locator}"
+
+    @property
+    def body_sha256(self) -> str:
+        return sha256(self.body.encode("utf-8")).hexdigest()
+
+
+def scale_sec_test_size(nodeid: str) -> int | None:
+    from single_run_certification.reporting import CARDINALITY_TEST
+
+    match = re.fullmatch(
+        re.escape(CARDINALITY_TEST) + r"\[(?:chromium|firefox)-(?:False|True)-(88|100)\]",
+        nodeid,
+    )
+    return int(match[1]) if match else None
+
+
+def scale_sec_filings(size: int) -> tuple[ScaleSecFiling, ...]:
+    filings = []
+    for index, ticker in enumerate(SCALE_TICKERS[:size], start=1):
+        cik = str(900_000_000 + index).zfill(10)
+        point = 100 + index
+        body = (
+            f"<!DOCTYPE html>\n<!-- Synthetic certification 8-K for {ticker}. -->\n"
+            f"<SEC-HEADER>\nCENTRAL INDEX KEY: {cik}\n</SEC-HEADER>\n"
+            "<html><body><p>The company raises its full year revenue guidance "
+            f"to USD {point}.</p></body></html>"
+        )
+        filings.append(ScaleSecFiling(
+            ticker, cik, f"0000000000-26-{index:06d}", f"{ticker.lower()}-scale-8k.htm",
+            point, body,
+        ))
+    return tuple(filings)
+
+
+def scale_offline_sec_provider(environment, database_url: str):
+    from sqlalchemy.engine import make_url
+
+    from app.services.ceri.sec.client import SecClientConfig
+    from app.services.ceri.sec.provider import SecCeriProvider
+
+    size = scale_sec_test_size(environment.get(SCALE_SEC_TEST_ENV, ""))
+    target = make_url(database_url)
+    required = {
+        "RUNTIME_MODE": "CERTIFICATION",
+        "SWINGLENS_DATABASE_SAFETY_CONTEXT": "DISPOSABLE_TEST",
+        "SWINGLENS_CERTIFICATION_PROVIDER_MODE": "deterministic",
+        "CERTIFICATION_FROZEN_CERI_PROVIDERS": "true",
+        "SEC_DOCUMENT_INCREMENTAL_MODE": "SHADOW",
+    }
+    if (
+        size is None
+        or environment.get("CERTIFICATION_GOLDEN_VERSION")
+        or any(environment.get(key) != value for key, value in required.items())
+        or database_url != environment.get("DATABASE_URL")
+        or target.get_backend_name() != "postgresql"
+        or target.host not in {"localhost", "127.0.0.1", "::1"}
+        or not (target.database or "").startswith("swinglens_pytest_cert_")
+        or target.query
+    ):
+        raise RuntimeError("SEC_SCALE_REQUIRES_DETERMINISTIC_DISPOSABLE_SHADOW")
+
+    by_cik = {filing.cik: filing for filing in scale_sec_filings(size)}
+
+    class OfflineScaleSec:
+        config = SecClientConfig()
+
+        def submissions(self, cik):
+            filing = by_cik[cik]
+            return {"cik": cik, "filings": {"recent": {
+                "form": ["8-K"],
+                "primaryDocument": [filing.filename],
+                "accessionNumber": [filing.accession],
+                "filingDate": [SCALE_SEC_POSSESSED_AT.date().isoformat()],
+                "acceptanceDateTime": [SCALE_SEC_POSSESSED_AT.isoformat()],
+            }}}
+
+        def archive_document(self, cik, accession, filename):
+            filing = by_cik[cik]
+            if (filing.accession, filing.filename) != (accession, filename):
+                raise RuntimeError("SEC_SCALE_FILING_IDENTITY_MISMATCH")
+            return filing.body
+
+    class ScaleSecProvider(SecCeriProvider):
+        def extract_guidance_document(
+            self, document, *, text=None, require_financial_attribution=False, retrieved_at=None,
+        ):
+            filing = by_cik[document.cik]
+            if (
+                (document.ticker, document.accession_number, document.document_name)
+                != (filing.ticker, filing.accession, filing.filename)
+                or text != filing.body
+                or not require_financial_attribution
+                or retrieved_at != SCALE_SEC_POSSESSED_AT
+            ):
+                raise RuntimeError("SEC_SCALE_FILING_OR_RECEIPT_MISMATCH")
+            records = super().extract_guidance_document(
+                document, text=text, require_financial_attribution=True, retrieved_at=retrieved_at,
+            )
+            if len(records) != 1 or records[0].provider_record_id != filing.record_key:
+                raise RuntimeError("SEC_SCALE_PROJECTED_SOURCE_MISMATCH")
+            # Carry the native writer's synthetic acquisition receipt at the
+            # same provider boundary used by the reviewed golden replay.
+            return (replace(records[0], source_url=None, retrieved_at=retrieved_at),)
+
+    return ScaleSecProvider(client=OfflineScaleSec())
 
 
 def frozen_ceri_registry(*, sec_provider=None) -> CeriProviderRegistry:
@@ -45,7 +172,7 @@ def frozen_ceri_registry(*, sec_provider=None) -> CeriProviderRegistry:
             providers[name] = provider
         return CeriProviderRegistry(providers=providers)
 
-    tickers = tuple(dict.fromkeys((*EXACT_TEN, *(f"F{index:04d}" for index in range(90)))))
+    tickers = SCALE_TICKERS
     observed = "2026-09-23T19:00:00Z"
     records = {dataset: [] for dataset in CeriDataset}
     for index, ticker in enumerate(tickers, start=1):
@@ -128,7 +255,8 @@ def frozen_ceri_registry(*, sec_provider=None) -> CeriProviderRegistry:
                     CeriDataset.CATALYSTS: records[CeriDataset.CATALYSTS],
                 }
             ),
-            "sec": FrozenSecProvider({CeriDataset.GUIDANCE: records[CeriDataset.GUIDANCE]}),
+            "sec": (sec_provider if sec_provider is not None
+                    else FrozenSecProvider({CeriDataset.GUIDANCE: records[CeriDataset.GUIDANCE]})),
         }
     )
 

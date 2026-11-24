@@ -344,12 +344,16 @@ def _install_frozen_ceri_providers() -> None:
     from scripts.qa.golden_provenance import C06_VERSIONS
     from single_run_certification.candidate_validation import c06_offline_filings
     from single_run_certification.frozen_ceri import (
+        SCALE_SEC_POSSESSED_AT,
+        SCALE_SEC_TEST_ENV,
         c06_offline_sec_clock,
         c06_offline_sec_provider,
         frozen_ceri_registry,
+        scale_offline_sec_provider,
     )
 
     sec_provider = None
+    received_at = None
     if os.environ.get("CERTIFICATION_GOLDEN_VERSION") == C06_VERSIONS[0]:
         from app.settings import get_settings
 
@@ -366,8 +370,21 @@ def _install_frozen_ceri_providers() -> None:
             raise RuntimeError("C06_GOLDEN_REQUIRES_EFFECTIVE_SHADOW")
         receipt_times = {row["body_possession_utc"] for row in specimen["filings"]}
         received, = receipt_times
+        received_at = datetime.fromisoformat(received)
+    elif os.environ.get(SCALE_SEC_TEST_ENV):
+        from app.settings import get_settings
+
+        settings = get_settings()
+        sec_provider = scale_offline_sec_provider(os.environ, settings.database_url)
+        if (
+            settings.sec_document_incremental_mode.value != "SHADOW"
+            or settings.runtime_mode.value != "CERTIFICATION"
+        ):
+            raise RuntimeError("SEC_SCALE_REQUIRES_EFFECTIVE_SHADOW")
+        received_at = SCALE_SEC_POSSESSED_AT
+    if received_at is not None:
         global _c06_sec_clock
-        _c06_sec_clock = c06_offline_sec_clock(datetime.fromisoformat(received))
+        _c06_sec_clock = c06_offline_sec_clock(received_at)
         _c06_sec_clock.__enter__()
     if os.environ.get("CERTIFICATION_FROZEN_CERI_PROVIDERS") != "true":
         return

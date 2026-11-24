@@ -70,6 +70,13 @@ from single_run_certification.fixtures import (
     seed_prerequisites,
     write_canonical_csv,
 )
+from single_run_certification.frozen_ceri import (
+    SCALE_SEC_POSSESSED_AT,
+    SCALE_SEC_TEST_ENV,
+    c06_offline_sec_clock,
+    scale_sec_filings,
+    scale_sec_test_size,
+)
 from single_run_certification.reporting import (
     CertificationRecorder,
     write_database_html,
@@ -141,6 +148,7 @@ def certification_environment(
     certification_golden_version,
 ) -> Iterator[CertificationEnvironment]:
     live_mode = certification_provider_mode == "live"
+    scale_size = scale_sec_test_size(request.node.nodeid)
     execution_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     database_name = f"swinglens_pytest_cert_{uuid.uuid4().hex[:12]}"
     if not database_name.startswith("swinglens_pytest_cert_"):
@@ -331,6 +339,13 @@ def certification_environment(
              str(REPO_ROOT / "tests" / "e2e" / "single_run_certification")]
         ),
     }
+    env.pop(SCALE_SEC_TEST_ENV, None)
+    if (
+        scale_size is not None and not live_mode
+        and certification_provider_ingest_enabled and not golden_expected
+    ):
+        env[SCALE_SEC_TEST_ENV] = request.node.nodeid
+        env["SEC_DOCUMENT_INCREMENTAL_MODE"] = "SHADOW"
     if golden_expected:
         env["CERTIFICATION_GOLDEN_VERSION"] = certification_golden_version
         for key, value in golden_expected["flags"].items():
@@ -382,7 +397,9 @@ def certification_environment(
 
         specimen = c06_offline_filings() if golden_expected else None
         if specimen is None:
-            _seed_disposable_sec_readiness(database_url)
+            _seed_disposable_sec_readiness(
+                database_url, scale_size=scale_size if SCALE_SEC_TEST_ENV in env else None,
+            )
         else:
             _bootstrap_reviewed_sec_readiness(database_url, env, specimen)
     port = _available_port()
@@ -447,6 +464,7 @@ def certification_environment(
             "golden_input_sha256": (
                 golden_expected["input_manifest_sha256"] if golden_expected else None
             ),
+            **({"scale_sec_test": env[SCALE_SEC_TEST_ENV]} if SCALE_SEC_TEST_ENV in env else {}),
             "decoy_run_id": seed.decoy_run_id,
             "decoy_ticker": DECOY_TICKER,
         }
@@ -3008,7 +3026,7 @@ def _activate_disposable_sec_processor(database_url: str) -> None:
         engine.dispose()
 
 
-def _seed_disposable_sec_readiness(database_url: str) -> None:
+def _seed_disposable_sec_readiness(database_url: str, *, scale_size: int | None = None) -> None:
     """Freeze SEC mapping/readiness only; provider jobs still create all run evidence."""
 
     from app.models.ceri_tables import CeriCompany
@@ -3045,16 +3063,21 @@ def _seed_disposable_sec_readiness(database_url: str) -> None:
     tickers = tuple(
         dict.fromkeys((*CANONICAL_TICKERS, *exact_ten, *(f"F{index:04d}" for index in range(90))))
     )
+    ciks = {ticker: str(900_000_000 + index).zfill(10)
+            for index, ticker in enumerate(tickers, start=1)}
+    if scale_size is not None:
+        ciks = {filing.ticker: filing.cik for filing in scale_sec_filings(scale_size)}
+        tickers = tuple(ciks)
+    prior = SCALE_SEC_POSSESSED_AT - timedelta(days=1) if scale_size else None
     engine = create_engine(database_url)
     try:
-        with Session(engine) as db:
+        with Session(engine) as db, c06_offline_sec_clock(prior) if prior else nullcontext():
             existing = {
                 row.ticker: row
                 for row in db.scalars(select(CeriCompany).where(CeriCompany.ticker.in_(tickers)))
             }
-            now = datetime.now(UTC)
-            for index, ticker in enumerate(tickers, start=1):
-                cik = str(900_000_000 + index).zfill(10)
+            now = prior or datetime.now(UTC)
+            for ticker, cik in ciks.items():
                 company = existing.get(ticker)
                 if company is None:
                     company = CeriCompany(ticker=ticker, exchange="US")
