@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import replace
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from importlib.util import module_from_spec, spec_from_file_location
 from io import StringIO
@@ -47,6 +47,7 @@ from app.models.tables import (
 )
 from app.services.ceri.config import ceri_config_hash, load_ceri_config
 from app.services.ceri.decision_evidence import (
+    build_ceri_source_manifest,
     persist_ceri_decision_evidence,
 )
 from app.services.ceri.purge_service import (
@@ -400,6 +401,43 @@ def test_exact_retry_reuses_deterministic_evidence(evidence_db: Session) -> None
         .count()
         == 1
     )
+
+
+def test_sec_guidance_manifest_respects_acceptance_and_possession(
+    postgres_evidence_db: Session,
+) -> None:
+    db = postgres_evidence_db
+    source = _source(db, 101, "sec-guidance-hash")
+    source.provider = "sec"
+    source.dataset = "guidance"
+    snapshot = _snapshot(
+        run_id=7,
+        lineage={"historical_view_mode": "AS_KNOWN", "guidance_source_ids": [source.id]},
+        config=load_ceri_config(),
+    )
+    before = snapshot.cutoff_at - timedelta(minutes=1)
+    after = snapshot.cutoff_at + timedelta(minutes=1)
+    source.source_timestamp = before
+    source.retrieved_at = snapshot.cutoff_at
+    source.ingested_at = after
+    db.flush()
+
+    manifest = build_ceri_source_manifest(db, snapshot)
+    assert [(record["id"], record["content_hash"]) for record in manifest["source_records"]] == [
+        (source.id, "sec-guidance-hash")
+    ]
+
+    # Neither timely publication nor prior possession makes a late source eligible.
+    source.published_at = before
+    source.retrieved_at = after
+    db.flush()
+    with pytest.raises(ValueError, match="MUTATION_CERI_SOURCE_OBSERVATION_MISMATCH"):
+        build_ceri_source_manifest(db, snapshot)
+    source.retrieved_at = before
+    source.source_timestamp = after
+    db.flush()
+    with pytest.raises(ValueError, match="MUTATION_CERI_SOURCE_OBSERVATION_MISMATCH"):
+        build_ceri_source_manifest(db, snapshot)
 
 
 def test_legacy_ceri_row_cannot_satisfy_phase2_history(evidence_db: Session) -> None:

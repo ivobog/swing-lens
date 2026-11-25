@@ -16,8 +16,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.models.tables import BackgroundSupervisor, BackgroundWorker
+from app.services.ceri.sec.processor_lifecycle import register_deployed_processor
 from app.services.lifecycle_control import TOPOLOGY_VERSION
 from app.services.lifecycle_safety import normalize_path
+from app.services.runtime_mutation_authority import RuntimeMutationAuthority
 from scripts.ops import lifecycle_probe
 
 pytestmark = [
@@ -32,7 +34,7 @@ def test_windows_runtime_survives_controller_exit_and_reuses_generation(
     disposable_postgres_database: str,
 ) -> None:
     assert not RUNTIME_STATE.exists(), "canonical runtime state must be absent before the gate"
-    _migrate(disposable_postgres_database)
+    _prepare_database(disposable_postgres_database)
     worker_id = f"windows-persistence-{uuid4().hex}"
     evidence_path = ROOT / "test-results" / f"windows-lifecycle-{uuid4().hex}"
     evidence_path.mkdir(parents=True, exist_ok=False)
@@ -106,7 +108,7 @@ def test_windows_runtime_survives_controller_exit_and_reuses_generation(
         RUNTIME_STATE.unlink(missing_ok=True)
 
 
-def _migrate(database_url: str) -> None:
+def _prepare_database(database_url: str) -> None:
     env = {
         **os.environ,
         "DATABASE_URL": database_url,
@@ -122,6 +124,17 @@ def _migrate(database_url: str) -> None:
         timeout=180,
     )
     assert result.returncode == 0, result.stderr
+
+    # The certified worker validates processor identity without writing it at startup.
+    engine = create_engine(database_url)
+    try:
+        with Session(engine) as db, db.begin():
+            register_deployed_processor(
+                db,
+                authority=RuntimeMutationAuthority.normal("test.windows_persistence.sec_processor"),
+            )
+    finally:
+        engine.dispose()
 
 
 def _lifecycle_environment(

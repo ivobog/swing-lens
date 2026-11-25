@@ -365,8 +365,16 @@ class CeriNormalizationService:
     ) -> int:
         # Source identity maintenance belongs to the same validated native
         # source transaction as normalization, including direct record calls.
-        _persist_sec_identity(db, source_record, company_id)
         dataset = CeriDataset(source_record.dataset)
+        if source_record.provider == "sec" and dataset is CeriDataset.GUIDANCE:
+            if _exists_by_source(db, CeriGuidanceEvent, source_record.id):
+                return 0
+            from app.services.ceri.sec.scope_evidence import source_attribution_proved
+
+            company = db.get(CeriCompany, company_id)
+            if company is None or not source_attribution_proved(db, source_record, company.cik):
+                raise ValueError("SEC_GUIDANCE_ATTRIBUTION_EVIDENCE_REQUIRED")
+        _persist_sec_identity(db, source_record, company_id)
         if dataset is CeriDataset.ESTIMATES:
             if _exists_by_source(db, CeriEstimateSnapshot, source_record.id):
                 return 0

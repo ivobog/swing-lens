@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.models.ceri_tables import CeriCompany, CeriIngestionRun
+from app.models.ceri_tables import CeriCompany, CeriIngestionRun, CeriSecFilingDocument
 from app.services.ceri.dtos import GuidanceRequest
 from app.services.ceri.enums import CeriDataset
-from app.services.ceri.observability import ceri_metrics
+from app.services.ceri.sec.attribution import SecAttributionRefused
 from app.services.ceri.sec.content_cache import SecDocumentContentCache
 from app.services.ceri.sec.issuer_succession import ownership_conflict
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
@@ -20,10 +20,24 @@ from app.services.ceri.sec.readiness_service import (
     SecReadinessFacts,
     SecReadinessPolicy,
     SecReadinessService,
-    SecReadinessState,
+)
+from app.services.ceri.sec.scope_evidence import (
+    OUTCOME,
+    REFUSAL,
+    ScopeEvidenceError,
+    ScopeGeneration,
+    body_version,
+    exact_filing,
+    generation_ready,
+    locked_events,
+    open_generation,
+    payload,
+    record_outcome,
+    retain_selection,
+    reusable_outcome,
+    selected_event,
 )
 from app.services.ceri.sec.state_service import (
-    COMPLETED_STATUSES,
     SecDocumentIdentity,
     SecDocumentStateService,
 )
@@ -155,55 +169,81 @@ class SecGuidanceIncrementalIngestionService:
                     f"bootstrap for CIK {cik} and processor signature "
                     f"{self.processor_signature}."
                 )
-        documents = provider.discover_guidance_documents(
-            GuidanceRequest(
-                company_id=None,
-                ticker=ticker,
-                start=start,
-                end=end,
-            ),
-            cik=cik,
-        )
-        outcome.documents_discovered = len(documents)
-        for document in documents:
-            if _cancelled(should_cancel):
-                raise SecIncrementalCancelled("CERI SEC ingestion cancelled")
-            if not self._process_document(
-                db,
-                provider=provider,
-                ingestion_run=ingestion_run,
-                document=document,
-                raw_payload_allowed=raw_payload_allowed,
-                outcome=outcome,
-                should_cancel=should_cancel,
-                worker_id=worker_id or self.settings.job_worker_id,
-                reuse_completed_documents=reuse_completed_documents,
-            ):
-                break
-        if (
-            mode is SecDocumentIncrementalMode.SHADOW
-            and not historical_backfill
-            and not outcome.failed
-            and not outcome.documents_claimed_elsewhere
-        ):
-            filing_dates = [_parse_date(item.filing_date) for item in documents]
-            self.state.certify_bootstrap(
-                db,
+        if historical_backfill:
+            raise ScopeEvidenceError("SEC_HISTORICAL_RUN_CANNOT_PUBLISH_CURRENT_READINESS")
+        run_id = ingestion_run.id
+        generation = open_generation(db, run_id, ticker.upper(), cik, self.processor_signature)
+        db.commit()  # Current readiness is blocked before discovery starts.
+        try:
+            selected = selected_event(db, generation)
+            if selected is not None:
+                documents = tuple(
+                    SecGuidanceDocument(
+                        ticker.upper(),
+                        item["cik"],
+                        item["accession"],
+                        item["filename"],
+                        item["form"],
+                        item["filing_date"],
+                        (
+                            datetime.fromisoformat(item["accepted_at"])
+                            if item.get("accepted_at") else None
+                        ),
+                    )
+                    for item in payload(selected)["required"]
+                )
+                db.commit()
+            else:
+                db.commit()  # Do not hold the generation lock during SEC I/O.
+                upper = end or datetime.now(UTC).date()
+                selection = provider.select_guidance_documents(
+                    GuidanceRequest(company_id=None, ticker=ticker, start=start, end=upper),
+                    cik=cik,
+                )
+                documents = selection.documents
+                retain_selection(db, generation, documents, discovery=selection.discovery)
+                db.commit()
+            outcome.documents_discovered = len(documents)
+            for document in documents:
+                if _cancelled(should_cancel):
+                    raise SecIncrementalCancelled("CERI SEC ingestion cancelled")
+                self._process_document(
+                    db,
+                    provider=provider,
+                    generation=generation,
+                    document=document,
+                    raw_payload_allowed=raw_payload_allowed,
+                    outcome=outcome,
+                    should_cancel=should_cancel,
+                    worker_id=worker_id or self.settings.job_worker_id,
+                )
+            locked_events(db, generation)
+            certified = generation_ready(db, cik, self.processor_signature, generation=generation)
+        except SecIncrementalCancelled:
+            raise
+        except ScopeEvidenceError as exc:
+            db.rollback()
+            outcome.failed += 1
+            outcome.errors.append({"error": str(exc)})
+            certified = False
+        readiness = SecReadinessService().assess(
+            SecReadinessFacts(
                 cik=cik,
-                dataset=CeriDataset.GUIDANCE.value,
-                processor_signature=self.processor_signature,
-                document_count=len(documents),
-                latest_filing_date=max((value for value in filing_dates if value), default=None),
-            )
-            db.commit()
-        if outcome.documents_skipped and not outcome.documents_downloaded:
-            outcome.readiness_state = SecReadinessState.READY_TERMINAL_REUSE.value
-            outcome.run_evidence_status = "READY"
-            outcome.readiness_reason = "TERMINAL_EXTRACTION_REUSED"
-        elif outcome.readiness_state is None:
-            outcome.readiness_state = SecReadinessState.READY.value
-            outcome.run_evidence_status = "READY"
-            outcome.readiness_reason = "SEC_INGESTION_COMPLETED"
+                bootstrap_certified=certified,
+                failed=bool(outcome.failed or outcome.quarantined),
+                bootstrap_in_progress=not certified,
+                terminal_documents_reused=outcome.documents_skipped,
+                documents_downloaded=outcome.documents_downloaded,
+                documents_extracted=outcome.documents_discovered - outcome.documents_skipped,
+            ),
+            policy=SecReadinessPolicy(self.settings.sec_readiness_policy.value),
+        )
+        outcome.readiness_state = readiness.state.value
+        outcome.run_evidence_status = readiness.run_evidence_status
+        outcome.readiness_reason = readiness.reason
+        if not certified:
+            outcome.failed = max(outcome.failed, 1)
+        # The caller finalizes the run in this transaction under the same generation lock.
         return outcome
 
     def _process_document(
@@ -211,14 +251,16 @@ class SecGuidanceIncrementalIngestionService:
         db: Session,
         *,
         provider: SecCeriProvider,
-        ingestion_run: CeriIngestionRun,
+        generation: ScopeGeneration,
         document: SecGuidanceDocument,
         raw_payload_allowed: bool,
         outcome: SecIncrementalOutcome,
         should_cancel,
         worker_id: str,
-        reuse_completed_documents: bool,
-    ) -> bool:
+    ) -> None:
+        dataset = CeriDataset.GUIDANCE.value
+        filing = exact_filing(document, generation.cik)
+        locked_events(db, generation)
         registered = self.state.register_document(
             db,
             SecDocumentIdentity(
@@ -227,140 +269,177 @@ class SecGuidanceIncrementalIngestionService:
                 document_name=document.document_name,
                 ticker_hint=document.ticker,
                 form=document.form,
-                filing_date=_parse_date(document.filing_date),
+                filing_date=date.fromisoformat(filing["filing_date"]),
             ),
         )
-        current = self.state.extraction(
-            db,
-            document_id=registered.id,
-            dataset=CeriDataset.GUIDANCE.value,
-            processor_signature=self.processor_signature,
+        document_id = registered.id
+        version = body_version(registered)
+        cached = (
+            self.content_cache.load(document, expected_hash=version["body_sha256"])
+            if version["body_sha256"] and version["possessed_at"]
+            else None
         )
-        completed = current is not None and current.status in COMPLETED_STATUSES
-        if completed:
-            outcome.documents_would_skip += 1
-            ceri_metrics.increment(
-                "ceri_ingestion_sec_documents_would_skip_total",
-                session=db,
-                dataset=CeriDataset.GUIDANCE.value,
-            )
-            if self.settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE:
-                outcome.documents_skipped += 1
-                ceri_metrics.increment(
-                    "ceri_ingestion_sec_documents_skipped_total",
-                    session=db,
-                    dataset=CeriDataset.GUIDANCE.value,
-                )
-                return True
-            if reuse_completed_documents:
-                outcome.documents_skipped += 1
-                ceri_metrics.increment(
-                    "ceri_ingestion_sec_documents_skipped_total",
-                    session=db,
-                    dataset=CeriDataset.GUIDANCE.value,
-                )
-                return True
-
-        claim = None
-        if not completed:
-            claim = self.state.claim(
+        prior = reusable_outcome(db, generation, filing, version) if cached is not None else None
+        if prior is not None:
+            outcome.deduplicated += len(prior["sources"])
+            self.source_records.retain_reused_sources(
                 db,
-                document_id=registered.id,
-                dataset=CeriDataset.GUIDANCE.value,
-                processor_signature=self.processor_signature,
-                worker_id=worker_id,
-                lease_seconds=self.settings.sec_document_lease_seconds,
+                ingestion_run_id=generation.run_id,
+                source_ids=[item["id"] for item in prior["sources"]],
             )
-            if not claim.acquired:
-                outcome.documents_claimed_elsewhere += 1
-                if self.settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE:
-                    db.rollback()
-                    return True
-            else:
-                outcome.stale_leases_recovered += int(claim.stale_recovered)
-                # The claim must be durable before synchronous SEC I/O begins.
-                db.commit()
+            record_outcome(
+                db,
+                generation,
+                filing,
+                {key: value for key, value in prior.items() if key != "filing"},
+            )
+            outcome.documents_would_skip += 1
+            outcome.documents_skipped += 1
+            outcome.documents_cache_reused += 1
+            db.commit()
+            return
+        claim = self.state.claim(
+            db,
+            document_id=document_id,
+            dataset=dataset,
+            processor_signature=self.processor_signature,
+            worker_id=worker_id,
+            lease_seconds=self.settings.sec_document_lease_seconds,
+            reprocess_completed=True,
+        )
+        if not claim.acquired:
+            outcome.documents_claimed_elsewhere += 1
+            # The owning run and OPEN/SELECTED events are already durable. A
+            # lease held elsewhere or a retry backoff is incomplete coverage.
+            db.commit()
+            return
+        outcome.stale_leases_recovered += int(claim.stale_recovered)
+        db.commit()
         try:
-            filing_text = (
-                self.content_cache.load(
-                    document,
-                    expected_hash=registered.last_content_hash,
-                )
-                if registered.last_content_hash
-                else None
-            )
-            downloaded = filing_text is None
+            filing_text = cached
+            retrieved_at = None
             if filing_text is None:
                 filing_text = provider.download_guidance_document(document)
-                self.content_cache.store(document, filing_text)
-                outcome.documents_downloaded += 1
-                content_bytes = len(filing_text.encode("utf-8"))
-                self.state.record_downloaded_content(
-                    db,
-                    document_id=registered.id,
-                    content_hash=hashlib.sha256(filing_text.encode("utf-8")).hexdigest(),
-                    content_bytes=content_bytes,
-                )
-                db.commit()
-            else:
-                outcome.documents_cache_reused += 1
-            records = provider.extract_guidance_document(document, text=filing_text)
-            if _cancelled(should_cancel):
-                if claim and claim.acquired and claim.execution_token:
-                    self.state.cancel(
-                        db,
-                        extraction_id=claim.extraction_id,
-                        execution_token=claim.execution_token,
-                    )
-                    db.commit()
-                raise SecIncrementalCancelled("CERI SEC ingestion cancelled")
-            if claim and claim.acquired and claim.execution_token:
+                possessed_at = datetime.now(UTC)
+                retrieved_at = possessed_at
+                body_bytes = filing_text.encode("utf-8")
+                locked_events(db, generation)
                 self.state.heartbeat(
                     db,
                     extraction_id=claim.extraction_id,
                     execution_token=claim.execution_token,
                     lease_seconds=self.settings.sec_document_lease_seconds,
                 )
+                self.content_cache.store(document, filing_text)
+                self.state.record_downloaded_content(
+                    db,
+                    document_id=document_id,
+                    possessed_at=possessed_at,
+                    content_hash=hashlib.sha256(body_bytes).hexdigest(),
+                    content_bytes=len(body_bytes),
+                )
+                version = body_version(
+                    db.get(CeriSecFilingDocument, document_id, populate_existing=True)
+                )
+                outcome.documents_downloaded += 1
                 db.commit()
+            else:
+                outcome.documents_cache_reused += 1
+            records = provider.extract_guidance_document(
+                document, text=filing_text, require_financial_attribution=True,
+                retrieved_at=retrieved_at,
+            )
+            cancelled = _cancelled(should_cancel)
+            locked_events(db, generation)
+            self.state.heartbeat(
+                db,
+                extraction_id=claim.extraction_id,
+                execution_token=claim.execution_token,
+                lease_seconds=self.settings.sec_document_lease_seconds,
+            )
+            if cancelled:
+                self.state.cancel(
+                    db, extraction_id=claim.extraction_id, execution_token=claim.execution_token
+                )
+                db.commit()
+                raise SecIncrementalCancelled("CERI SEC ingestion cancelled")
+            if (
+                body_version(db.get(CeriSecFilingDocument, document_id, populate_existing=True))
+                != version
+            ):
+                raise ScopeEvidenceError("SEC_PROCESSING_BODY_VERSION_CHANGED")
+            sources = {}
             for record in records:
+                if (
+                    record.provider != "sec"
+                    or record.dataset is not CeriDataset.GUIDANCE
+                    or record.payload.get("cik") != filing["cik"]
+                    or record.payload.get("filing_accession") != filing["accession"]
+                    or not str(record.payload.get("source_reference", "")).startswith(
+                        filing["accession"] + "/" + filing["filename"] + "#paragraph-"
+                    )
+                ):
+                    raise SecAttributionRefused("SEC_PROJECTED_SOURCE_OWNERSHIP_MISMATCH")
                 outcome.requested += 1
                 outcome.fetched += 1
                 write = self.source_records.store_source_record(
                     db,
-                    ingestion_run_id=ingestion_run.id,
+                    ingestion_run_id=generation.run_id,
                     record=record,
                     raw_payload_allowed=raw_payload_allowed,
                 )
+                if write.quarantined:
+                    raise SecAttributionRefused("SEC_PROJECTED_SOURCE_QUARANTINED")
+                sources[write.source_record.id] = write.source_record.content_hash
                 outcome.inserted += int(write.inserted)
                 outcome.deduplicated += int(write.deduplicated)
                 outcome.corrected += int(write.corrected)
-                outcome.quarantined += int(write.quarantined)
             if not records:
                 outcome.documents_zero_records += 1
-            if claim and claim.acquired and claim.execution_token:
-                content_bytes = len(filing_text.encode("utf-8"))
-                self.state.complete(
-                    db,
-                    extraction_id=claim.extraction_id,
-                    execution_token=claim.execution_token,
-                    record_count=len(records),
-                    content_hash=hashlib.sha256(filing_text.encode("utf-8")).hexdigest(),
-                    content_bytes=content_bytes,
-                    downloaded=downloaded,
-                )
-            # Source records and the authoritative successful state commit together.
+            self.state.complete(
+                db,
+                extraction_id=claim.extraction_id,
+                execution_token=claim.execution_token,
+                record_count=len(records),
+                content_hash=version["body_sha256"],
+                content_bytes=len(filing_text.encode("utf-8")),
+                downloaded=False,
+            )
+            record_outcome(
+                db,
+                generation,
+                filing,
+                {
+                    "status": "COMPLETED_WITH_RECORDS" if records else "COMPLETED_NO_RECORDS",
+                    "body": version,
+                    "sources": [
+                        {"id": key, "hash": value} for key, value in sorted(sources.items())
+                    ],
+                },
+            )
             db.commit()
-            return True
-        except SecIncrementalCancelled:
-            raise
-        except SQLAlchemyError as exc:
-            db.rollback()
-            self._record_failure(db, claim=claim, exc=exc, outcome=outcome)
+        except (SecIncrementalCancelled, ScopeEvidenceError):
             raise
         except Exception as exc:
             db.rollback()
+            locked_events(db, generation)
             self._record_failure(db, claim=claim, exc=exc, outcome=outcome)
-            return False
+            record_outcome(
+                db,
+                generation,
+                filing,
+                {
+                    "status": "FAILED_RETRYABLE",
+                    "body": version,
+                    "reason": str(exc)
+                    if isinstance(exc, SecAttributionRefused)
+                    else type(exc).__name__,
+                },
+                kind=REFUSAL if isinstance(exc, SecAttributionRefused) else OUTCOME,
+            )
+            db.commit()
+            if isinstance(exc, SQLAlchemyError):
+                raise
 
     def _record_failure(self, db: Session, *, claim, exc: Exception, outcome) -> None:
         outcome.failed += 1
@@ -379,7 +458,6 @@ class SecGuidanceIncrementalIngestionService:
                 message=redact_text(str(exc)),
                 retry_base_seconds=self.settings.sec_document_retry_base_seconds,
             )
-            db.commit()
 
     @staticmethod
     @source_mutation_writer(
@@ -415,10 +493,3 @@ class SecGuidanceIncrementalIngestionService:
 
 def _cancelled(callback) -> bool:
     return bool(callable(callback) and callback())
-
-
-def _parse_date(value: str) -> date | None:
-    try:
-        return date.fromisoformat(str(value)[:10])
-    except ValueError:
-        return None

@@ -519,7 +519,9 @@ def test_sec_readiness_coverage_requires_current_signature_per_ticker() -> None:
         ]
     )
 
-    coverage = sec_readiness_coverage(db, tickers=["AIZ", "AMZN", "MISS"])
+    coverage = sec_readiness_coverage(
+        db, tickers=["AIZ", "AMZN", "MISS"], processor_signature="sec-guidance:eed017654682a0c9"
+    )
 
     assert coverage.ready_tickers == 1
     assert coverage.missing_tickers == ("AMZN", "MISS")

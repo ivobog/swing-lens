@@ -28,7 +28,7 @@ def test_guidance_extractor_preserves_locator_and_marks_ambiguous_claims() -> No
     assert "guidance_comparison_insufficient" in rows[1].warnings
 
 
-def test_refactored_document_boundary_preserves_cold_provider_output() -> None:
+def test_refactored_document_boundary_preserves_cold_provider_output(monkeypatch) -> None:
     class Client:
         config = SecClientConfig()
         requests = 0
@@ -51,8 +51,19 @@ def test_refactored_document_boundary_preserves_cold_provider_output() -> None:
             }
 
         def archive_document(self, *_args):
-            return "The company expects revenue guidance of $100 to $110 million."
+            return (
+                "<SEC-HEADER>\nCENTRAL INDEX KEY: 0000123456\n</SEC-HEADER>\n"
+                "The company expects revenue guidance of $100 to $110 million."
+            )
 
+    from datetime import UTC, datetime
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 11, 23, 18, tzinfo=UTC).astimezone(tz)
+
+    monkeypatch.setattr("app.services.ceri.sec.provider.datetime", Clock)
     request = GuidanceRequest(company_id=None, ticker="TEST")
     legacy_shape = list(SecCeriProvider(client=Client()).fetch_guidance(request))
     refactored_provider = SecCeriProvider(client=Client())
@@ -68,7 +79,7 @@ def test_extractor_version_change_changes_processor_signature(monkeypatch) -> No
     monkeypatch.setattr(
         processor_signature,
         "GUIDANCE_EXTRACTOR_VERSION",
-        "guidance-regex-visible-text-v4",
+        f"{processor_signature.GUIDANCE_EXTRACTOR_VERSION}-test",
     )
 
     assert processor_signature.sec_guidance_processor_signature() != before

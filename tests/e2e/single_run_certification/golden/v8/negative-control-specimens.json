@@ -1,0 +1,10 @@
+{
+  "version": "a05-v1-controls",
+  "provenance": "Independent equal-score tie contract; comparison-only specimen, no extra pipeline population",
+  "tied_profile_ranks": [
+    {"profile": "momentum_swing", "ticker": "ALPHA", "score": "8.0000", "rank": 1},
+    {"profile": "momentum_swing", "ticker": "BETA", "score": "8.0000", "rank": 2}
+  ],
+  "null_field": [{"ticker": "NULL_CONTROL", "optional_source": null}],
+  "legitimate_exclusion": {"ticker": "CONTROL_ONLY", "eligible": false, "reason": "MISSING_TECHNICAL"}
+}

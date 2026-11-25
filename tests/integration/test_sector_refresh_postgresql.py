@@ -235,10 +235,15 @@ def test_native_refresh_preserves_pipeline_spy_qqq_pit_manifests_during_revision
     from time import sleep
 
     from app.models.tables import MarketCalculationContext, PipelineRun, UploadRun
-    from app.services import ib_fetch_executor
+    from app.services import ib_fetch_executor, us_market_calendar
     from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
     from app.services.market_calculation_context_service import create_pipeline_market_context
     from app.services.price_bar_repository import load_price_bars_frame
+
+    # Both acquisitions revise the same completed session. Keep market-session lookup
+    # stable while leaving possession times, worker leases and cooldowns on real time.
+    market_time = us_market_calendar._ny_datetime(None)
+    monkeypatch.setattr(us_market_calendar, "_ny_datetime", lambda _value: market_time)
 
     engine, _ = prepared_database(disposable_postgres_database)
     settings, _, _ = configure_stubs(monkeypatch, disposable_postgres_database)

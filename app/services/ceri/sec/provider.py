@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import os
 import re
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+from app.services.canonical_evidence import CanonicalEvidenceSerializer
 from app.services.ceri.dtos import (
     CatalystRequest,
     CompanyQuery,
@@ -19,13 +21,12 @@ from app.services.ceri.dtos import (
     RawProviderRecord,
 )
 from app.services.ceri.enums import CeriDataset, CeriProviderCapability, ExportPolicy
+from app.services.ceri.sec.attribution import SecAttributionRefused, prove_document_attribution
 from app.services.ceri.sec.client import SecClientConfig, SecEdgarClient
 from app.services.ceri.sec.guidance_extractor import GuidanceExtractionService
 
 GUIDANCE_FORMS = frozenset({"8-K", "10-Q", "10-K", "6-K", "20-F"})
-_CANONICAL_SHARE_CLASS_TICKER = re.compile(
-    r"^[A-Z0-9]+(?:-[A-Z0-9]+)*\.[A-Z0-9]+$"
-)
+_CANONICAL_SHARE_CLASS_TICKER = re.compile(r"^[A-Z0-9]+(?:-[A-Z0-9]+)*\.[A-Z0-9]+$")
 
 
 def sec_share_class_alias(ticker: str) -> str | None:
@@ -45,6 +46,13 @@ class SecGuidanceDocument:
     document_name: str
     form: str
     filing_date: str
+    accepted_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class SecGuidanceSelection:
+    documents: tuple[SecGuidanceDocument, ...]
+    discovery: dict[str, Any]
 
 
 class SecCeriProvider:
@@ -155,7 +163,9 @@ class SecCeriProvider:
     def fetch_guidance(self, request: GuidanceRequest) -> Iterable[RawProviderRecord]:
         records: list[RawProviderRecord] = []
         for document in self.discover_guidance_documents(request):
-            records.extend(self.extract_guidance_document(document))
+            records.extend(
+                self.extract_guidance_document(document, require_financial_attribution=True)
+            )
         return iter(records)
 
     def resolve_cik(self, ticker: str) -> str | None:
@@ -174,9 +184,7 @@ class SecCeriProvider:
                 symbol = str(row["ticker"]).strip().upper()
                 cik = str(raw_cik).split(".")[0].zfill(10)
                 grouped.setdefault(symbol, set()).add(cik)
-            self._ticker_ciks = {
-                symbol: tuple(sorted(ciks)) for symbol, ciks in grouped.items()
-            }
+            self._ticker_ciks = {symbol: tuple(sorted(ciks)) for symbol, ciks in grouped.items()}
         canonical_ticker = ticker.upper()
         exact_candidates = self._ticker_ciks.get(canonical_ticker, ())
         if exact_candidates:
@@ -194,17 +202,49 @@ class SecCeriProvider:
         resolved_cik = cik or self._cik_for_ticker(request.ticker)
         if resolved_cik is None:
             return ()
+        return self.select_guidance_documents(request, cik=resolved_cik).documents
+
+    def select_guidance_documents(
+        self, request: GuidanceRequest, *, cik: str
+    ) -> SecGuidanceSelection:
+        resolved_cik = str(cik).zfill(10)
         submissions = self.client.submissions(resolved_cik)
-        recent = submissions.get("filings", {}).get("recent", {})
+        observed_at = datetime.now(UTC)
+        submitted_cik = submissions.get("cik")
+        if submitted_cik is not None and str(submitted_cik).zfill(10) != resolved_cik:
+            raise ValueError("SEC_SUBMISSIONS_ISSUER_MISMATCH")
+        recent = submissions["filings"]["recent"]
         forms = recent.get("form", [])
         accessions = recent.get("accessionNumber", [])
         documents = recent.get("primaryDocument", [])
         filing_dates = recent.get("filingDate", [])
+        acceptance_times = recent.get("acceptanceDateTime")
+        acceptance_aligned = (
+            str(submissions.get("cik", "")).zfill(10) == str(resolved_cik).zfill(10)
+            and isinstance(acceptance_times, list)
+            and len(acceptance_times) == len(forms) == len(accessions) == len(documents)
+            and len(acceptance_times) == len(filing_dates)
+        )
+        accession_counts = Counter(str(accession) for accession in accessions)
+        columns = (forms, accessions, documents, filing_dates)
+        if (
+            not all(
+                isinstance(recent.get(name), list)
+                for name in (
+                    "form",
+                    "accessionNumber",
+                    "primaryDocument",
+                    "filingDate",
+                )
+            )
+            or len({len(column) for column in columns}) != 1
+        ):
+            raise ValueError("SEC_SUBMISSIONS_FILING_LIST_INCOMPLETE")
         upper_bound = request.end or datetime.now(UTC).date()
         lower_bound = request.start or (upper_bound - timedelta(days=self.guidance_lookback_days))
         selected: list[SecGuidanceDocument] = []
-        for form, accession, document, filing_date in zip(
-            forms, accessions, documents, filing_dates, strict=False
+        for index, (form, accession, document, filing_date) in enumerate(
+            zip(forms, accessions, documents, filing_dates, strict=False)
         ):
             if form not in GUIDANCE_FORMS:
                 continue
@@ -220,7 +260,12 @@ class SecCeriProvider:
                     accession_number=str(accession),
                     document_name=str(document),
                     form=str(form),
-                    filing_date=str(filing_date),
+                    filing_date=parsed_filing_date.isoformat(),
+                    accepted_at=(
+                        _parse_acceptance_time(acceptance_times[index])
+                        if acceptance_aligned and accession_counts[str(accession)] == 1
+                        else None
+                    ),
                 )
             )
         selected.sort(
@@ -236,7 +281,17 @@ class SecCeriProvider:
                 prioritized.append(item)
                 seen_forms.add(item.form)
         prioritized.extend(item for item in selected if item not in prioritized)
-        return tuple(prioritized[: self.guidance_max_documents_per_ticker])
+        return SecGuidanceSelection(
+            tuple(prioritized[: self.guidance_max_documents_per_ticker]),
+            {
+                "source": f"SEC/submissions/CIK{resolved_cik}.json",
+                "submissions_sha256": CanonicalEvidenceSerializer.fingerprint(submissions),
+                "observed_at": observed_at,
+                "start": lower_bound,
+                "end": upper_bound,
+                "max_documents": self.guidance_max_documents_per_ticker,
+            },
+        )
 
     def download_guidance_document(self, document: SecGuidanceDocument) -> str:
         return self.client.archive_document(
@@ -244,12 +299,25 @@ class SecCeriProvider:
         )
 
     def extract_guidance_document(
-        self, document: SecGuidanceDocument, *, text: str | None = None
+        self,
+        document: SecGuidanceDocument,
+        *,
+        text: str | None = None,
+        require_financial_attribution: bool = False,
+        retrieved_at: datetime | None = None,
     ) -> tuple[RawProviderRecord, ...]:
-        filing_text = text if text is not None else self.download_guidance_document(document)
+        if text is None:
+            filing_text = self.download_guidance_document(document)
+            retrieved_at = datetime.now(UTC)
+        else:
+            filing_text = text
         records: list[RawProviderRecord] = []
         locator = f"{document.accession_number}/{document.document_name}"
-        for extraction in self.extractor.extract(filing_text, locator=locator):
+        issuer_proved = prove_document_attribution(document, filing_text)
+        extractions = self.extractor.extract(filing_text, locator=locator)
+        if require_financial_attribution and not issuer_proved:
+            raise SecAttributionRefused("SEC_FINANCIAL_ISSUER_UNPROVED")
+        for extraction in extractions:
             payload = {
                 "ticker": document.ticker,
                 "provider_company_id": document.cik,
@@ -268,13 +336,16 @@ class SecCeriProvider:
                 "extraction_confidence": extraction.confidence,
                 "comparison_confidence": extraction.comparison_confidence,
                 "manual_review_required": extraction.management_claim is not None,
-                "announced_at": f"{document.filing_date}T00:00:00+00:00",
                 "source_date": document.filing_date,
                 "comparison_basis": extraction.matched_text,
                 "source_reference": extraction.evidence_locator,
                 "evidence_locator": extraction.evidence_locator,
                 "filing_accession": document.accession_number,
-                "source_timestamp": f"{document.filing_date}T00:00:00+00:00",
+                # SEC acceptance is an external event clock. Submissions does
+                # not separately attest the exact public dissemination instant.
+                "source_timestamp": (
+                    document.accepted_at.isoformat() if document.accepted_at is not None else None
+                ),
             }
             record_id = f"{document.accession_number}:{extraction.evidence_locator}"
             records.append(
@@ -283,9 +354,9 @@ class SecCeriProvider:
                     CeriDataset.GUIDANCE,
                     record_id,
                     payload,
-                    _date_time(document.filing_date),
-                    _date_time(document.filing_date),
                     None,
+                    None,
+                    retrieved_at,
                     ExportPolicy.RESTRICTED.value,
                 )
             )
@@ -298,8 +369,16 @@ class SecCeriProvider:
         return self.resolve_cik(ticker)
 
 
-def _date_time(value: Any) -> datetime:
-    return datetime.fromisoformat(str(value)[:10]).replace(tzinfo=UTC)
+def _parse_acceptance_time(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        timestamp = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if timestamp.utcoffset() is None:
+        return None
+    return timestamp.astimezone(UTC)
 
 
 def _parse_filing_date(value: Any) -> date | None:

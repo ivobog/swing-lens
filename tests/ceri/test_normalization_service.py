@@ -263,7 +263,14 @@ def test_prior_guidance_uses_bounded_sql_lookup() -> None:
     assert "LIMIT 1" in compiled
 
 
-def test_sec_comparison_rechecks_only_provisional_action_rejection() -> None:
+def test_sec_comparison_rechecks_only_provisional_action_rejection(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(FakeDb, "get", lambda *_: SimpleNamespace(cik="0000000042"), raising=False)
+    monkeypatch.setattr(
+        "app.services.ceri.sec.scope_evidence.source_attribution_proved",
+        lambda _db, source, cik: source.provider == "sec" and cik == "0000000042",
+    )
     prior = CeriGuidanceEvent(
         id=71,
         source_record_id=100,

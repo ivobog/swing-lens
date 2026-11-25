@@ -11,6 +11,7 @@ import pytest
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session
 
+from app.models.ceri_tables import CeriGuidanceEvent, CeriSecScopeEvidence, CeriSourceRecord
 from app.models.tables import (
     BackgroundJob,
     BackgroundWorker,
@@ -34,6 +35,7 @@ from app.services.ceri.enums import CeriDataset
 from app.services.ceri.normalization_service import CeriNormalizationService
 from app.services.ceri.orchestration import CeriIngestionRequest, CeriIngestionService
 from app.services.ceri.processing_run_service import CeriProcessingRunService
+from app.services.ceri.sec.scope_evidence import payload, source_attribution_proved
 from app.services.ib_data_fetcher import HistoricalBar
 from app.services.winner_probability.cohort_generation_service import (
     CohortGenerationService,
@@ -60,7 +62,13 @@ from single_run_certification.fixtures import (
     _seed_setup_lifecycle_baseline,
     certification_as_of_session,
 )
-from single_run_certification.frozen_ceri import frozen_ceri_registry
+from single_run_certification.frozen_ceri import (
+    EXACT_TEN,
+    SCALE_SEC_POSSESSED_AT,
+    SCALE_TICKERS,
+    frozen_ceri_registry,
+    scale_sec_filings,
+)
 from single_run_certification.reporting import CertificationRecorder
 from single_run_certification.test_single_run_certification import (
     _launch_run_through_gui,
@@ -70,8 +78,6 @@ from single_run_certification.test_single_run_certification import (
     certification_provider_mode,  # noqa: F401
     certification_setup_capture_handoff_enabled,  # noqa: F401
 )
-
-EXACT_TEN = ("BHE", "BLLN", "KLIC", "LSCC", "PDFS", "ACMR", "RDVT", "AVT", "DVN", "JNJ")
 
 
 @pytest.fixture
@@ -108,7 +114,7 @@ def test_frozen_real_writer_cardinality(
 ):
     env = certification_environment
     golden = env.environment.get("golden_version")
-    tickers = EXACT_TEN + tuple(f"F{index:04d}" for index in range(size - len(EXACT_TEN)))
+    tickers = SCALE_TICKERS[:size]
     with env.csv_path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         fieldnames = reader.fieldnames
@@ -389,6 +395,9 @@ def test_frozen_real_writer_cardinality(
                 ),
                 encoding="utf-8",
             )
+        if size in {88, 100} and env.provider_mode == "deterministic":
+            assert env.environment["scale_sec_test"]
+            _assert_scale_sec_attribution(engine, env, size)
         if size == 10:
             if env.provider_mode == "deterministic":
                 _assert_production_worker_fidelity(engine, env, run_id, pipeline_id)
@@ -415,6 +424,62 @@ def test_frozen_real_writer_cardinality(
                 }, indent=2), encoding="utf-8")
     finally:
         engine.dispose()
+
+
+def _assert_scale_sec_attribution(engine, env, size: int) -> None:
+    filings = {filing.ticker: filing for filing in scale_sec_filings(size)}
+    ticker = CeriSourceRecord.restricted_normalized_json["ticker"].astext
+    with Session(engine) as db:
+        grouped = db.execute(
+            select(ticker, CeriSourceRecord.provider, CeriSourceRecord.dataset, func.count())
+            .where(ticker.in_(filings), CeriSourceRecord.provider.in_(("sec", "eodhd")))
+            .group_by(ticker, CeriSourceRecord.provider, CeriSourceRecord.dataset)
+        ).all()
+        assert {(name, provider, dataset): total for name, provider, dataset, total in grouped} == {
+            (name, provider, dataset): total
+            for name in filings
+            for provider, dataset, total in (
+                ("eodhd", "estimates", 4),
+                ("sec", "guidance", 1),
+                ("eodhd", "catalysts", 1),
+            )
+        }
+        records = db.execute(
+            select(ticker, CeriSourceRecord, CeriGuidanceEvent)
+            .join(CeriGuidanceEvent, CeriGuidanceEvent.source_record_id == CeriSourceRecord.id)
+            .where(ticker.in_(filings), CeriSourceRecord.provider == "sec")
+            .order_by(ticker)
+        ).all()
+        assert len(records) == len(filings) == size
+        witnesses = []
+        for name, source, guidance in records:
+            filing = filings[name]
+            assert (source.provider_record_id, source.source_reference, source.source_timestamp,
+                    source.retrieved_at) == (
+                filing.record_key, filing.locator, SCALE_SEC_POSSESSED_AT, SCALE_SEC_POSSESSED_AT,
+            )
+            assert (guidance.point_value, guidance.currency) == (Decimal(filing.point), "USD")
+            assert source_attribution_proved(db, source, filing.cik)
+            receipts = db.scalars(
+                select(CeriSecScopeEvidence)
+                .where(CeriSecScopeEvidence.ingestion_run_id == source.ingestion_run_id)
+                .order_by(CeriSecScopeEvidence.ordinal)
+            ).all()
+            assert [receipt.kind for receipt in receipts] == [
+                "OPEN", "SELECTED", "DOCUMENT_OUTCOME",
+            ]
+            outcome = payload(receipts[-1])
+            assert outcome["body"]["body_sha256"] == filing.body_sha256
+            assert outcome["sources"] == [{"id": source.id, "hash": source.content_hash}]
+            witnesses.append({
+                "ticker": name, "cik": filing.cik, "source_id": source.id,
+                "source_sha256": source.content_hash, "body_sha256": filing.body_sha256,
+                "possessed_at": source.retrieved_at.isoformat(),
+                "scope_receipts": [receipt.evidence_sha256 for receipt in receipts],
+            })
+    (env.artifact_dir / "db-results" / "scale-sec-attribution.json").write_text(
+        json.dumps(witnesses, indent=2) + "\n", encoding="utf-8",
+    )
 
 
 def _retain_terminal_status_evidence(engine, env, run_id, pipeline_id) -> None:

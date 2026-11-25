@@ -3375,7 +3375,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged extracted deterministic IB adapter and v3 fixture reach real daily conversion for both feeds.",
             "negative": "Exact retained bar identities/values must match and order API use is forbidden; no live claim.",
-            "reviewed_test_sha256": "8b6eef533ee01f72b29345b22b1c5c997a89109f9972c68b06f21dc0fce120ed"
+            "reviewed_test_sha256": "887625fe806c8549a4e1806a550d7bb55cac85d9a1d1c2a037c042f7188f4ef9"
           },
           {
             "id": "tests/test_provider_replay_contracts.py::test_ib_health_live_allowlist_excludes_account_sync_and_always_disconnects",
@@ -3384,7 +3384,7 @@
             "lane": "python-regressions",
             "positive": "Successful low-level handshake/current-time probe is API ready and disconnects.",
             "negative": "Timeout is unavailable and disconnects; any account-sync or other method fails the test allowlist.",
-            "reviewed_test_sha256": "8b6eef533ee01f72b29345b22b1c5c997a89109f9972c68b06f21dc0fce120ed"
+            "reviewed_test_sha256": "887625fe806c8549a4e1806a550d7bb55cac85d9a1d1c2a037c042f7188f4ef9"
           },
           {
             "id": "tests/test_ibmi_activation_assessment.py::test_advisory_acceptance_keeps_partial_and_grants_no_trading_authority",
@@ -4068,7 +4068,7 @@
             "lane": "python-regressions",
             "positive": "Expired reviewed scope terminalizes through the original job.",
             "negative": "Original payload retained with zero provider requests; no rebasing or automatic replacement.",
-            "reviewed_test_sha256": "72690d923470c95c18c9d4655d312d6fa9b22aeb33395a775ab795f4023b9df5"
+            "reviewed_test_sha256": "677414e8d999d9ac958145b7ff3e59cc804369adeb3e5a079ec2251194359583"
           },
           {
             "id": "tests/integration/test_sector_refresh_postgresql.py::test_native_refresh_preserves_pipeline_spy_qqq_pit_manifests_during_revision",
@@ -4077,7 +4077,7 @@
             "lane": "python-regressions",
             "positive": "Concurrent native refresh updates benchmark cache revisions.",
             "negative": "Pipeline frozen OHLCV/manifests, context and run fields remain unchanged.",
-            "reviewed_test_sha256": "72690d923470c95c18c9d4655d312d6fa9b22aeb33395a775ab795f4023b9df5"
+            "reviewed_test_sha256": "677414e8d999d9ac958145b7ff3e59cc804369adeb3e5a079ec2251194359583"
           },
           {
             "id": "tests/test_instrument_symbol_changes.py::test_resolver_qualifies_verified_conid_and_retains_source_ticker",
@@ -4160,7 +4160,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "f1b5e203c7ff31263f2d363b21b2c1d60875524e567c056a3988b2347cde4594",
+        "review_sha256": "9eff89164a65ee50f34b94a4ea3429aebe8eb37b918f2f32ad4cefd291cf2551",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -4345,8 +4345,32 @@
             "symbol": "capture_prospective_revenue"
           },
           {
+            "path": "app/services/ceri/sec/guidance_extractor.py",
+            "symbol": "GuidanceExtractionService.extract"
+          },
+          {
             "path": "app/services/ticker_intelligence_service.py",
             "symbol": "_ceri"
+          },
+          {
+            "path": "scripts/ops/validate_sec_cofiler.py",
+            "symbol": "verify_response"
+          },
+          {
+            "path": "app/services/ceri/sec/scope_evidence.py",
+            "symbol": "generation_ready"
+          },
+          {
+            "path": "app/services/ceri/sec/attribution.py",
+            "symbol": "prove_document_attribution"
+          },
+          {
+            "path": "app/services/ceri/query_service.py",
+            "symbol": "accepted_guidance_at_cutoff"
+          },
+          {
+            "path": "app/services/ceri/guidance_normalizer.py",
+            "symbol": "CeriGuidanceNormalizer.normalize"
           }
         ],
         "impact_patterns": [
@@ -4363,6 +4387,10 @@
           "scripts/ops/ceri_prospective_revenue.py",
           "tests/ceri/test_sec_prospective_operator.py",
           "tests/ceri/test_ceri_signed_revenue_cycles.py",
+          "tests/ceri/test_sec_guidance_outlook_numbers.py",
+          "tests/ceri/test_sec_guidance.py",
+          "tests/ceri/test_sec_processor_capability.py",
+          "tests/ceri/fixtures/sec_guidance_real_corpus_manifest_v1.json",
           "docs/operations/CERI_PROSPECTIVE_REVENUE_CAPTURE.md",
           "app/services/market_calculation_context_service.py",
           "tests/test_provider_replay_contracts.py",
@@ -4501,7 +4529,11 @@
           "tests/integration/test_ceri_run_isolation_remediation.py",
           "tests/integration/test_ceri_systemic_remediation.py",
           "tests/integration/test_sec_readiness_repair_postgresql.py",
-          "tests/test_sec_continuation_executor.py"
+          "tests/test_sec_continuation_executor.py",
+          "tests/ceri/fixtures/pbf-000043-sec-primary.body.gz",
+          "tests/ceri/test_normalization_service.py",
+          "tests/integration/test_sec_incremental_ingestion_postgresql.py",
+          "tests/integration/test_sec_guidance_temporal_postgresql.py"
         ],
         "tests": [
           {
@@ -4575,6 +4607,51 @@
             "positive": "The point-in-time selector retains the eligible current revenue observation and reports missing comparable history.",
             "negative": "Currency, fiscal-period and unit mismatches, late possession, future existence, retrospective trends and too-late baselines cannot produce a revision.",
             "reviewed_test_sha256": "3282df7f95c7e04a1d6cd47629018b273aa9386b8e2000fd0292ce2139ad9adb"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_amzn_sales_range_takes_precedence_over_fx_assumption",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The SEC provider emits the exact USD-billion range and filing lineage from the issuer outlook.",
+            "negative": "An FX assumption is not substituted for sales and no guidance action is inferred without comparison.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_emr_revenue_outlook_retains_explicit_percent_unit",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The current fiscal-year consolidated sales outlook preserves its source percent unit.",
+            "negative": "The extractor does not infer a currency or guidance action.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_ambiguous_ranges_have_no_numeric_outlook",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The extraction boundary preserves the need for comparable monetary endpoints.",
+            "negative": "Mixed currencies and descending forecasts fail closed despite a neighboring numeric FX assumption.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_ccep_split_reaffirmed_sales_growth_preserves_manual_review",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "An adjacent revenue bullet retains the numeric range and reaffirmation with the exact paragraph span.",
+            "negative": "The parser leaves the guidance action unsettled, preserves manual review and requires the explicit reaffirmed context.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
+          },
+          {
+            "id": "tests/ceri/test_sec_guidance_outlook_numbers.py::test_abbv_eps_ranges_use_their_locally_stated_fiscal_period",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Two current EPS ranges retain their independently labeled quarter and fiscal year.",
+            "negative": "Nearby historical-year text does not become an earnings value or swap fiscal periods.",
+            "reviewed_test_sha256": "28d2c49f0edaf88c4265f540bfaaa7bf36a2905e78f0fb0783b3504800185bec"
           },
           {
             "id": "tests/integration/test_ceri_evidence_quarantine_postgresql.py::test_owner_fallback_is_correlated_to_each_snapshot_upload",
@@ -4664,7 +4741,7 @@
             "lane": "python-regressions",
             "positive": "Supported SEC recent arrays yield the exact independent accession witness.",
             "negative": "Non-object JSON is rejected; a cursor-only replacement yields no witness and is detected as incomplete.",
-            "reviewed_test_sha256": "8b6eef533ee01f72b29345b22b1c5c997a89109f9972c68b06f21dc0fce120ed"
+            "reviewed_test_sha256": "887625fe806c8549a4e1806a550d7bb55cac85d9a1d1c2a037c042f7188f4ef9"
           },
           {
             "id": "tests/integration/test_t14c_decision_writer_postgresql.py::test_ceri_completed_work_checkpoints_preserve_atomic_rollback[COMPARISON_COMPLETED:-cancel]",
@@ -4781,7 +4858,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
             "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
-            "reviewed_test_sha256": "251e8ecba11db9a580aeb90f13c1f22aacd25ee818c8297567b2b78d9ae0b527"
+            "reviewed_test_sha256": "eb2690544376bc54becadcd78a7670d02c2125f0394ec8d1707523980ac42c7a"
           },
           {
             "id": "tests/ceri/test_t15d_residual_findings.py::test_deployment_identity_rejects_stale_database_head_and_preserves_historical_identity",
@@ -4790,7 +4867,7 @@
             "lane": "python-regressions",
             "positive": "Unchanged migration bytes reuse the original immutable native head tuple; current schema and historical identity remain distinct.",
             "negative": "Root/file/content/configuration changes, stale database heads, multiple heads, failed reads and changing graphs cannot reuse a passing identity.",
-            "reviewed_test_sha256": "251e8ecba11db9a580aeb90f13c1f22aacd25ee818c8297567b2b78d9ae0b527"
+            "reviewed_test_sha256": "eb2690544376bc54becadcd78a7670d02c2125f0394ec8d1707523980ac42c7a"
           },
           {
             "id": "tests/integration/test_ceri_context_uniqueness.py::test_context_keys_on_postgresql",
@@ -4863,6 +4940,69 @@
             "positive": "An older genuinely attributed owner remains selectable when the newer snapshot loses its owner/context link.",
             "negative": "Removing both context links refuses the current projection despite matching upload histories.",
             "reviewed_test_sha256": "fd08a55636fc85be4494e4d78b81de84270f0a52b66a1248f7896df0744ff31c"
+          },
+          {
+            "id": "tests/ceri/test_sec_cofiler_identity.py::test_real_quarantined_filing_binds_cofilers_and_blocks_financial_attribution",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The retained SEC response and its original wire hash bind c-1 to PBF Energy and c-2/c-3 to PBF Holding.",
+            "negative": "Verified document identity cannot authorize production cache admission or publish financial records.",
+            "reviewed_test_sha256": "ac0bbb4f7f55ae1107e796ad5127431dae07186549e5893b86f072956464b8f4"
+          },
+          {
+            "id": "tests/ceri/test_sec_cofiler_identity.py::test_cik_scope_and_malformed_or_conflicting_roles_fail_closed",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Each negative control starts from the hash-verified retained joint filing and replaces an observed value.",
+            "negative": "Unregistered CIKs, conflicting or duplicate contexts, wrong form, and invalid axes or namespaces are rejected.",
+            "reviewed_test_sha256": "ac0bbb4f7f55ae1107e796ad5127431dae07186549e5893b86f072956464b8f4"
+          },
+          {
+            "id": "tests/ceri/test_sec_cofiler_identity.py::test_another_body_or_archive_path_cannot_borrow_retained_provenance",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The existing archive and wire evidence are independently bound to the retained accession.",
+            "negative": "Index paths, changed bytes or hashes, and a different accession cannot borrow the retained wire evidence.",
+            "reviewed_test_sha256": "ac0bbb4f7f55ae1107e796ad5127431dae07186549e5893b86f072956464b8f4"
+          },
+          {
+            "id": "tests/integration/test_sec_scope_evidence_postgresql.py::test_exact_scope_versioned_ingestion_and_historical_preservation",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "A verified exact single-filer body persists attributed guidance and supports reuse with the original possession and processor.",
+            "negative": "Authentic joint filing refusal, changed membership and changed body hash block current SEC readiness while legacy sync remains intact.",
+            "reviewed_test_sha256": "b536df2c8003e01c8518e427df41975a02dc19c29515d913da2450d8c7240f91"
+          },
+          {
+            "id": "tests/integration/test_sec_scope_evidence_postgresql.py::test_generation_lock_interruption_replay_and_append_only",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "A committed owner reopens the same exact append-only generation after an uncertain response.",
+            "negative": "Interrupted writes, unrelated work, stale workers and attempts to mutate committed evidence cannot publish outcomes.",
+            "reviewed_test_sha256": "b536df2c8003e01c8518e427df41975a02dc19c29515d913da2450d8c7240f91"
+          },
+          {
+            "id": "tests/integration/test_sec_scope_evidence_postgresql.py::test_populated_migration_preserves_held_legacy_source",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "The populated additive migration and an empty-ledger downgrade preserve the original legacy source hash and possession.",
+            "negative": "Unproved held guidance cannot create a new normalized event.",
+            "reviewed_test_sha256": "b536df2c8003e01c8518e427df41975a02dc19c29515d913da2450d8c7240f91"
+          },
+          {
+            "id": "tests/integration/test_sec_guidance_temporal_postgresql.py::test_sec_acceptance_possession_and_session_gate_the_real_selector",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Exact SEC acceptance and local possession preserve same-basis guidance values and a valid New York effective session in native SQL and the in-memory selector.",
+            "negative": "Premature, date-only or quarantined evidence cannot replace legitimately available guidance. Expiration does not revive a superseded predecessor.",
+            "reviewed_test_sha256": "f162ab35af6d56fc96ef6cc2bed69a85e79de16722739f57228adc00e65c40c0"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -4874,7 +5014,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "058d28a22f31972b70afaedd9ede458e12955e444fe5fa8002bb7253ef1aab8b",
+        "review_sha256": "e35269b259178fd6efc8213fea7fd5f2f14961ead439dc8fcc7468c2980794f4",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -5089,7 +5229,7 @@
             "lane": "python-regressions",
             "positive": "Native manual operation persists 26 acquisitions and derives 22 ETF/basis freshness checks.",
             "negative": "Read/status endpoints perform zero provider calls and cannot flush unrelated pending domain writes.",
-            "reviewed_test_sha256": "72690d923470c95c18c9d4655d312d6fa9b22aeb33395a775ab795f4023b9df5"
+            "reviewed_test_sha256": "677414e8d999d9ac958145b7ff3e59cc804369adeb3e5a079ec2251194359583"
           },
           {
             "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_residency_rechecks_seals_and_expires_with_its_transaction",
@@ -5226,7 +5366,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "cced07a41c1d9753f5d942f0eaacf830810d697d51f09f0676aec40dfc6c1321",
+        "review_sha256": "ce490f4490b73664cc173f2b0ee9950bd84cc26323d5894c6fe3fb50f4595eda",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -5476,7 +5616,7 @@
             "lane": "browser-smoke",
             "positive": "Owned ALFA prediction reaches committed matured outcomes and GUI parity.",
             "negative": "Omitting maturation cannot satisfy the reached positive assertion.",
-            "reviewed_test_sha256": "a883029f025ef09c91cad1861fb3d17724589903eb09ba2328e6754626c01934"
+            "reviewed_test_sha256": "10c969d6fae5f6bc36feaf5ec8f85b8cd59dccd287cffa11d36d8fdbbe125048"
           },
           {
             "id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_native_winner_fixture_preserves_v1_readiness_boundary[False]",
@@ -5516,7 +5656,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "6bdb31bd5da780f7e3baa1784911f0a1d550a3e50ced6cd9a64673c3c2e08d7c",
+        "review_sha256": "3b8e128e7b3efc70333b81c6bfb6ee9890a00fdcf917877fa9ca46ec34eebc13",
         "review_addenda": [
           {
             "task": "FR02",
@@ -5624,7 +5764,8 @@
           "tests/test_pipeline_execution_authority.py",
           "tests/test_worker_supervisor_reliability.py",
           "tests/ops/test_lifecycle_powershell.py",
-          "tests/ops/test_lifecycle_safety.py"
+          "tests/ops/test_lifecycle_safety.py",
+          "tests/e2e/test_windows_lifecycle_persistence.py"
         ],
         "tests": [
           {
@@ -5683,7 +5824,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "45b47d4389c7acb84e2e7911a51b38d37f37da62ac4aa70cface9d2c3b619d0e",
+        "review_sha256": "08f727d45588a96cc9b3a2b30b793fb9afe63f9612d9310ae83fb6cae2b8a330",
         "review_addenda": [
           {
             "task": "FR02",
@@ -5912,7 +6053,7 @@
             "lane": "a04",
             "positive": "402 exact rows/26 sections, 541 relations and 15 jobs satisfy 620 gates.",
             "negative": "A14 semantic faults reject missing eligible child, changed ancestry and terminal quality mismatch.",
-            "reviewed_test_sha256": "2321f549e9f7cc6b076241e5dd33b86b31cc992635198fe8622c0c68ff6849f4"
+            "reviewed_test_sha256": "97297605fd0b4f82d6db839f1cae602e90cda854de4811ff144cea7c2a53ad94"
           },
           {
             "id": "tests/e2e/single_run_certification/test_real_writer_cardinality.py::test_frozen_real_writer_cardinality[chromium-True-10]",
@@ -5921,7 +6062,7 @@
             "lane": "a04",
             "positive": "Same original authority with retained Setup handoff enabled.",
             "negative": "Same controlled A14 violations reject at intended gates.",
-            "reviewed_test_sha256": "2321f549e9f7cc6b076241e5dd33b86b31cc992635198fe8622c0c68ff6849f4"
+            "reviewed_test_sha256": "97297605fd0b4f82d6db839f1cae602e90cda854de4811ff144cea7c2a53ad94"
           },
           {
             "id": "tests/test_screenshot_evidence_regions.py::test_bounded_regions_cover_the_entire_document_without_gaps[1440-1000-1]",
@@ -6173,7 +6314,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_file_finalizer_requires_exact_known_capture_owner[True]",
@@ -6182,7 +6323,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-unknown-owner]",
@@ -6191,7 +6332,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-owner]",
@@ -6200,7 +6341,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-run]",
@@ -6209,7 +6350,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-context]",
@@ -6218,7 +6359,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-foreign-cutoff]",
@@ -6227,7 +6368,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-changed-configuration]",
@@ -6236,7 +6377,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-changed-sources]",
@@ -6245,7 +6386,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[False-missing-member]",
@@ -6254,7 +6395,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-unknown-owner]",
@@ -6263,7 +6404,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-owner]",
@@ -6272,7 +6413,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-run]",
@@ -6281,7 +6422,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-context]",
@@ -6290,7 +6431,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-foreign-cutoff]",
@@ -6299,7 +6440,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-changed-configuration]",
@@ -6308,7 +6449,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-changed-sources]",
@@ -6317,7 +6458,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_candidate_immutable_lineage_refuses_owner_and_source_faults[True-missing-member]",
@@ -6326,7 +6467,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_historical_capture_ownership_is_not_reinterpreted[False]",
@@ -6335,7 +6476,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_candidate_pipeline_finalization.py::test_historical_capture_ownership_is_not_reinterpreted[True]",
@@ -6344,7 +6485,7 @@
             "lane": "python-regressions",
             "positive": "Both sealed candidate handoff modes require the exact KNOWN capture parent; historical UNKNOWN remains valid only under its original manifest.",
             "negative": "UNKNOWN/foreign owners, foreign run/context/cutoff, changed configuration/sources, missing members and historical ownership substitution remain noncertified.",
-            "reviewed_test_sha256": "687f3e1fab0fc7a26a471267481160c54f8a9ac16e3de5be847b4d69dc2f8f05"
+            "reviewed_test_sha256": "8a97d44d4099a2c309ae0d6b53c8704589ae42cf59c7b23d29403fd0767514bd"
           },
           {
             "id": "tests/test_forward_quality_v22_resume.py::test_sealed_v22_omission_preserves_source_identity_with_legacy_eligible_readiness",
@@ -6680,7 +6821,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "b3072e52da608deb3deb93edaa2ecae2bdbc1a1c2631ed8b70caa109e0ae32bb",
+        "review_sha256": "a9f595a727fe3598270ceed6117b32dc951b499e3c4963bd4983a5c094e6af5c",
         "review_addenda": [
           {
             "task": "MSI-20261104-renderer",
@@ -7018,7 +7159,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "9067440a4d43199641a35611dc88fdf2db914225cabe52d3d1e1e86017e0b9ae"
+            "reviewed_test_sha256": "b1dcf3ab88b4549f6a185d554ab454597f86e610d587fc53dccfbcc47b24a797"
           },
           {
             "id": "tests/test_ibmi_golden_recertification.py::test_proposal_does_not_select_or_authorize_a_golden",
@@ -7027,7 +7168,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "9067440a4d43199641a35611dc88fdf2db914225cabe52d3d1e1e86017e0b9ae"
+            "reviewed_test_sha256": "b1dcf3ab88b4549f6a185d554ab454597f86e610d587fc53dccfbcc47b24a797"
           },
           {
             "id": "tests/test_ibmi_golden_recertification.py::test_changed_candidate_literals_fail_even_after_prior_success",
@@ -7036,7 +7177,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "9067440a4d43199641a35611dc88fdf2db914225cabe52d3d1e1e86017e0b9ae"
+            "reviewed_test_sha256": "b1dcf3ab88b4549f6a185d554ab454597f86e610d587fc53dccfbcc47b24a797"
           },
           {
             "id": "tests/test_ibmi_golden_recertification.py::test_candidate_cannot_claim_promotion_or_reuse_another_binding",
@@ -7045,7 +7186,7 @@
             "lane": "python-regressions",
             "positive": "Reviewed approved-policy/configuration boundary is preserved; exact assertions remain in the named case.",
             "negative": "Invalid admission, stale identity/precision, mixed degradation, lost historical seals or premature activation cannot substitute for the declared proof; case-specific scope is retained.",
-            "reviewed_test_sha256": "9067440a4d43199641a35611dc88fdf2db914225cabe52d3d1e1e86017e0b9ae"
+            "reviewed_test_sha256": "b1dcf3ab88b4549f6a185d554ab454597f86e610d587fc53dccfbcc47b24a797"
           },
           {
             "id": "tests/test_ibmi_golden_recertification.py::test_native_browser_candidate_selection_refuses_a_stale_adapter",
@@ -7054,7 +7195,7 @@
             "lane": "python-regressions",
             "positive": "A fresh isolated native browser adapter validates and selects the complete proposed candidate.",
             "negative": "An adapter initialized against historical data cannot silently substitute for the declared native candidate.",
-            "reviewed_test_sha256": "9067440a4d43199641a35611dc88fdf2db914225cabe52d3d1e1e86017e0b9ae"
+            "reviewed_test_sha256": "b1dcf3ab88b4549f6a185d554ab454597f86e610d587fc53dccfbcc47b24a797"
           },
           {
             "id": "tests/test_c06_golden_contract.py::test_reviewed_c06_rekeys_and_runtime_flags",
@@ -7092,7 +7233,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "adbb2f854a4529542fb773ac51c0d34482b03fcb79f6414e14d9dd24362f6601",
+        "review_sha256": "6998b30b6f672878377ad9fe1760a5b28414213615d7590e1057ca0a20eb6b47",
         "policy_amendment": {
           "id": "A13-R10",
           "date": "2026-11-01",
