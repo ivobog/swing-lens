@@ -4068,7 +4068,7 @@
             "lane": "python-regressions",
             "positive": "Expired reviewed scope terminalizes through the original job.",
             "negative": "Original payload retained with zero provider requests; no rebasing or automatic replacement.",
-            "reviewed_test_sha256": "72690d923470c95c18c9d4655d312d6fa9b22aeb33395a775ab795f4023b9df5"
+            "reviewed_test_sha256": "677414e8d999d9ac958145b7ff3e59cc804369adeb3e5a079ec2251194359583"
           },
           {
             "id": "tests/integration/test_sector_refresh_postgresql.py::test_native_refresh_preserves_pipeline_spy_qqq_pit_manifests_during_revision",
@@ -4077,7 +4077,7 @@
             "lane": "python-regressions",
             "positive": "Concurrent native refresh updates benchmark cache revisions.",
             "negative": "Pipeline frozen OHLCV/manifests, context and run fields remain unchanged.",
-            "reviewed_test_sha256": "72690d923470c95c18c9d4655d312d6fa9b22aeb33395a775ab795f4023b9df5"
+            "reviewed_test_sha256": "677414e8d999d9ac958145b7ff3e59cc804369adeb3e5a079ec2251194359583"
           },
           {
             "id": "tests/test_instrument_symbol_changes.py::test_resolver_qualifies_verified_conid_and_retains_source_ticker",
@@ -4160,7 +4160,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "f8da0178d15194329eeb6a4f98c9405e3b55e1172940cf2033bb2e6930145770",
+        "review_sha256": "9eff89164a65ee50f34b94a4ea3429aebe8eb37b918f2f32ad4cefd291cf2551",
         "review_addenda": [
           {
             "task": "MSI-20261103",
@@ -5229,7 +5229,7 @@
             "lane": "python-regressions",
             "positive": "Native manual operation persists 26 acquisitions and derives 22 ETF/basis freshness checks.",
             "negative": "Read/status endpoints perform zero provider calls and cannot flush unrelated pending domain writes.",
-            "reviewed_test_sha256": "72690d923470c95c18c9d4655d312d6fa9b22aeb33395a775ab795f4023b9df5"
+            "reviewed_test_sha256": "677414e8d999d9ac958145b7ff3e59cc804369adeb3e5a079ec2251194359583"
           },
           {
             "id": "tests/integration/test_t14b_writer_authority_postgresql.py::test_sector_residency_rechecks_seals_and_expires_with_its_transaction",
@@ -5366,7 +5366,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "cced07a41c1d9753f5d942f0eaacf830810d697d51f09f0676aec40dfc6c1321",
+        "review_sha256": "ce490f4490b73664cc173f2b0ee9950bd84cc26323d5894c6fe3fb50f4595eda",
         "review_addenda": [
           {
             "task": "MSI-20261103",
