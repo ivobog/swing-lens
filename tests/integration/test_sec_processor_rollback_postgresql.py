@@ -45,7 +45,7 @@ def approval(promotion_id):
         qualification_sha256="5" * 64,
         database_fingerprint="6" * 64,
         database_principal="test",
-        alembic_head="0096_ceri_native_context",
+        alembic_head="0097_sec_scope_evidence",
         operator="uid:test",
         reason="Candidate startup failed after committed promotion",
         starts_at=now - timedelta(minutes=1),
@@ -121,6 +121,7 @@ def rollback_engine(disposable_postgres_database, monkeypatch):
             db, processor_signature=V3, evidence={"test_run": run_id}, actor="test"
         )
         lifecycle.promote_processor(db, processor_signature=V3, actor="test")
+        monkeypatch.setattr(lifecycle, "sec_guidance_processor_signature", lambda: V3)
         lifecycle.require_deployed_processor_active(db)
         monkeypatch.setattr(lifecycle, "sec_guidance_processor_signature", lambda: V4)
         lifecycle.register_deployed_processor(
@@ -229,6 +230,38 @@ def test_exact_rollback_survives_interruption_concurrency_and_lost_ack(
         with pytest.raises(ValueError, match="no longer reversible"):
             _reverse(db, signed)
     assert _snapshot(engine) == final
+
+
+
+def test_promotion_commit_boundary_and_stale_certification(rollback_engine):
+    engine, run_id = rollback_engine
+    original = _snapshot(engine)
+    with Session(engine) as first:
+        candidate = lifecycle.promote_processor(
+            first,
+            processor_signature=V4,
+            actor="operator",
+            rollback_run_id=run_id,
+            rollback_candidate_git=GIT,
+        )
+        uncommitted = candidate.certification_evidence_json[rollback.PROMOTION_RECEIPT]
+        assert _snapshot(engine) == original
+        with Session(engine) as competing, pytest.raises(OperationalError):
+            _reverse(competing, approval(uncommitted["id"]))
+        # Controller disconnect before commit must also discard the promotion receipt.
+    assert _snapshot(engine) == original
+
+    signed = _promote(engine, run_id)
+    committed = _snapshot(engine)
+    assert committed[0][V4][3][rollback.PROMOTION_RECEIPT]["id"] == signed.promotion_id
+    with Session(engine) as db, db.begin():
+        lifecycle.certify_processor(
+            db, processor_signature=V4, evidence={"changed": True}, actor="new-certifier"
+        )
+    changed = _snapshot(engine)
+    with Session(engine) as db, pytest.raises(ValueError, match="no longer reversible"):
+        _reverse(db, signed)
+    assert _snapshot(engine) == changed
 
 
 def test_rejects_unrelated_expired_changed_or_intervening_transition(rollback_engine):

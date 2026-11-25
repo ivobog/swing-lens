@@ -5008,7 +5008,7 @@
             "lane": "python-regressions",
             "positive": "A verified exact single-filer body persists attributed guidance and supports reuse with the original possession and processor.",
             "negative": "Authentic joint filing refusal, changed membership and changed body hash block current SEC readiness while legacy sync remains intact.",
-            "reviewed_test_sha256": "b536df2c8003e01c8518e427df41975a02dc19c29515d913da2450d8c7240f91"
+            "reviewed_test_sha256": "6b416cce154bef1d42ebfa3138a5e3508073baf74f4887e62b365595b849fa7e"
           },
           {
             "id": "tests/integration/test_sec_scope_evidence_postgresql.py::test_generation_lock_interruption_replay_and_append_only",
@@ -5017,7 +5017,7 @@
             "lane": "python-regressions",
             "positive": "A committed owner reopens the same exact append-only generation after an uncertain response.",
             "negative": "Interrupted writes, unrelated work, stale workers and attempts to mutate committed evidence cannot publish outcomes.",
-            "reviewed_test_sha256": "b536df2c8003e01c8518e427df41975a02dc19c29515d913da2450d8c7240f91"
+            "reviewed_test_sha256": "6b416cce154bef1d42ebfa3138a5e3508073baf74f4887e62b365595b849fa7e"
           },
           {
             "id": "tests/integration/test_sec_scope_evidence_postgresql.py::test_populated_migration_preserves_held_legacy_source",
@@ -5026,7 +5026,7 @@
             "lane": "python-regressions",
             "positive": "The populated additive migration and an empty-ledger downgrade preserve the original legacy source hash and possession.",
             "negative": "Unproved held guidance cannot create a new normalized event.",
-            "reviewed_test_sha256": "b536df2c8003e01c8518e427df41975a02dc19c29515d913da2450d8c7240f91"
+            "reviewed_test_sha256": "6b416cce154bef1d42ebfa3138a5e3508073baf74f4887e62b365595b849fa7e"
           },
           {
             "id": "tests/integration/test_sec_guidance_temporal_postgresql.py::test_sec_acceptance_possession_and_session_gate_the_real_selector",
@@ -5062,7 +5062,7 @@
             "lane": "python-regressions",
             "positive": "A recorded rollback restores only the exact predecessor and preserves every scope sync row.",
             "negative": "An uncommitted reversal, contending connection, or replay cannot make a second durable transition.",
-            "reviewed_test_sha256": "4b35f9cc6d7d9fa44f9926d3af93fa1a82d1acb1352dce4c4afa322e9fc8c9a2"
+            "reviewed_test_sha256": "e72ba870b0f4f8ee4041e2fe01aad3d8d5f3d639ac1d1e472f58d3e0c5fe5bf9"
           },
           {
             "id": "tests/integration/test_sec_processor_rollback_postgresql.py::test_rejects_unrelated_expired_changed_or_intervening_transition",
@@ -5071,7 +5071,7 @@
             "lane": "python-regressions",
             "positive": "The exact committed transition state can be read before and after a rejection.",
             "negative": "Unrelated signatures, a different Git revision, expiry, a changed readiness seal and an intervening promotion are rejected.",
-            "reviewed_test_sha256": "4b35f9cc6d7d9fa44f9926d3af93fa1a82d1acb1352dce4c4afa322e9fc8c9a2"
+            "reviewed_test_sha256": "e72ba870b0f4f8ee4041e2fe01aad3d8d5f3d639ac1d1e472f58d3e0c5fe5bf9"
           },
           {
             "id": "tests/integration/test_sec_processor_rollback_postgresql.py::test_incomplete_scope_blocks_recoverable_promotion",
@@ -5080,7 +5080,7 @@
             "lane": "python-regressions",
             "positive": "The previously active release and its readiness remain intact on a failed preparation.",
             "negative": "Incomplete candidate readiness cannot create an actionable promotion receipt.",
-            "reviewed_test_sha256": "4b35f9cc6d7d9fa44f9926d3af93fa1a82d1acb1352dce4c4afa322e9fc8c9a2"
+            "reviewed_test_sha256": "e72ba870b0f4f8ee4041e2fe01aad3d8d5f3d639ac1d1e472f58d3e0c5fe5bf9"
           },
           {
             "id": "tests/integration/test_sec_processor_rollback_postgresql.py::test_running_lease_denies_rollback",
@@ -5089,7 +5089,7 @@
             "lane": "python-regressions",
             "positive": "The exact promoted state is preserved when durable work is present.",
             "negative": "A running database job prevents rollback.",
-            "reviewed_test_sha256": "4b35f9cc6d7d9fa44f9926d3af93fa1a82d1acb1352dce4c4afa322e9fc8c9a2"
+            "reviewed_test_sha256": "e72ba870b0f4f8ee4041e2fe01aad3d8d5f3d639ac1d1e472f58d3e0c5fe5bf9"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -5101,7 +5101,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "da850c97a7fca796d3a10607fe8c1611dc2a0913d6c15ee2bbfbe7b219e3fc18",
+        "review_sha256": "87da57a5e83532b926ce688e8a011a0d141e1f20a6e429fcf71db36ac00e2a6f",
         "review_addenda": [
           {
             "task": "MSI-20261103",

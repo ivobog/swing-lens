@@ -33,6 +33,7 @@ from app.services.ceri.sec.attribution import SecAttributionRefused
 from app.services.ceri.sec.content_cache import SecDocumentContentCache
 from app.services.ceri.sec.pipeline_preflight import validate_sec_pipeline_preflight
 from app.services.ceri.sec.processor_lifecycle import certify_processor, promote_processor
+from app.services.ceri.sec.processor_rollback import _readiness_seal
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.ceri.sec.provider import SecCeriProvider, SecGuidanceDocument
 from app.services.ceri.sec.readiness_diagnostics import diagnose_sec_readiness
@@ -300,6 +301,25 @@ def test_exact_scope_versioned_ingestion_and_historical_preservation(scope_engin
     result = _alembic(url, "downgrade", "0096_ceri_native_context", check=False)
     assert result.returncode != 0 and "SEC scope evidence must be retained" in result.stderr
 
+
+
+def test_rollback_readiness_seal_binds_exact_scope_generation(scope_engine, tmp_path):
+    engine, _ = scope_engine
+    with Session(engine) as db:
+        predecessor_seal = _readiness_seal(db, ("PBF",), V3)
+        client = OfflineSEC()
+        first = _ingest(db, tmp_path, client, "seal-first", SecDocumentIncrementalMode.SHADOW)
+        assert first.run_evidence_status == "READY"
+        assert _ready(db)
+        first_seal = _readiness_seal(db, ("PBF",), SIGNATURE)
+        assert _readiness_seal(db, ("PBF",), SIGNATURE) == first_seal
+
+        second = _ingest(db, tmp_path, client, "seal-second", SecDocumentIncrementalMode.SHADOW)
+        assert second.run_evidence_status == "READY"
+        assert _ready(db)
+        assert second.ingestion_run_id != first.ingestion_run_id
+        assert _readiness_seal(db, ("PBF",), SIGNATURE) != first_seal
+        assert _readiness_seal(db, ("PBF",), V3) == predecessor_seal
 
 def _owned_run(db, key, *, scope_kind="ceri-source-acquisition"):
     authority = admit_frozen_operation(

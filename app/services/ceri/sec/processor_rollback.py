@@ -7,10 +7,10 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app.models.ceri_tables import CeriSecProcessorRelease, CeriSecSyncState
+from app.models.ceri_tables import CeriSecProcessorRelease, CeriSecScopeEvidence, CeriSecSyncState
 from app.models.tables import RawCompanyRow
 from app.services.ceri.sec.readiness_diagnostics import diagnose_sec_readiness
 from app.services.runtime_mutation_authority import (
@@ -68,7 +68,8 @@ def _lock_scope(db: Session) -> None:
     db.execute(
         text(
             "LOCK TABLE background_jobs, ceri_sec_document_extractions, "
-            "ceri_sec_sync_states, ceri_companies, raw_company_rows, "
+            "ceri_sec_sync_states, ceri_sec_scope_evidence, ceri_sec_filing_documents, "
+            "ceri_companies, raw_company_rows, "
             "background_workers, background_supervisors IN SHARE MODE NOWAIT"
         )
     )
@@ -90,22 +91,42 @@ def _readiness_seal(db: Session, tickers: tuple[str, ...], signature: str) -> st
         )
         .order_by(CeriSecSyncState.cik)
     ).all()
-    return _digest(
-        {
-            "cohort": readiness.as_dict(),
-            "sync": [
-                (
-                    r.id,
-                    r.cik,
-                    r.bootstrap_completed_at,
-                    r.last_discovered_at,
-                    r.latest_filing_date,
-                    r.document_count,
-                )
-                for r in rows
-            ],
-        }
+    seal = {
+        "cohort": readiness.as_dict(),
+        "sync": [
+            (
+                r.id,
+                r.cik,
+                r.bootstrap_completed_at,
+                r.last_discovered_at,
+                r.latest_filing_date,
+                r.document_count,
+            )
+            for r in rows
+        ],
+    }
+    evidence = CeriSecScopeEvidence
+    predicate = (
+        evidence.cik.in_(ciks),
+        evidence.dataset == "guidance",
+        evidence.processor_signature == signature,
     )
+    latest = (
+        select(evidence.cik, func.max(evidence.generation).label("generation"))
+        .where(*predicate)
+        .group_by(evidence.cik)
+        .subquery()
+    )
+    events = db.execute(
+        select(evidence.cik, evidence.generation, evidence.ordinal, evidence.evidence_sha256)
+        .join(latest, (evidence.cik == latest.c.cik) & (evidence.generation == latest.c.generation))
+        .where(*predicate)
+        .order_by(evidence.cik, evidence.ordinal)
+    ).all()
+    if events:
+        # A generation's event hashes bind selection, possession and outcomes.
+        seal["scope_evidence"] = [tuple(event) for event in events]
+    return _digest(seal)
 
 
 def record_recoverable_promotion(
