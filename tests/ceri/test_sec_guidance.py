@@ -37,6 +37,8 @@ def test_forecast_evidence_cannot_borrow_an_unrelated_amount_or_scope() -> None:
         "payment of USD 140 million in fiscal year 2027.",
         "The company reported consolidated revenue of USD 140 million for fiscal year 2025. "
         "The fiscal year 2027 guidance will be released later.",
+        "In 2025, we experienced increases in revenues of approximately USD 9.4 million. "
+        "The exchange rate cannot be forecasted with reliable accuracy.",
     ):
         assert all(
             row.point_value is None and row.low_value is None and row.high_value is None

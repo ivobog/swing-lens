@@ -352,7 +352,7 @@ def _parse_guidance_rows(text: str) -> list[_ParsedRow]:
 _CLAUSE_END = re.compile(r"(?<=[.!?;])\s+")
 _FORECAST_VERB = (
     r"(?:expect(?:s|ed)?|forecast(?:s|ed)?|project(?:s|ed)?|anticipate(?:s|d)?|"
-    r"guides?|targets?|raise[sd]?|raising|increases?|increasing|lowers?|lowering|maintains?|"
+    r"guides?|targets?|raise[sd]?|raising|increases?(?!\s+in\b)|increasing|lowers?|lowering|maintains?|"
     r"reaffirm(?:s|ed)?|confirm(?:s|ed)?|initiate[sd]?|issues?)"
 )
 _FORECAST_LEAD = re.compile(
