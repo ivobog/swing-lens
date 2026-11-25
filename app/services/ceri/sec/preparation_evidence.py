@@ -158,11 +158,11 @@ def _identity_consistent(content: str, cik: str, form: str) -> bool:
         parser = ET.iterparse(io.StringIO(content), events=("start-ns", "end"))
         for event, value in parser:
             if event == "start-ns":
-                bindings.setdefault(value[0], set()).add(value[1])
+                bindings.setdefault(value[0], {})[value[1]] = None
         root = parser.root
     except (ET.ParseError, ValueError):
         return False
-    contexts = set()
+    contexts = {}
     for node in root.iter(XBRLI + "context"):
         ref = node.get("id")
         entities = node.findall(f"./{XBRLI}entity/{XBRLI}identifier")
@@ -172,7 +172,7 @@ def _identity_consistent(content: str, cik: str, form: str) -> bool:
             or not _is_cik(entities[0].text, cik)
         ):
             return False
-        contexts.add(ref)
+        contexts[ref] = entities[0]
     for tag in ("nonNumeric", "nonFraction", "fraction"):
         for fact in root.iter(INLINE + tag):
             if fact.get("contextRef") not in contexts:

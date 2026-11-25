@@ -10,6 +10,8 @@ from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canon
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.preparation_visibility import PREPARATION_SOURCE
 from app.services.ceri.source_record_service import source_record_content_hash
+from app.services.domain_mutation import MutationDomain, MutationSemanticMode
+from app.services.source_mutation_authority import source_mutation_writer
 
 
 @dataclass(frozen=True)
@@ -28,6 +30,9 @@ class PreparationSourceOwner:
         return f"sec-cache-preparation:{fingerprint}"
 
 
+@source_mutation_writer(
+    MutationDomain.CERI_SOURCE, "provider_source", mode=MutationSemanticMode.MAINTENANCE,
+)
 def retain_prepared_sources(db, *, owner, filing, body, records):
     """Called under the ingestion generation lock after the native guard passes."""
     table = CeriSourceRecord.__table__
