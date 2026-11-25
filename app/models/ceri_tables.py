@@ -664,6 +664,48 @@ class CeriSecDocumentExtraction(Base):
     )
 
 
+class CeriSecScopeEvidence(Base):
+    """A sealed event for an exact SEC guidance selection generation."""
+
+    __tablename__ = "ceri_sec_scope_evidence"
+
+    cik: Mapped[str] = mapped_column(String(10), primary_key=True)
+    dataset: Mapped[str] = mapped_column(String(64), primary_key=True)
+    processor_signature: Mapped[str] = mapped_column(String(96), primary_key=True)
+    generation: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    ordinal: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    ingestion_run_id: Mapped[int] = mapped_column(
+        ForeignKey("ceri_ingestion_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    scope_id: Mapped[str] = mapped_column(
+        ForeignKey("work_scope_records.scope_id", ondelete="RESTRICT"), nullable=False
+    )
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    evidence: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("cik ~ '^[0-9]{10}$' AND dataset = 'guidance'", name="ck_sec_scope_issuer"),
+        CheckConstraint(
+            "generation > 0 AND ("
+            "(ordinal = 0 AND kind = 'OPEN') OR (ordinal = 1 AND kind = 'SELECTED') OR "
+            "(ordinal > 1 AND kind IN ('DOCUMENT_OUTCOME', 'ATTRIBUTION_REFUSAL')))",
+            name="ck_sec_scope_event_order",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(evidence::jsonb) = 'object' AND "
+            "evidence_sha256 = encode(sha256(convert_to(evidence, 'UTF8')), 'hex')",
+            name="ck_sec_scope_evidence_seal",
+        ),
+        Index(
+            "uq_sec_scope_open_run", "ingestion_run_id", "cik", "dataset", "processor_signature",
+            unique=True, postgresql_where=text("kind = 'OPEN'"),
+        ),
+    )
+
+
+
 class CeriSecSyncState(Base):
     """Certification boundary preventing an ACTIVE cold sync from becoming a backfill."""
 
