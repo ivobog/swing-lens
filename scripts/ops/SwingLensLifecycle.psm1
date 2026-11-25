@@ -58,7 +58,13 @@ function Invoke-LifecycleProbe {
     finally { $ErrorActionPreference = $previousPreference }
     $text = ($output | ForEach-Object { [string]$_ }) -join "`n"
     if ($exitCode -ne 0) { throw ('Lifecycle probe failed: ' + (Protect-SwingLensText $text)) }
-    try { return $text | ConvertFrom-Json }
+    $stdout = ($output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } |
+        ForEach-Object { [string]$_ }) -join "`n"
+    try {
+        $payload = $stdout | ConvertFrom-Json
+        if ($null -eq $payload) { throw 'Missing lifecycle probe payload' }
+        return $payload
+    }
     catch { throw ('Lifecycle probe returned invalid output: ' + (Protect-SwingLensText $text)) }
 }
 

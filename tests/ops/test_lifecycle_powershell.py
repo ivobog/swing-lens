@@ -54,6 +54,38 @@ def test_module_defaults_cannot_write_live_runtime_paths(tmp_path):
 
 
 @pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+@pytest.mark.parametrize(
+    ("stdout", "exit_code", "expected"),
+    [
+        ('{"verified":true}', 0, "True"),
+        ('{"verified":true}', 1, "diagnostic"),
+        ("not JSON", 0, "not JSON"),
+        ("", 0, "diagnostic"),
+    ],
+)
+def test_lifecycle_probe_reads_only_structured_stdout(tmp_path, stdout, exit_code, expected):
+    probe = tmp_path / "scripts/ops/lifecycle_probe.py"
+    probe.parent.mkdir(parents=True)
+    probe.write_text(
+        f"import sys\nsys.stdout.write({stdout!r})\nprint('diagnostic', file=sys.stderr)\n"
+        f"sys.exit({exit_code})\n",
+        encoding="utf-8",
+    )
+    python = sys.executable.replace("'", "''")
+    command = _module_command(
+        f"function Get-SwingLensPython {{ '{python}' }}; "
+        "(Invoke-LifecycleProbe -Command fixture).verified"
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    if stdout == '{"verified":true}' and exit_code == 0:
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == expected
+    else:
+        assert result.returncode != 0
+        assert expected in result.stderr or expected in result.stdout
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
 @pytest.mark.parametrize("shutdown", [False, True])
 def test_generation_exception_is_explicitly_limited_to_shutdown(shutdown):
     suffix = " -ForShutdown" if shutdown else ""
