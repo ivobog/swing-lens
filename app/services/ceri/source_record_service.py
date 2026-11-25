@@ -21,6 +21,10 @@ from app.services.ceri.deployment_identity import (
 )
 from app.services.ceri.dtos import RawProviderRecord
 from app.services.ceri.observability import ceri_log_event, ceri_metrics
+from app.services.ceri.preparation_visibility import (
+    PREPARATION_REQUEST_PREFIX,
+    is_preparation_source,
+)
 from app.services.ceri.provider_registry import provider_storage_projection
 from app.services.domain_mutation import MutationDomain
 from app.services.source_mutation_authority import source_mutation_writer
@@ -50,10 +54,13 @@ class CeriSourceRecordService:
         calculation_version: str | None = None,
         semantic_authority=None,
     ) -> CeriIngestionRun:
-        existing = _maybe_scalar(
-            db,
-            select(CeriIngestionRun).where(CeriIngestionRun.request_key == request_key),
-        )
+        statement = select(CeriIngestionRun).where(CeriIngestionRun.request_key == request_key)
+        if request_key.startswith(PREPARATION_REQUEST_PREFIX):
+            table = CeriIngestionRun.__table__
+            statement = select(CeriIngestionRun).from_statement(
+                select(table).where(table.c.request_key == request_key)
+            )
+        existing = _maybe_scalar(db, statement)
         if existing is not None:
             if semantic_authority is not None:
                 from app.services.scope_refresh_adoption import bind_semantic_authority
@@ -110,6 +117,8 @@ class CeriSourceRecordService:
         record: RawProviderRecord,
         raw_payload_allowed: bool,
     ) -> SourceRecordWriteResult:
+        if is_preparation_source(record):
+            raise ValueError("SEC_PREPARATION_SOURCE_REQUIRES_PREPARATION_AUTHORITY")
         content_hash = source_record_content_hash(record.payload)
         idempotency_key = source_record_idempotency_key(
             record.provider,
@@ -305,7 +314,7 @@ class CeriSourceRecordService:
         """Associate already verified immutable facts with this acquisition run."""
         for source_id in source_ids:
             source = db.get(CeriSourceRecord, source_id)
-            if source is None or source.quarantine_reason:
+            if source is None or is_preparation_source(source) or source.quarantine_reason:
                 raise ValueError("SEC_REUSED_SOURCE_UNAVAILABLE")
             _associate_source_record(
                 db, ingestion_run_id=ingestion_run_id, source=source, outcome="DEDUPLICATED"

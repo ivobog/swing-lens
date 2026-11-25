@@ -8,6 +8,7 @@ from sqlalchemy import and_, func, or_
 
 from app.models.ceri_tables import CeriEstimateSnapshot, CeriSourceRecord
 from app.models.tables import PriceBar
+from app.services.ceri.preparation_visibility import PREPARATION_SOURCE, is_preparation_source
 
 
 def source_record_known_at(record: CeriSourceRecord) -> datetime | None:
@@ -19,6 +20,8 @@ def source_record_known_at(record: CeriSourceRecord) -> datetime | None:
     conservative legacy fallback.  If neither exists, point-in-time use fails closed.
     """
 
+    if is_preparation_source(record):
+        return None
     return _aware(record.retrieved_at) or _aware(record.ingested_at)
 
 
@@ -87,7 +90,10 @@ def eligible_source_record_ids(
 def source_record_knowledge_predicate(cutoff_at: datetime):
     """SQL predicate matching :func:`source_record_known_at`."""
 
-    return func.coalesce(CeriSourceRecord.retrieved_at, CeriSourceRecord.ingested_at) <= cutoff_at
+    return and_(
+        CeriSourceRecord.dataset != PREPARATION_SOURCE,
+        func.coalesce(CeriSourceRecord.retrieved_at, CeriSourceRecord.ingested_at) <= cutoff_at,
+    )
 
 
 def source_record_historical_eligibility_predicate(cutoff_at: datetime):

@@ -12,7 +12,12 @@ from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriSecProcessorRelease, CeriSecScopeEvidence, CeriSecSyncState
 from app.models.tables import RawCompanyRow
+from app.services.ceri.sec.processor_signature import (
+    SEC_SCOPE_EVIDENCE_VERSION,
+    scope_evidence_contract,
+)
 from app.services.ceri.sec.readiness_diagnostics import diagnose_sec_readiness
+from app.services.ceri.sec.scope_evidence import OPEN, SELECTED, payload
 from app.services.runtime_mutation_authority import (
     MutationCapability,
     RuntimeMutationAuthority,
@@ -129,6 +134,47 @@ def _readiness_seal(db: Session, tickers: tuple[str, ...], signature: str) -> st
     return _digest(seal)
 
 
+def seal_prepared_scope(db, *, tickers, signature, preparation_sha256):
+    """Bind the exact completed owner-authorized frozen scope to certification."""
+    if not re.fullmatch(SHA_PATTERN, preparation_sha256 or ""):
+        raise ValueError("An exact SEC preparation scope digest is required.")
+    _lock_scope(db)
+    db.execute(text(
+        "LOCK TABLE work_scope_records, work_scope_members, ceri_ingestion_runs, "
+        "ceri_source_records, ceri_ingestion_run_source_records, ceri_guidance_events "
+        "IN SHARE MODE NOWAIT"
+    ))
+    readiness = diagnose_sec_readiness(db, tickers=tickers, processor_signature=signature)
+    ciks = {cik for item in readiness.tickers for cik in item.ciks}
+    exemptions = {
+        item.ticker for item in readiness.tickers if item.category == "SEC_NOT_APPLICABLE"
+    }
+    if len(tickers) != 516 or len(ciks) != 514 or exemptions != {"NBN", "TOWN"}:
+        raise ValueError("SEC preparation certification requires the full 514-CIK cohort.")
+    if not readiness.complete:
+        raise ValueError("SEC preparation certification requires every filing obligation.")
+    evidence = CeriSecScopeEvidence
+    latest = (
+        select(evidence.cik, func.max(evidence.generation).label("generation"))
+        .where(evidence.cik.in_(ciks), evidence.processor_signature == signature)
+        .group_by(evidence.cik).subquery()
+    )
+    events = db.scalars(select(evidence).join(latest, (
+        (latest.c.cik == evidence.cik) & (latest.c.generation == evidence.generation)
+    )).where(
+        evidence.processor_signature == signature, evidence.kind.in_((OPEN, SELECTED)),
+    )).all()
+    opened = [item for item in events if item.kind == OPEN]
+    selected = [item for item in events if item.kind == SELECTED]
+    if (
+        len(opened) != 514 or len(selected) != 514
+        or any(payload(item).get("preparation_sha256") != preparation_sha256 for item in opened)
+        or sum(len(payload(item)["required"]) for item in selected) != 2570
+    ):
+        raise ValueError("SEC preparation scope has changed or contains foreign evidence.")
+    return _readiness_seal(db, tuple(tickers), signature)
+
+
 def record_recoverable_promotion(
     db: Session,
     *,
@@ -158,6 +204,13 @@ def record_recoverable_promotion(
     tickers = certified_run_tickers(db, run_id)
     if candidate.certification_evidence_json.get("scope_tickers") != list(tickers):
         raise ValueError("The promoted run cohort changed after certification.")
+    if scope_evidence_contract(candidate.processor_signature) == SEC_SCOPE_EVIDENCE_VERSION:
+        preparation = candidate.certification_evidence_json.get("preparation_scope")
+        if preparation is not None and preparation["readiness_seal"] != seal_prepared_scope(
+            db, tickers=tickers, signature=candidate.processor_signature,
+            preparation_sha256=preparation["digest"],
+        ):
+            raise ValueError("The exact certified SEC preparation receipt has changed.")
     return {
         "id": uuid4().hex,
         "predecessor": predecessor.processor_signature,

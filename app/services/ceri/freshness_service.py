@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 from app.models.ceri_tables import CeriIngestionRun, CeriSourceRecord
 from app.services.ceri.constants import CERI_DAILY_CUTOFF_TIMEZONE
+from app.services.ceri.preparation_visibility import is_preparation_run
 
 
 class FreshnessTimestampError(ValueError):
@@ -232,7 +233,9 @@ def _feed_state(
 
 
 def _successful(run: CeriIngestionRun) -> bool:
-    return run.status == "COMPLETED" and run.completed_at is not None
+    return (
+        not is_preparation_run(run) and run.status == "COMPLETED" and run.completed_at is not None
+    )
 
 
 def _as_utc(value: datetime) -> datetime:

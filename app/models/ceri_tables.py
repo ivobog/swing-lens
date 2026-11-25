@@ -26,6 +26,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.services.ceri.preparation_visibility import install_preparation_visibility
 from app.services.configuration_artifact_immutability import seal_configuration_member
 
 
@@ -1631,3 +1632,5 @@ seal_configuration_member(
         "cooldown_scope",
     ),
 )
+
+install_preparation_visibility(CeriSourceRecord, CeriIngestionRun)

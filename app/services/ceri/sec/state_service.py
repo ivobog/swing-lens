@@ -404,10 +404,10 @@ class SecDocumentStateService:
     def is_bootstrap_certified(
         self, db: Session, *, cik: str, dataset: str, processor_signature: str
     ) -> bool:
-        from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+        from app.services.ceri.sec.processor_signature import scope_evidence_contract
         from app.services.ceri.sec.scope_evidence import generation_ready
 
-        if processor_signature == sec_guidance_processor_signature():
+        if scope_evidence_contract(processor_signature) is not None:
             return dataset == "guidance" and generation_ready(
                 db, _normalize_cik(cik), processor_signature,
             )

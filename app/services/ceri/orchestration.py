@@ -23,9 +23,11 @@ from app.services.ceri.dtos import (
     RawProviderRecord,
 )
 from app.services.ceri.enums import CatalystCategory, CeriDataset
+from app.services.ceri.preparation_visibility import PREPARATION_REQUEST_PREFIX
 from app.services.ceri.provider_protocol import CeriProvider
 from app.services.ceri.provider_registry import CeriProviderRegistry
 from app.services.ceri.providers.eodhd_client import EodhdTransientError
+from app.services.ceri.sec.preparation_evidence import PreparationAuthorization
 from app.services.ceri.source_record_service import CeriSourceRecordService
 from app.settings import SecDocumentIncrementalMode, Settings, get_settings
 
@@ -106,11 +108,27 @@ class CeriIngestionService:
         request: CeriIngestionRequest,
         *,
         should_cancel=None,
+        preparation: PreparationAuthorization | None = None,
     ) -> CeriIngestionResult:
         provider = self.registry.get(request.provider)
         dataset_policy = self.registry.license_policy(request.provider, request.dataset.value)
         authority = request.semantic_authority
         request_key = request.request_key or self.request_key(request)
+        prepared_request = request_key.startswith(PREPARATION_REQUEST_PREFIX)
+        if prepared_request != (preparation is not None) or (
+            prepared_request and (
+                request.provider != "sec"
+                or request.dataset is not CeriDataset.GUIDANCE
+                or self.settings.sec_document_incremental_mode
+                is not SecDocumentIncrementalMode.SHADOW
+                or not request_key.startswith(
+                    f"{PREPARATION_REQUEST_PREFIX}{preparation.scope_sha256}:"
+                )
+            )
+        ):
+            raise ValueError("SEC_PREPARATION_AUTHORITY_REQUIRED")
+        if preparation is not None:
+            preparation.check_window()
         if isinstance(db, Session) and authority is None:
             from app.services.canonical_evidence import CanonicalEvidenceSerializer
             from app.services.scope_refresh_adoption import (
@@ -199,6 +217,7 @@ class CeriIngestionService:
                 ingestion_run=ingestion_run,
                 should_cancel=should_cancel,
                 reuse_completed_documents=bool((request.scope or {}).get("repair")),
+                preparation=preparation,
             )
 
         requested = fetched = inserted = deduplicated = corrected = quarantined = failed = 0
@@ -308,6 +327,7 @@ class CeriIngestionService:
         ingestion_run: CeriIngestionRun,
         should_cancel,
         reuse_completed_documents: bool,
+        preparation: PreparationAuthorization | None,
     ) -> CeriIngestionResult:
         from app.services.ceri.sec.incremental_ingestion import (
             SecGuidanceIncrementalIngestionService,
@@ -333,6 +353,7 @@ class CeriIngestionService:
                     (request.scope or {}).get("worker_id") or self.settings.job_worker_id
                 ),
                 reuse_completed_documents=reuse_completed_documents,
+                preparation=preparation,
             )
             status = "PARTIAL" if outcome.failed or outcome.quarantined else "COMPLETED"
         except SecIncrementalCancelled:

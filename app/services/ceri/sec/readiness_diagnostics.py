@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.models.ceri_tables import CeriCompany, CeriSecSyncState
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.sec.issuer_succession import reviewed_symbols
-from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+from app.services.ceri.sec.processor_signature import scope_evidence_contract
 from app.services.ceri.sec.scope_evidence import generation_ready
 
 _VALID_TICKER = re.compile(r"^[A-Z0-9][A-Z0-9.-]{0,15}$")
@@ -140,7 +140,7 @@ def diagnose_sec_readiness(
     for row in sync_rows:
         signatures_by_cik.setdefault(str(row.cik), set()).add(row.processor_signature)
 
-    versioned = processor_signature == sec_guidance_processor_signature()
+    versioned = scope_evidence_contract(processor_signature) is not None
     if versioned:
         for cik in ciks:
             signatures = signatures_by_cik.setdefault(cik, set())

@@ -14,8 +14,16 @@ from app.services.ceri.sec.processor_lifecycle import (
     promote_processor,
     register_deployed_processor,
 )
-from app.services.ceri.sec.processor_rollback import PROMOTION_RECEIPT, certified_run_tickers
-from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+from app.services.ceri.sec.processor_rollback import (
+    PROMOTION_RECEIPT,
+    certified_run_tickers,
+    seal_prepared_scope,
+)
+from app.services.ceri.sec.processor_signature import (
+    SEC_SCOPE_EVIDENCE_VERSION,
+    scope_evidence_contract,
+    sec_guidance_processor_signature,
+)
 from app.services.ceri.sec.readiness_diagnostics import diagnose_sec_readiness
 from app.services.runtime_mutation_authority import RuntimeMutationAuthority
 from scripts.ops.sec_processor_rollback import ROOT, _checkout_identity
@@ -87,6 +95,15 @@ def main() -> int:
                     f"Cannot certify: readiness is {readiness.ready_tickers}/"
                     f"{readiness.requested_tickers}."
                 )
+            preparation_scope = {}
+            if scope_evidence_contract(signature) == SEC_SCOPE_EVIDENCE_VERSION:
+                digest = evidence.get("preparation_scope_sha256")
+                preparation_scope = {"preparation_scope": {
+                    "digest": digest,
+                    "readiness_seal": seal_prepared_scope(
+                        db, tickers=tickers, signature=signature, preparation_sha256=digest,
+                    ),
+                }}
             certify_processor(
                 db,
                 processor_signature=signature,
@@ -95,6 +112,7 @@ def main() -> int:
                     "scope_tickers": list(tickers),
                     "certification_file": str(args.evidence.resolve()),
                     "certification": evidence,
+                    **preparation_scope,
                     "readiness": readiness.as_dict(include_tickers=False),
                 },
                 actor=args.actor,

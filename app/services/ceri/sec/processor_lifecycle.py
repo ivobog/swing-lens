@@ -206,6 +206,8 @@ def promote_processor(
         return target
     if target is None or target.status != SecProcessorReleaseStatus.CERTIFIED:
         raise ValueError("SEC processor must be CERTIFIED before explicit promotion.")
+    if target.certification_evidence_json.get("preparation_scope") and rollback_run_id is None:
+        raise ValueError("SEC preparation activation requires an exact recoverable promotion.")
     now = datetime.now(UTC)
     if rollback_run_id is not None:
         previous = next(
