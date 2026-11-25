@@ -28,52 +28,59 @@
     {
       "authority": "A13",
       "requirements": "Existing authenticated sole-owner acknowledgement on exact final PR head/digest; no activation authority from candidate validation"
+    },
+    {
+      "authority": "A04/A05B",
+      "changes": "Issuer ownership, exact source and locator, acceptance, possession, point, effective session, rejection, and no downstream guidance admission",
+      "scope": "Both handoff variants, ten SEC source memberships and ten guidance rows"
     }
   ],
   "candidate": {
     "artifacts": {
-      "tests/e2e/single_run_certification/golden/v7/DERIVATIONS.md": "8948b1b41360b9e93c8eee3bd70c1da32ceaead4bedb376cf567c5f6fd5d5d25",
-      "tests/e2e/single_run_certification/golden/v7/calendar.json": "72c85eb606d68c6928b2d7710a8a27986c41eb31734cf8d57c4cfa3d4b92b5cc",
-      "tests/e2e/single_run_certification/golden/v7/configuration.json": "e7f3e63cb718fe43a6baebd799e718d133ca373c6f73b2843625d0cbad7b5d57",
-      "tests/e2e/single_run_certification/golden/v7/expected-results.json": "a31fdfca42b1120717aa33b04c8292ef64f3e5edae2949f809a5880c89106b89",
-      "tests/e2e/single_run_certification/golden/v7/financial-source.json": "f883aa55f534e68d598e1e85bf8550d0900fb6ab6001a3d6b8ae3f1aa75c90a9",
-      "tests/e2e/single_run_certification/golden/v7/fundamental-derivation.json": "0140adf8e333a165480b677907d1beeb327e7c05a9ecc0b62962cac082ab2dd1",
-      "tests/e2e/single_run_certification/golden/v7/history.json": "bf9c645b1e95558010c81cbcb93c1cfffce153b9246fc4677e175121ba6d8b44",
-      "tests/e2e/single_run_certification/golden/v7/instruments.json": "9edbb37f82101add2d5a840217c4672f52a33b2800581303458f0c18c5338f9c",
-      "tests/e2e/single_run_certification/golden/v7/manifest.json": "0df8f0f3835169253e8f121cc9d3823b97ca9f814275b3eb47fd2f6a0e44ac27",
-      "tests/e2e/single_run_certification/golden/v7/market-data.json": "18fbe874def6e2ce7a925a21a23fd05d4b3f4c7427a94ddddd58186eaee1d95b",
-      "tests/e2e/single_run_certification/golden/v7/negative-control-specimens.json": "6f11fffa697e208a82151aaf524ec1b4a2b3efafd14fd2f44b0932e50be406af",
-      "tests/e2e/single_run_certification/golden/v7/oracle-completion/DERIVATIONS.md": "8948b1b41360b9e93c8eee3bd70c1da32ceaead4bedb376cf567c5f6fd5d5d25",
-      "tests/e2e/single_run_certification/golden/v7/oracle-completion/ceri-derivations.json": "8078f813d9c35f3f0d320fbeeebb98c81059a5fcaf76e4762b0b4432b194b617",
-      "tests/e2e/single_run_certification/golden/v7/oracle-completion/ceri-expected.json": "19a75d1373446df664766097d96588c20e325ad986dc2e4ec1f31239d33e1c7f",
-      "tests/e2e/single_run_certification/golden/v7/oracle-completion/context-derivations.json": "00950a9e7b8a55eee01d63fa109935944daa794962262932b66a03abe7ac9959",
-      "tests/e2e/single_run_certification/golden/v7/oracle-completion/context-expected.json": "0eb7b475e69eb3354f5f167c27f2f832d65eb3140d79dd0b643f0e10980ead5d",
-      "tests/e2e/single_run_certification/golden/v7/oracle-completion/core-derivations.json": "7c07f2fc649e0278e6fcd738793e5c9a543912884753d8c87a3acaf5137b37a8",
-      "tests/e2e/single_run_certification/golden/v7/oracle-completion/core-expected.json": "d5833faca5f74caf443eac9962f22c7d4d59fe79ef08357dfedbfd1dd657e19d",
-      "tests/e2e/single_run_certification/golden/v7/oracle-completion/downstream-derivations.json": "e2a507f698954a5bf959186839a7b8d5d2b08a30a6d42c94285fce426a1f2abe",
-      "tests/e2e/single_run_certification/golden/v7/oracle-completion/downstream-expected.json": "34b1e81c0a1ea1156961fdbd46f61efc3d7ce07c4772fea66007216205f93ea3",
-      "tests/e2e/single_run_certification/golden/v7/oracle-completion/manifest.json": "237472486323e4b5c8f75e5a71adda3fe2c614970bf50006ad1913ac0cd00a14",
-      "tests/e2e/single_run_certification/golden/v7/prerequisites-source.py.txt": "e291ef0f54e0b97972e9ee6f5bc3c50b52716200e86c3b2cee6c405c0bcf3ce4",
-      "tests/e2e/single_run_certification/golden/v7/provider-replay.json": "0ad2ccfd12c4dfdba9b279b4fcabdced446c8d455535d7f044e4e5fbc78506cc",
-      "tests/e2e/single_run_certification/golden/v7/runtime-settings.json": "da3a2dd948c92fd9b99658f2cd48fa234d6fddffcfde4ffe85ae3e9aa38ef22f",
-      "tests/e2e/single_run_certification/golden/v7/universe.csv": "ca20730f5c905344ef957166fe087e9bd1aab4bd66a813a9f68f9b108f122b7f"
+      "tests/e2e/single_run_certification/golden/v8/DERIVATIONS.md": "8948b1b41360b9e93c8eee3bd70c1da32ceaead4bedb376cf567c5f6fd5d5d25",
+      "tests/e2e/single_run_certification/golden/v8/calendar.json": "72c85eb606d68c6928b2d7710a8a27986c41eb31734cf8d57c4cfa3d4b92b5cc",
+      "tests/e2e/single_run_certification/golden/v8/configuration.json": "e7f3e63cb718fe43a6baebd799e718d133ca373c6f73b2843625d0cbad7b5d57",
+      "tests/e2e/single_run_certification/golden/v8/expected-results.json": "a00da683ed44ee7f17242833e3e38919ee0834ec2105240bddf3e341f4151f26",
+      "tests/e2e/single_run_certification/golden/v8/financial-source.json": "f883aa55f534e68d598e1e85bf8550d0900fb6ab6001a3d6b8ae3f1aa75c90a9",
+      "tests/e2e/single_run_certification/golden/v8/fundamental-derivation.json": "0140adf8e333a165480b677907d1beeb327e7c05a9ecc0b62962cac082ab2dd1",
+      "tests/e2e/single_run_certification/golden/v8/history.json": "bf9c645b1e95558010c81cbcb93c1cfffce153b9246fc4677e175121ba6d8b44",
+      "tests/e2e/single_run_certification/golden/v8/instruments.json": "9edbb37f82101add2d5a840217c4672f52a33b2800581303458f0c18c5338f9c",
+      "tests/e2e/single_run_certification/golden/v8/manifest.json": "4f7265cb3bcd8518bbd25d919d8a6a505aee76d922bf4a7b61f4042bc71491f5",
+      "tests/e2e/single_run_certification/golden/v8/market-data.json": "18fbe874def6e2ce7a925a21a23fd05d4b3f4c7427a94ddddd58186eaee1d95b",
+      "tests/e2e/single_run_certification/golden/v8/negative-control-specimens.json": "6f11fffa697e208a82151aaf524ec1b4a2b3efafd14fd2f44b0932e50be406af",
+      "tests/e2e/single_run_certification/golden/v8/oracle-completion/DERIVATIONS.md": "8948b1b41360b9e93c8eee3bd70c1da32ceaead4bedb376cf567c5f6fd5d5d25",
+      "tests/e2e/single_run_certification/golden/v8/oracle-completion/ceri-derivations.json": "910739d5e46e53f10db707b81eabf21000834242d83b3b7aaa36ade1ceee018a",
+      "tests/e2e/single_run_certification/golden/v8/oracle-completion/ceri-expected.json": "2faaa17eadfd8d9a1f1560ee5152fb0769fe2eec892908c26e3ce659c8948e5d",
+      "tests/e2e/single_run_certification/golden/v8/oracle-completion/context-derivations.json": "00950a9e7b8a55eee01d63fa109935944daa794962262932b66a03abe7ac9959",
+      "tests/e2e/single_run_certification/golden/v8/oracle-completion/context-expected.json": "0eb7b475e69eb3354f5f167c27f2f832d65eb3140d79dd0b643f0e10980ead5d",
+      "tests/e2e/single_run_certification/golden/v8/oracle-completion/core-derivations.json": "7c07f2fc649e0278e6fcd738793e5c9a543912884753d8c87a3acaf5137b37a8",
+      "tests/e2e/single_run_certification/golden/v8/oracle-completion/core-expected.json": "d5833faca5f74caf443eac9962f22c7d4d59fe79ef08357dfedbfd1dd657e19d",
+      "tests/e2e/single_run_certification/golden/v8/oracle-completion/downstream-derivations.json": "e2a507f698954a5bf959186839a7b8d5d2b08a30a6d42c94285fce426a1f2abe",
+      "tests/e2e/single_run_certification/golden/v8/oracle-completion/downstream-expected.json": "34b1e81c0a1ea1156961fdbd46f61efc3d7ce07c4772fea66007216205f93ea3",
+      "tests/e2e/single_run_certification/golden/v8/oracle-completion/manifest.json": "6ec822976c6c1167919e429bf518c65b6e517eeea3b46237eb0c709d629323b7",
+      "tests/e2e/single_run_certification/golden/v8/prerequisites-source.py.txt": "e291ef0f54e0b97972e9ee6f5bc3c50b52716200e86c3b2cee6c405c0bcf3ce4",
+      "tests/e2e/single_run_certification/golden/v8/provider-replay.json": "5f76867582e47bfaf1469c802b06cae55acb5157432bde8e260c7d9bd267334c",
+      "tests/e2e/single_run_certification/golden/v8/runtime-settings.json": "8ba0abaa3183d27da203391904019a5313ccd93ddb7399cb5e9b68a363b72820",
+      "tests/e2e/single_run_certification/golden/v8/universe.csv": "ca20730f5c905344ef957166fe087e9bd1aab4bd66a813a9f68f9b108f122b7f"
     },
-    "completion_manifest": "tests/e2e/single_run_certification/golden/v7/oracle-completion/manifest.json",
-    "completion_manifest_sha256": "237472486323e4b5c8f75e5a71adda3fe2c614970bf50006ad1913ac0cd00a14",
+    "completion_manifest": "tests/e2e/single_run_certification/golden/v8/oracle-completion/manifest.json",
+    "completion_manifest_sha256": "6ec822976c6c1167919e429bf518c65b6e517eeea3b46237eb0c709d629323b7",
     "expectation_artifacts": {
-      "tests/e2e/single_run_certification/golden/v3/expected-results.json": "tests/e2e/single_run_certification/golden/v7/expected-results.json",
-      "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json": "tests/e2e/single_run_certification/golden/v7/oracle-completion/ceri-expected.json",
-      "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-expected.json": "tests/e2e/single_run_certification/golden/v7/oracle-completion/context-expected.json",
-      "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json": "tests/e2e/single_run_certification/golden/v7/oracle-completion/core-expected.json",
-      "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json": "tests/e2e/single_run_certification/golden/v7/oracle-completion/downstream-expected.json"
+      "tests/e2e/single_run_certification/golden/v3/expected-results.json": "tests/e2e/single_run_certification/golden/v8/expected-results.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json": "tests/e2e/single_run_certification/golden/v8/oracle-completion/ceri-expected.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/context-expected.json": "tests/e2e/single_run_certification/golden/v8/oracle-completion/context-expected.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/core-expected.json": "tests/e2e/single_run_certification/golden/v8/oracle-completion/core-expected.json",
+      "tests/e2e/single_run_certification/golden/v3/oracle-completion/downstream-expected.json": "tests/e2e/single_run_certification/golden/v8/oracle-completion/downstream-expected.json"
     },
-    "expectation_revision": "a05b-r7",
-    "input_identity": "261f66a67aea43534f3306fd34a281f8ec35a4cc8cf7b7de1564f2b156c9d347",
-    "input_manifest": "tests/e2e/single_run_certification/golden/v7/manifest.json",
-    "input_manifest_sha256": "0df8f0f3835169253e8f121cc9d3823b97ca9f814275b3eb47fd2f6a0e44ac27",
-    "input_version": "a05-v7"
+    "expectation_revision": "a05b-r8",
+    "input_identity": "f6f71d6d7504c2ccdde3fb572d3a7164abf3a808449abb5da4b898d93d29b012",
+    "input_manifest": "tests/e2e/single_run_certification/golden/v8/manifest.json",
+    "input_manifest_sha256": "4f7265cb3bcd8518bbd25d919d8a6a505aee76d922bf4a7b61f4042bc71491f5",
+    "input_version": "a05-v8"
   },
   "contract_change": {
+    "capture_guard_revision": "bd13668659a69f631bf1bb852053576b71239bb0",
+    "capture_guard_sha256": "f3e1b5962bdf5f50362e1064a826645e1b814f063f16220fdfc84eaf204395c9",
     "configuration_sha256": {
       "config/ceri.yaml": "c1ce6f065cddb239cc9774533d3b9238855083ab62754daaa821190527ead7e7",
       "config/ceri_catalyst_taxonomy.yaml": "dfbac62e23d72b8ccabd884cb812947bea3af1eba146f03dec6a82330e0a4a66",
@@ -93,10 +100,82 @@
       "config/technical_v51_research.yaml": "64b0ecbacf27fbee542b8156a2b938388630f977199651d5d7a16d7c9f005f01",
       "config/winner_probability.yaml": "9cfae4719d312718e24ec5c882d4cc94ba19cc262460ad71297b3f51bd4a8c7a"
     },
-    "reason": "Forward quality v2.2 and approved financial-evidence guard only; preserve v2.1 source seals, use a versioned current profile, and declare controlled USD metadata in the candidate specimen. Retain the independently reviewed v5 CERI ownership literals and versioned IBMI configuration already required by main. No CERI implementation changes.",
-    "source_revision": "06765ace9a92fbeb479258a223c67e689df9fd9f"
+    "integration_source_revision": "955f046dc94c33bc775896fd434e75171a753855",
+    "reason": "Extend the retained v7 independent financial corpus with issuer-bound synthetic SEC provenance, normalized amounts and original point-in-time clocks. Preserve existing scoring and financial formulas.",
+    "source_revision": "c2f10521b20c15cc69dc9a922dfa7979cb6475b2",
+    "trusted_main_revision": "40285228a5f2c88695132d6590e250cefe418a4f"
   },
   "expectation_changes": [
+    {
+      "after": "0000000000-26-000001:0000000000-26-000001/bhe-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "BHE-sec-guidance",
+      "pointer": "/domains/ceri_sources/50/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "0000000000-26-000002:0000000000-26-000002/blln-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "BLLN-sec-guidance",
+      "pointer": "/domains/ceri_sources/51/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "0000000000-26-000003:0000000000-26-000003/klic-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "KLIC-sec-guidance",
+      "pointer": "/domains/ceri_sources/52/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "0000000000-26-000004:0000000000-26-000004/lscc-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "LSCC-sec-guidance",
+      "pointer": "/domains/ceri_sources/53/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "0000000000-26-000005:0000000000-26-000005/pdfs-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "PDFS-sec-guidance",
+      "pointer": "/domains/ceri_sources/54/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "0000000000-26-000006:0000000000-26-000006/acmr-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "ACMR-sec-guidance",
+      "pointer": "/domains/ceri_sources/55/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "0000000000-26-000007:0000000000-26-000007/rdvt-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "RDVT-sec-guidance",
+      "pointer": "/domains/ceri_sources/56/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "0000000000-26-000008:0000000000-26-000008/avt-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "AVT-sec-guidance",
+      "pointer": "/domains/ceri_sources/57/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "0000000000-26-000009:0000000000-26-000009/dvn-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "DVN-sec-guidance",
+      "pointer": "/domains/ceri_sources/58/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "0000000000-26-000010:0000000000-26-000010/jnj-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
+      "before": "JNJ-sec-guidance",
+      "pointer": "/domains/ceri_sources/59/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
     {
       "after": "7.3646",
       "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
@@ -238,11 +317,11 @@
       "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
     },
     {
-      "after": "a05-v7",
+      "after": "a05-v8",
       "artifact": "tests/e2e/single_run_certification/golden/v3/expected-results.json",
       "before": "a05-v3",
       "pointer": "/version",
-      "reason": "Approved v2.2 formula and direct propagation through unchanged reviewed policies; see literal independent derivation"
+      "reason": "Use a distinct candidate input version without changing retained versions."
     },
     {
       "after": "KNOWN",
@@ -313,6 +392,146 @@
       "before": "UNKNOWN",
       "pointer": "/captures/9/pipeline_ownership_state",
       "reason": "Existing main v5 verified-parent ownership contract, inherited byte-identically; see retained a05b-r5 independent review"
+    },
+    {
+      "after": "101.000000",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": null,
+      "pointer": "/guidance/0/point_value",
+      "reason": "Preserve the independently authored Decimal USD literal from the synthetic issuer-bound paragraph."
+    },
+    {
+      "after": "0000000000-26-000001:0000000000-26-000001/bhe-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "BHE-sec-guidance",
+      "pointer": "/guidance/0/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "102.000000",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": null,
+      "pointer": "/guidance/1/point_value",
+      "reason": "Preserve the independently authored Decimal USD literal from the synthetic issuer-bound paragraph."
+    },
+    {
+      "after": "0000000000-26-000002:0000000000-26-000002/blln-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "BLLN-sec-guidance",
+      "pointer": "/guidance/1/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "103.000000",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": null,
+      "pointer": "/guidance/2/point_value",
+      "reason": "Preserve the independently authored Decimal USD literal from the synthetic issuer-bound paragraph."
+    },
+    {
+      "after": "0000000000-26-000003:0000000000-26-000003/klic-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "KLIC-sec-guidance",
+      "pointer": "/guidance/2/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "104.000000",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": null,
+      "pointer": "/guidance/3/point_value",
+      "reason": "Preserve the independently authored Decimal USD literal from the synthetic issuer-bound paragraph."
+    },
+    {
+      "after": "0000000000-26-000004:0000000000-26-000004/lscc-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "LSCC-sec-guidance",
+      "pointer": "/guidance/3/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "105.000000",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": null,
+      "pointer": "/guidance/4/point_value",
+      "reason": "Preserve the independently authored Decimal USD literal from the synthetic issuer-bound paragraph."
+    },
+    {
+      "after": "0000000000-26-000005:0000000000-26-000005/pdfs-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "PDFS-sec-guidance",
+      "pointer": "/guidance/4/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "106.000000",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": null,
+      "pointer": "/guidance/5/point_value",
+      "reason": "Preserve the independently authored Decimal USD literal from the synthetic issuer-bound paragraph."
+    },
+    {
+      "after": "0000000000-26-000006:0000000000-26-000006/acmr-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "ACMR-sec-guidance",
+      "pointer": "/guidance/5/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "107.000000",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": null,
+      "pointer": "/guidance/6/point_value",
+      "reason": "Preserve the independently authored Decimal USD literal from the synthetic issuer-bound paragraph."
+    },
+    {
+      "after": "0000000000-26-000007:0000000000-26-000007/rdvt-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "RDVT-sec-guidance",
+      "pointer": "/guidance/6/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "108.000000",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": null,
+      "pointer": "/guidance/7/point_value",
+      "reason": "Preserve the independently authored Decimal USD literal from the synthetic issuer-bound paragraph."
+    },
+    {
+      "after": "0000000000-26-000008:0000000000-26-000008/avt-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "AVT-sec-guidance",
+      "pointer": "/guidance/7/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "109.000000",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": null,
+      "pointer": "/guidance/8/point_value",
+      "reason": "Preserve the independently authored Decimal USD literal from the synthetic issuer-bound paragraph."
+    },
+    {
+      "after": "0000000000-26-000009:0000000000-26-000009/dvn-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "DVN-sec-guidance",
+      "pointer": "/guidance/8/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
+    },
+    {
+      "after": "110.000000",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": null,
+      "pointer": "/guidance/9/point_value",
+      "reason": "Preserve the independently authored Decimal USD literal from the synthetic issuer-bound paragraph."
+    },
+    {
+      "after": "0000000000-26-000010:0000000000-26-000010/jnj-synthetic-8k.htm#paragraph-2",
+      "artifact": "tests/e2e/single_run_certification/golden/v3/oracle-completion/ceri-expected.json",
+      "before": "JNJ-sec-guidance",
+      "pointer": "/guidance/9/record_key",
+      "reason": "Use the accession and exact issuer-attributed paragraph locator produced by the supported SEC writer."
     },
     {
       "after": "7.5327",
@@ -1211,6 +1430,8 @@
       "docs/testing/golden-provenance/a05b-r5/authoring-record.py.txt": "931fc2c5c3a57d236ad5ce2fdaf6bdcdd3ce1fbdb1f580e378fc4f48826778a4",
       "docs/testing/golden-provenance/a05b-r5/independent-review.json": "4712d6037f9f83fecaae4c51f2ce10c3c965cc0e502c69e67bc9de5ab7fad6ac",
       "docs/testing/golden-provenance/a05b-r5/previous-v4-proposal.json": "98141ce7d98704100e7a8cc423f32bb8350f882df0044e12760ff02537d0d891",
+      "docs/testing/golden-provenance/a05b-r8/sec-independent-worksheet.json": "358323e2e153a4776d9f7a7beb957685be0bbcf3a0957db8405ac058ebec8335",
+      "docs/testing/golden-provenance/a05b-r8/sec-oracle-derivation.md": "52d1fb24d6954d4acb9e2cc1dd763a9953e16843c13bf613b727ae5e8ce02031",
       "docs/verification/forward-quality-v22/release/golden-v7/REVIEW.md": "8948b1b41360b9e93c8eee3bd70c1da32ceaead4bedb376cf567c5f6fd5d5d25",
       "docs/verification/forward-quality-v22/release/golden-v7/authoring-record.py.txt": "cc2dbe589f21af8232f9b43773c39129bac8e197805f9059efd43b13fe73c94c",
       "docs/verification/forward-quality-v22/release/golden-v7/independent-derivation.json": "6a36748d944a04da89c45c5b2176f99e4151d393d56bba879d496ec4ac538408",
@@ -1238,7 +1459,8 @@
       "tests/e2e/single_run_certification/golden/v4/prerequisites-source.py.txt": "e291ef0f54e0b97972e9ee6f5bc3c50b52716200e86c3b2cee6c405c0bcf3ce4",
       "tests/e2e/single_run_certification/golden/v4/provider-replay.json": "0ad2ccfd12c4dfdba9b279b4fcabdced446c8d455535d7f044e4e5fbc78506cc",
       "tests/e2e/single_run_certification/golden/v4/runtime-settings.json": "da3a2dd948c92fd9b99658f2cd48fa234d6fddffcfde4ffe85ae3e9aa38ef22f",
-      "tests/e2e/single_run_certification/golden/v4/universe.csv": "562c079f471fe125f7aa28ef762b2236c196ff68bd6ed6ed87727a2603c09990"
+      "tests/e2e/single_run_certification/golden/v4/universe.csv": "562c079f471fe125f7aa28ef762b2236c196ff68bd6ed6ed87727a2603c09990",
+      "tests/e2e/single_run_certification/golden/v8/oracle-completion/ceri-derivations.json": "910739d5e46e53f10db707b81eabf21000834242d83b3b7aaa36ade1ceee018a"
     },
     "method": "INDEPENDENT_FORMULA_REVIEW",
     "production_outputs_used": false
@@ -1251,11 +1473,11 @@
     "input_version": "a05-v3"
   },
   "review_request": {
-    "candidate_digest": "a60210567e3ca742972c49a0d93c39fb92fb6dd4ec45e930639c11c78720a1a3",
-    "expectation_revision": "a05b-r7",
-    "input_version": "a05-v7",
+    "candidate_digest": "ea86b18b7c9a365d655bc24ce08e17aa0872dea423f27e7ee542b55b9ee91713",
+    "expectation_revision": "a05b-r8",
+    "input_version": "a05-v8",
     "producer": "INDEPENDENT_FORMULA_AUTHOR",
-    "source_revision": "06765ace9a92fbeb479258a223c67e689df9fd9f",
+    "source_revision": "c2f10521b20c15cc69dc9a922dfa7979cb6475b2",
     "status": "PROPOSED"
   },
   "schema": "swinglens.golden-update-proposal.v1"

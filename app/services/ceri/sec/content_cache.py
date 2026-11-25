@@ -28,7 +28,7 @@ class SecDocumentContentCache:
     ) -> str | None:
         path = self.path_for(document)
         try:
-            with gzip.open(path, "rt", encoding="utf-8") as handle:
+            with gzip.open(path, "rt", encoding="utf-8", newline="") as handle:
                 content = handle.read()
         except (FileNotFoundError, OSError, UnicodeError):
             return None

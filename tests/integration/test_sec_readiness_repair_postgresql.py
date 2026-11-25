@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import create_engine, event, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models.ceri_tables import CeriCompany, CeriSecSyncState
+from app.models.ceri_tables import CeriCompany
 from app.models.tables import (
     BackgroundJob,
     PipelineDependency,
@@ -40,6 +40,7 @@ from app.services.ceri.sec.readiness_repair import (
     execute_sec_readiness_repair,
     schedule_sec_readiness_repair,
 )
+from app.services.ceri.sec.scope_evidence import generation_ready
 from app.services.pipeline_service import PipelineStatus, PipelineStepStatus
 from app.settings import SecDocumentIncrementalMode, Settings
 
@@ -84,7 +85,10 @@ class _RepairSecClient:
     def archive_document(self, *_args):
         self.requests += 1
         self.download_calls += 1
-        return "The company expects full year revenue guidance of $100 to $110 million."
+        return (
+            "<SEC-HEADER>\nCENTRAL INDEX KEY: 0000123456\n</SEC-HEADER>\n"
+            "The company expects full year revenue guidance of $100 to $110 million."
+        )
 
     def stats(self):
         return SimpleNamespace(
@@ -272,12 +276,7 @@ def test_repair_resolves_identity_bootstraps_and_resumes_same_pipeline(
         assert db.scalar(select(CeriCompany).where(CeriCompany.ticker == "TEST")).cik == (
             "0000123456"
         )
-        assert db.scalar(
-            select(CeriSecSyncState).where(
-                CeriSecSyncState.cik == "0000123456",
-                CeriSecSyncState.processor_signature == signature,
-            )
-        )
+        assert generation_ready(db, "0000123456", signature)
         full_jobs = [
             job
             for job in list(
@@ -781,12 +780,7 @@ def test_ambiguous_identity_does_not_stop_other_safe_repairs(
         good = db.scalar(select(CeriCompany).where(CeriCompany.ticker == "GOOD"))
         assert good is not None and good.cik == "0000123456"
         assert db.scalar(select(CeriCompany).where(CeriCompany.ticker == "BAD")) is None
-        assert db.scalar(
-            select(CeriSecSyncState).where(
-                CeriSecSyncState.cik == "0000123456",
-                CeriSecSyncState.processor_signature == signature,
-            )
-        )
+        assert generation_ready(db, "0000123456", signature)
         blocked = db.get(PipelineRun, pipeline.id)
         assert blocked.status == PipelineStatus.BLOCKED
         projected = blocked.result_json["sec_repair"]

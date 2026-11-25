@@ -28,7 +28,37 @@ def test_guidance_extractor_preserves_locator_and_marks_ambiguous_claims() -> No
     assert "guidance_comparison_insufficient" in rows[1].warnings
 
 
-def test_refactored_document_boundary_preserves_cold_provider_output() -> None:
+def test_forecast_evidence_cannot_borrow_an_unrelated_amount_or_scope() -> None:
+    extract = GuidanceExtractionService().extract
+    for source in (
+        "For fiscal year 2027, the company discussed its revenue outlook. "
+        "The license can require contingent milestone payments of USD 140 million.",
+        "Our revenue guidance is expected to improve; commitments include a licensing "
+        "payment of USD 140 million in fiscal year 2027.",
+        "The company reported consolidated revenue of USD 140 million for fiscal year 2025. "
+        "The fiscal year 2027 guidance will be released later.",
+        "In 2025, we experienced increases in revenues of approximately USD 9.4 million. "
+        "The exchange rate cannot be forecasted with reliable accuracy.",
+    ):
+        assert all(
+            row.point_value is None and row.low_value is None and row.high_value is None
+            for row in extract(source)
+        )
+
+    scoped, = extract(
+        "For fiscal year 2027, our facility forecasts revenue guidance of USD 140 million."
+    )
+    assert scoped.point_value == 140 and scoped.financial_basis is None
+    legitimate, = extract(
+        "For fiscal year 2027, the company expects consolidated revenue guidance of "
+        "USD 140 million."
+    )
+    assert legitimate.point_value == 140
+    assert legitimate.target_period == "FY2027"
+    assert legitimate.financial_basis == "REVENUE_REPORTED"
+
+
+def test_refactored_document_boundary_preserves_cold_provider_output(monkeypatch) -> None:
     class Client:
         config = SecClientConfig()
         requests = 0
@@ -51,8 +81,19 @@ def test_refactored_document_boundary_preserves_cold_provider_output() -> None:
             }
 
         def archive_document(self, *_args):
-            return "The company expects revenue guidance of $100 to $110 million."
+            return (
+                "<SEC-HEADER>\nCENTRAL INDEX KEY: 0000123456\n</SEC-HEADER>\n"
+                "The company expects revenue guidance of $100 to $110 million."
+            )
 
+    from datetime import UTC, datetime
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 11, 23, 18, tzinfo=UTC).astimezone(tz)
+
+    monkeypatch.setattr("app.services.ceri.sec.provider.datetime", Clock)
     request = GuidanceRequest(company_id=None, ticker="TEST")
     legacy_shape = list(SecCeriProvider(client=Client()).fetch_guidance(request))
     refactored_provider = SecCeriProvider(client=Client())
@@ -68,7 +109,7 @@ def test_extractor_version_change_changes_processor_signature(monkeypatch) -> No
     monkeypatch.setattr(
         processor_signature,
         "GUIDANCE_EXTRACTOR_VERSION",
-        "guidance-regex-visible-text-v4",
+        f"{processor_signature.GUIDANCE_EXTRACTOR_VERSION}-test",
     )
 
     assert processor_signature.sec_guidance_processor_signature() != before

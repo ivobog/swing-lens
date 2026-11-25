@@ -24,6 +24,8 @@ class GuidanceExtraction:
     management_claim: str | None = None
     comparison_confidence: str = "INSUFFICIENT"
     warnings: tuple[str, ...] = ()
+    target_period: str | None = None
+    financial_basis: str | None = None
 
 
 @dataclass(frozen=True)
@@ -51,11 +53,13 @@ class _ParsedRow:
     period: str
     number: _Number
     management_claim: str | None
+    target_period: str | None = None
+    financial_basis: str | None = None
 
 
 _AMOUNT = r"\(?-?\d[\d,]*(?:\.\d+)?\)?"
 _CURRENCY = r"(?:USD|EUR|GBP|\$)"
-_UNIT = r"(?:billion|million|%|bps)"
+_UNIT = r"(?:billion|million|percent\b|%|bps)"
 _RANGE_PATTERN = re.compile(
     rf"(?P<low_currency>{_CURRENCY})?\s*(?P<low>{_AMOUNT})\s*"
     rf"(?P<low_unit>{_UNIT})?\s*(?:to|[-\u2013\u2014])\s*"
@@ -86,6 +90,26 @@ _METRIC_PATTERN = re.compile(
     r"\b(?:total\s+revenue|net\s+revenues?|revenues?|net\s+sales|sales|"
     r"adjusted\s+earnings\s+per\s+share|diluted\s+net\s+earnings\s+per\s+share|"
     r"net\s+earnings\s+per\s+share|earnings\s+per\s+share|adjusted\s+eps|eps)\b",
+    re.IGNORECASE,
+)
+_FORECAST_FISCAL_QUALIFIER = r"for\s+(?:the\s+)?(?:fiscal\s+(?:year\s+)?|FY\s*)20\d{2}"
+_EXPECTED_REVENUE_RANGE = re.compile(
+    rf"\s+(?:{_FORECAST_FISCAL_QUALIFIER}\s+)?(?:is|are)\s+expected\s+to\s+be\s+between\s+"
+    rf"(?P<low_currency>{_CURRENCY})\s*(?P<low>{_AMOUNT})\s*(?P<low_unit>billion|million)?"
+    rf"\s+and\s+(?P<high_currency>{_CURRENCY})\s*(?P<high>{_AMOUNT})\s*"
+    rf"(?P<high_unit>billion|million)\b",
+    re.IGNORECASE,
+)
+_RECONFIRMED_REVENUE_ROW = re.compile(
+    rf"^outlook\s+for\s+fy\d{{2,4}}\s+unchanged\b[^\n]*\n\s*\n"
+    rf"revenue\s*\n\s*\n:\s*growth\s+of\s+(?P<low>{_AMOUNT})\s*%\s+to\s+"
+    rf"(?P<high>{_AMOUNT})\s*%",
+    re.IGNORECASE,
+)
+_DATED_DILUTED_EPS_OUTLOOK = re.compile(
+    r"\b(?P<period>full[- ]year|(?:first|second|third|fourth)[- ]quarter)\s+20\d{2}\s+"
+    r"(?:adjusted\s+)?diluted\s+earnings\s+per\s+share\s+guidance\s+range"
+    r"[^.;]{0,160}?\bis\s+",
     re.IGNORECASE,
 )
 
@@ -149,6 +173,8 @@ class GuidanceExtractionService:
                         currency=row.number.currency,
                         management_claim=row.management_claim,
                         warnings=tuple(warnings),
+                        target_period=row.target_period,
+                        financial_basis=row.financial_basis,
                     )
                 )
         return results
@@ -161,6 +187,12 @@ def _guidance_blocks(paragraphs: list[str]) -> list[_Block]:
         if index in consumed or not paragraph:
             continue
         lowered = paragraph.lower()
+        if index + 2 < len(paragraphs) and lowered.startswith("outlook for fy"):
+            block = _make_block(paragraphs, index, index + 2)
+            if _RECONFIRMED_REVENUE_ROW.match(block.text):
+                blocks.append(block)
+                consumed.update(range(index, index + 3))
+                continue
         if "the following table summarizes" in lowered and any(
             token in lowered for token in ("target", "guidance", "outlook")
         ):
@@ -251,6 +283,13 @@ def _parse_guidance_rows(text: str) -> list[_ParsedRow]:
     default_period = _period(payload.lower())
     if default_period is None:
         return []
+    if revenue := _RECONFIRMED_REVENUE_ROW.match(text):
+        low = _decimal_token(revenue["low"])
+        high = _decimal_token(revenue["high"])
+        if low is None or high is None or low > high:
+            return []
+        number = _Number(revenue.start(), revenue.end(), low=low, high=high, unit="%")
+        return [_ParsedRow("REVENUE", default_period, number, "MAINTAINED")]
     default_action = _block_action(payload)
     specialized_rows = _unitedhealth_eps_rows(payload, default_action)
     if specialized_rows:
@@ -259,11 +298,15 @@ def _parse_guidance_rows(text: str) -> list[_ParsedRow]:
     if specialized_rows:
         return specialized_rows
     rows = _column_table_rows(payload, default_period, default_action)
+    exact_eps = _dated_diluted_eps_ranges(payload, default_action)
+    if exact_eps:
+        rows = [row for row in rows if row.metric != "EPS_DILUTED"] + exact_eps
     metric_matches = list(_METRIC_PATTERN.finditer(payload))
     for match_index, metric_match in enumerate(metric_matches):
         metric = _metric(metric_match.group(0).lower())
         if (
             metric is None
+            or (metric == "EPS_DILUTED" and exact_eps)
             or _historical_metric_occurrence(payload, metric_match.start())
             or _skip_generic_metric(payload, metric)
         ):
@@ -292,8 +335,219 @@ def _parse_guidance_rows(text: str) -> list[_ParsedRow]:
         local_context = payload[max(0, metric_match.start() - 100) : metric_match.start()]
         local_context += raw_segment[:350]
         claim = _nullable_action(_action(local_context.lower())) or default_action
-        rows.extend(_ParsedRow(metric, period, number, claim) for number in numbers)
+        for number in numbers:
+            bound = _forecast_context(payload, metric_match, number)
+            if bound is None:
+                continue
+            period_context, scope_context, basis_context = bound
+            target = _absolute_period(period_context, period)
+            basis = _financial_basis(metric, scope_context, basis_context)
+            rows.append(_ParsedRow(metric, period, number, claim, target, basis))
     return _deduplicate_rows(rows)
+
+
+# An amount must be connected to the metric by an actual forecast predicate or
+# by a labelled row under a forecast heading. Paragraph-level keywords select
+# passages for inspection and supply neither of these connections on their own.
+_CLAUSE_END = re.compile(r"(?<=[.!?;])\s+")
+_FORECAST_VERB = (
+    r"(?:expect(?:s|ed)?|forecast(?:s|ed)?|project(?:s|ed)?|anticipate(?:s|d)?|"
+    r"guides?|targets?|raise[sd]?|raising|increases?(?!\s+in\b)|increasing|lowers?|lowering|maintains?|"
+    r"reaffirm(?:s|ed)?|confirm(?:s|ed)?|initiate[sd]?|issues?)"
+)
+_FORECAST_LEAD = re.compile(
+    rf"\b(?:{_FORECAST_VERB}|outlook)\b(?:\s+(?:its|our|the|a|for|in|growth|reported|"
+    r"consolidated|total|adjusted|unadjusted|non[- ]?GAAP|GAAP|fiscal|year|"
+    r"full[- ]year|quarter|first|second|third|fourth|half|of|20\d{2}|FY\s*\d{2,4}))*\s*$",
+    re.I,
+)
+_FORECAST_JOIN = re.compile(
+    rf"[\s*]*(?:growth\s+)?(?:range\s+)?(?:(?:is|are)\s+{_FORECAST_VERB}\b|"
+    r"(?:is\s+)?(?:estimated|expected|projected|forecast)|guidance|outlook|targets?)",
+    re.I,
+)
+_AMOUNT_JOIN = re.compile(
+    r"[\s:,*()\d]*(?:(?:the|by|is|are|estimated|expected|to|be|between|of|at|up|"
+    r"grow|growth|increase|decrease|decline|range|from|approximately|roughly|"
+    r"about|around|more|greater|less|than|adjusted|non[- ]?GAAP|GAAP|"
+    r"continuing|operations|reported|in|constant|currency|operational|"
+    r"underlying|as|follows|remains?|its|our|usd|eur|gbp)\b[\s:,*()\d]*)*",
+    re.I,
+)
+_TABLE_FORECAST = re.compile(
+    r"(?:following\s+table\s+summarizes[^.!?;]{0,110}\b(?:guidance|outlook|targets)|"
+    r"(?:fiscal\s+year\s+20\d{2}|20\d{2}|FY\s*\d{2,4})\s+(?:full[- ]year\s+)?"
+    r"(?:guidance|outlook|key\s+performance\s+expectations)\b)",
+    re.I,
+)
+_FISCAL_HEADING = re.compile(
+    r"^\s*(?:for\s+|in\s+)?(?:the\s+)?(?:full[- ]year\s+|fiscal\s+(?:year\s+)?|FY\s*)"
+    r"(?:20\d{2}|\d{2})\b", re.I,
+)
+_QUARTER = re.compile(
+    r"\b(?:Q(?P<q>[1-4])|(?P<ordinal>first|second|third|fourth)[ -]quarter)"
+    r"\s*(?:of\s+)?(?:the\s+)?(?:FY\s*|fiscal(?:\s+year)?\s+)(?P<year>20\d{2}|\d{2})\b",
+    re.I,
+)
+_YEAR = re.compile(r"\b(?:FY\s*|fiscal(?:\s+year)?\s+|full[- ]year\s+)(20\d{2}|\d{2})\b", re.I)
+_CONSOLIDATED = re.compile(
+    r"(?:^|,\s+|\b(?:our|we expect|the company expects)\s+)"
+    r"(?:consolidated\s+(?:net\s+)?(?:sales|revenues?)|total\s+(?:net\s+)?revenues?)\b",
+    re.I,
+)
+_ISSUER_LEAD = re.compile(
+    rf"(?:^|,\s+)(?:our\s+|(?:we|the company)\s+(?:{_FORECAST_VERB})\s+"
+    r"(?:our\s+)?)(?:(?:adjusted|unadjusted|non[- ]?GAAP|GAAP|diluted|net)\s+)*"
+    r"(?:revenues?|sales|eps|earnings\s+per\s+share)\s*$", re.I,
+)
+_BASIS = re.compile(r"\b(non[- ]?GAAP|adjusted|unadjusted|GAAP)\b", re.I)
+
+
+def _forecast_context(
+    text: str, metric: re.Match[str], number: _Number,
+) -> tuple[str, str, str] | None:
+    start, end = metric.span()
+    amount_start, amount_end = start + number.start, start + number.end
+    prior_break = max((m.end() for m in _CLAUSE_END.finditer(text, 0, start)), default=0)
+    prefix = text[prior_break:start]
+    bridge = text[end:amount_start]
+    if _CLAUSE_END.search(bridge) or len(bridge) > 145:
+        return None
+    heading = _TABLE_FORECAST.search(text[:260])
+    from_table = heading is not None and heading.end() <= start
+    explicit = _FORECAST_JOIN.match(bridge)
+    if explicit is None:
+        # Scope and growth qualifiers modify the subject before the predicate.
+        qualified = re.match(
+            r"\s+(?:from continuing operations|growth|in constant currency|"
+            rf"{_FORECAST_FISCAL_QUALIFIER})\s*",
+            bridge, re.I,
+        )
+        if qualified is not None:
+            explicit = _FORECAST_JOIN.match(bridge, qualified.end())
+    remainder = bridge[explicit.end():] if explicit is not None else bridge
+    lead = _FORECAST_LEAD.search(prefix[-115:])
+    scoped_lead = re.search(
+        r"\bexpects?\s+(?:[\w-]+\s+){1,3}service\s*$", prefix[-75:], re.I
+    )
+    if from_table:
+        labels = list(re.finditer(r"\b(?:non[- ]?GAAP|GAAP)\s*:\s*$", bridge, re.I))
+        if labels and _RANGE_PATTERN.search(bridge[:labels[-1].start()]):
+            remainder = bridge = labels[-1][0]
+        numeric_cell = re.fullmatch(r"[\s$€£\d.,+\-–—]+", remainder)
+        beneficiary = re.fullmatch(r"\s+to\s+[\w .-]{1,32}\s+shareholders\s*", remainder, re.I)
+    else:
+        numeric_cell = beneficiary = None
+    if not (_AMOUNT_JOIN.fullmatch(remainder) or numeric_cell or beneficiary):
+        return None
+    if not (explicit or lead or scoped_lead or from_table):
+        return None
+    # A fiscal heading can govern several statements in a contiguous outlook.
+    # Other fiscal references, such as a prior-year benchmark, cannot supply it.
+    tail = re.split(
+        r"[.!?;]|\bcompared\s+(?:with|to)\b|\b(?:versus|while)\b",
+        text[amount_end : amount_end + 95], maxsplit=1, flags=re.I,
+    )[0]
+    if following_metric := _METRIC_PATTERN.search(tail):
+        tail = re.split(
+            r",\s*(?:with|and|but|whereas)\s+", tail[:following_metric.start()],
+            maxsplit=1, flags=re.I,
+        )[0]
+    target_text = prefix + text[start:amount_start] + tail
+    if not _YEAR.search(target_text):
+        opening = _FISCAL_HEADING.match(text)
+        if from_table and heading is not None:
+            target_text = text[:heading.end()] + " " + target_text
+        elif opening is not None:
+            target_text = opening[0] + " " + target_text
+    subject = prefix + metric[0]
+    if from_table and re.match(r"total\s+revenue\b", metric[0], re.I):
+        subject = metric[0]
+    elif _FISCAL_HEADING.match(text) and (issuer_scope := _CONSOLIDATED.search(text[:125])):
+        subject = issuer_scope[0].lstrip(", ") + " " + subject
+    return target_text, subject, metric[0] + bridge + tail
+
+
+def _absolute_period(context: str, period: str) -> str | None:
+    if re.search(r"\b(?:FY\s*)?20\d{2}\s*[-–/]\s*(?:20)?\d{2}\b", context, re.I):
+        return None
+    if period == "CURRENT_QUARTER":
+        ordinals = ("first", "second", "third", "fourth")
+        quarters = {
+            f"FY{int(m['year']) + (2000 if len(m['year']) == 2 else 0)}"
+            f"-Q{m['q'] or ordinals.index(m['ordinal'].lower()) + 1}"
+            for m in _QUARTER.finditer(context)
+        }
+        return next(iter(quarters)) if len(quarters) == 1 else None
+    if period != "CURRENT_FISCAL_YEAR" or _QUARTER.search(context):
+        return None
+    years = {int(year) + (2000 if len(year) == 2 else 0) for year in _YEAR.findall(context)}
+    return f"FY{next(iter(years))}" if len(years) == 1 else None
+
+
+def _financial_basis(metric: str, subject: str, measurement: str) -> str | None:
+    if (
+        not (_CONSOLIDATED.search(subject) or _ISSUER_LEAD.search(subject))
+        or re.search(r"\b(?:facility|segment|subsidiary|division|reporting unit)\b", subject, re.I)
+    ):
+        return None
+    if metric == "EPS_DILUTED":
+        if re.search(r"\b(?:excluding|including|continuing operations)\b", measurement, re.I):
+            return None
+        label = re.search(
+            r"\b(non[- ]?GAAP|adjusted|unadjusted|GAAP)\s+"
+            r"(?:diluted\s+)?(?:eps|earnings per share)\s*$", subject, re.I,
+        )
+        declared = _BASIS.findall(measurement)
+        if label is not None:
+            declared.append(label[1])
+        if not declared:
+            return None
+        bases = {
+            "EPS_REPORTED" if item.lower() in {"gaap", "unadjusted"} else "EPS_ADJUSTED"
+            for item in declared
+        }
+        return next(iter(bases)) if len(bases) == 1 else None
+    if metric != "REVENUE":
+        return None
+    text = (subject + " " + measurement).lower()
+    if re.search(r"\b(?:adjusted|organic|comparable|excluding)\b", text):
+        return None
+    if "underlying" in text:
+        return None if "continuing operations" in text else "REVENUE_UNDERLYING"
+    if "constant currency" in text:
+        return None if "continuing operations" in text else "REVENUE_CONSTANT_CURRENCY"
+    if "continuing operations" in text:
+        return "REVENUE_CONTINUING_OPERATIONS"
+    return "REVENUE_REPORTED"
+
+
+def _dated_diluted_eps_ranges(text: str, default_action: str | None) -> list[_ParsedRow]:
+    rows = []
+    for label in _DATED_DILUTED_EPS_OUTLOOK.finditer(text):
+        amount = _RANGE_PATTERN.match(text, label.end())
+        if amount is None or amount["low_unit"] or amount["high_unit"]:
+            continue
+        currency = _currency(amount["low_currency"])
+        if currency is None or currency != _currency(amount["high_currency"]):
+            continue
+        low = _decimal_token(amount["low"])
+        high = _decimal_token(amount["high"])
+        if low is None or high is None or low > high:
+            continue
+        period = (
+            "CURRENT_FISCAL_YEAR"
+            if label["period"].lower().startswith("full")
+            else "CURRENT_QUARTER"
+        )
+        number = _Number(
+            amount.start(), amount.end(), low=low, high=high,
+            unit="PER_SHARE", currency=currency,
+        )
+        context = text[max(0, label.start() - 100) : amount.end()]
+        claim = _nullable_action(_action(context.lower())) or default_action
+        rows.append(_ParsedRow("EPS_DILUTED", period, number, claim))
+    return rows
 
 
 def _unitedhealth_eps_rows(
@@ -545,6 +799,26 @@ def _select_current_column_numbers(
 
 
 def _numbers(segment: str, *, metric: str) -> list[_Number]:
+    if metric == "REVENUE" and (label := _METRIC_PATTERN.match(segment)):
+        if forecast := _EXPECTED_REVENUE_RANGE.match(segment, label.end()):
+            low = _decimal_token(forecast["low"])
+            high = _decimal_token(forecast["high"])
+            low_currency = _currency(forecast["low_currency"])
+            high_currency = _currency(forecast["high_currency"])
+            unit = _unit(forecast["high_unit"], metric=metric)
+            low_unit = _unit(forecast["low_unit"], metric=metric)
+            if low is None or high is None or low_currency != high_currency:
+                return []
+            low = _convert_unit(low, low_unit, unit)
+            if low > high:
+                return []
+            # An explicit range takes precedence over explanatory figures in this segment.
+            return [
+                _Number(
+                    forecast.start("low_currency"), forecast.end(), low=low, high=high,
+                    unit=unit, currency=high_currency,
+                )
+            ]
     numbers: list[_Number] = []
     occupied: list[tuple[int, int]] = []
     for match in _PLUS_MINUS_PATTERN.finditer(segment):
@@ -632,7 +906,11 @@ def _deduplicate_rows(rows: list[_ParsedRow]) -> list[_ParsedRow]:
     output: list[_ParsedRow] = []
     seen: set[tuple[Any, ...]] = set()
     for row in rows:
-        key = (row.metric, row.period, *_canonical_values(row.number), row.management_claim)
+        key = (
+            row.metric, row.period, *_canonical_values(row.number), row.management_claim,
+            (row.target_period, row.financial_basis)
+            if row.financial_basis and not row.number.comparator else None,
+        )
         if key not in seen:
             seen.add(key)
             output.append(row)
@@ -736,7 +1014,8 @@ def _period(text: str) -> str | None:
 
 def _unit(value: str | None, *, metric: str) -> str | None:
     if value:
-        return value.upper()
+        normalized = value.upper()
+        return "%" if normalized == "PERCENT" else normalized
     return "PER_SHARE" if metric == "EPS_DILUTED" else None
 
 

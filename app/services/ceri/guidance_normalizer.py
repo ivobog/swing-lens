@@ -37,8 +37,13 @@ class CeriGuidanceNormalizer:
     def normalize(self, source_record: CeriSourceRecord, *, company_id: int) -> CeriGuidanceEvent:
         payload = dict(source_record.raw_json or source_record.restricted_normalized_json or {})
         announced_at = _datetime(payload.get("announced_at")) or source_record.observed_at
+        external_event_at = announced_at or source_record.published_at
+        if source_record.provider == "sec" and external_event_at is None:
+            # Exact SEC acceptance is the filing event clock when publication
+            # is unreported. Possession remains a separate eligibility guard.
+            external_event_at = source_record.source_timestamp
         session = self.effective_sessions.resolve(
-            timestamp=announced_at or source_record.published_at,
+            timestamp=external_event_at,
             source_date=_date(payload.get("source_date")),
         )
         event = CeriGuidanceEvent(

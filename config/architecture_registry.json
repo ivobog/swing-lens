@@ -3291,6 +3291,20 @@
         "tests/test_ib_history_gap_admission.py",
         "tests/integration/test_ib_bar_admission_receipts_postgresql.py"
       ]
+    },
+    {
+      "table": "ceri_sec_scope_evidence",
+      "model": "app.models.ceri_tables.CeriSecScopeEvidence",
+      "domain": "CERI",
+      "classification": "MUTABLE",
+      "writer_ids": [
+        "WRITE-050"
+      ],
+      "authority": "REGISTERED_WRITER_AUTHORITY",
+      "transaction_family": "REGISTERED_WRITER_BOUNDARY",
+      "tests": [
+        "tests/test_t14a_mutation_inventory.py"
+      ]
     }
   ],
   "writer_families": [
@@ -3769,7 +3783,8 @@
       "tables": [
         "ceri_sec_filing_documents",
         "ceri_sec_document_extractions",
-        "ceri_sec_sync_states"
+        "ceri_sec_sync_states",
+        "ceri_sec_scope_evidence"
       ],
       "functions": "SEC incremental ingestion/extraction/readiness repair",
       "entrypoints": "SEC repair handler/admin scripts",
@@ -6044,34 +6059,6 @@
       "kind": "add",
       "writer_ids": [
         "WRITE-051"
-      ],
-      "reason": "Exact production AST mutation family reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/sec/provider.py",
-      "function": "discover_guidance_documents",
-      "kind": "add",
-      "writer_ids": [
-        "WRITE-034",
-        "WRITE-035",
-        "WRITE-036",
-        "WRITE-037",
-        "WRITE-038",
-        "WRITE-039",
-        "WRITE-040",
-        "WRITE-041",
-        "WRITE-042",
-        "WRITE-043",
-        "WRITE-044",
-        "WRITE-045",
-        "WRITE-046",
-        "WRITE-047",
-        "WRITE-048",
-        "WRITE-049",
-        "WRITE-050",
-        "WRITE-051",
-        "WRITE-052",
-        "WRITE-065"
       ],
       "reason": "Exact production AST mutation family reviewed at R3."
     },
@@ -11966,6 +11953,43 @@
       "kind": "add",
       "writer_ids": [],
       "reason": "IN_MEMORY_ONLY: accumulate distinct valid session dates in a local set while paging the prerequisite's bounded PIT price-bar read; no persisted value or acquisition authority changes."
+    },
+    {
+      "path": "app/services/ceri/sec/provider.py",
+      "function": "select_guidance_documents",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-034",
+        "WRITE-035",
+        "WRITE-036",
+        "WRITE-037",
+        "WRITE-038",
+        "WRITE-039",
+        "WRITE-040",
+        "WRITE-041",
+        "WRITE-042",
+        "WRITE-043",
+        "WRITE-044",
+        "WRITE-045",
+        "WRITE-046",
+        "WRITE-047",
+        "WRITE-048",
+        "WRITE-049",
+        "WRITE-050",
+        "WRITE-051",
+        "WRITE-052",
+        "WRITE-065"
+      ],
+      "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/sec/scope_evidence.py",
+      "function": "_append",
+      "kind": "add",
+      "writer_ids": [
+        "WRITE-050"
+      ],
+      "reason": "Sealed exact SEC scope event under issuer generation lock."
     }
   ],
   "recovery_paths": [
@@ -13392,13 +13416,6 @@
       "path": "app/services/ceri/sec/incremental_ingestion.py",
       "function": "_process_document",
       "primitive": "rollback",
-      "classification": "MATERIAL_OR_REVIEWED_LEAF",
-      "reason": "Exact production transaction site reviewed at R3."
-    },
-    {
-      "path": "app/services/ceri/sec/incremental_ingestion.py",
-      "function": "_record_failure",
-      "primitive": "commit",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Exact production transaction site reviewed at R3."
     },
@@ -15606,6 +15623,20 @@
       "primitive": "begin_nested",
       "classification": "MATERIAL_OR_REVIEWED_LEAF",
       "reason": "Reviewed SEC-succession prerequisite: caller-owned savepoint encloses only locked rejected SEC guidance members after original PARTIAL processing, ingestion request, actor, CIK and effective-symbol checks; incomplete normalization rolls back the replay."
+    },
+    {
+      "path": "app/services/ceri/sec/incremental_ingestion.py",
+      "function": "ingest",
+      "primitive": "rollback",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/sec/scope_evidence.py",
+      "function": "_append",
+      "primitive": "flush",
+      "classification": "MATERIAL_OR_REVIEWED_LEAF",
+      "reason": "Exact production transaction site reviewed at R3."
     }
   ],
   "high_risk_tables": [
@@ -15988,6 +16019,11 @@
       "table": "ib_bar_admission_receipts",
       "model": "IBBarAdmissionReceipt",
       "reason": "Immutable per-bar acceptance manifests; reads require exact owning pipeline/context."
+    },
+    {
+      "table": "ceri_sec_scope_evidence",
+      "model": "CeriSecScopeEvidence",
+      "reason": "Potentially large domain/evidence payload."
     }
   ],
   "dangerous_read_suppressions": [
