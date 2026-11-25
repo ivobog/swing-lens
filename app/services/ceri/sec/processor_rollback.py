@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,10 +13,13 @@ from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriSecProcessorRelease, CeriSecScopeEvidence, CeriSecSyncState
 from app.models.tables import RawCompanyRow
+from app.services.ceri.sec.content_cache import SecDocumentContentCache
+from app.services.ceri.sec.preparation_evidence import matches_reviewed_quarantine
 from app.services.ceri.sec.processor_signature import (
     SEC_SCOPE_EVIDENCE_VERSION,
     scope_evidence_contract,
 )
+from app.services.ceri.sec.provider import SecGuidanceDocument
 from app.services.ceri.sec.readiness_diagnostics import diagnose_sec_readiness
 from app.services.ceri.sec.scope_evidence import OPEN, SELECTED, payload
 from app.services.runtime_mutation_authority import (
@@ -23,6 +27,7 @@ from app.services.runtime_mutation_authority import (
     RuntimeMutationAuthority,
     require_runtime_mutation_authority,
 )
+from app.settings import get_settings
 
 PROMOTION_RECEIPT = "sec_processor_promotion_v1"
 SIGNATURE_PATTERN = r"^sec-guidance:[0-9a-f]{16}$"
@@ -162,8 +167,8 @@ def seal_prepared_scope(db, *, tickers, signature, preparation_sha256):
     events = db.scalars(select(evidence).join(latest, (
         (latest.c.cik == evidence.cik) & (latest.c.generation == evidence.generation)
     )).where(
-        evidence.processor_signature == signature, evidence.kind.in_((OPEN, SELECTED)),
-    )).all()
+        evidence.processor_signature == signature,
+    ).order_by(evidence.cik, evidence.ordinal)).all()
     opened = [item for item in events if item.kind == OPEN]
     selected = [item for item in events if item.kind == SELECTED]
     if (
@@ -181,10 +186,54 @@ def seal_prepared_scope(db, *, tickers, signature, preparation_sha256):
         or any(payload(item).get("preparation_recovery") != recovery for item in opened)
     ):
         raise ValueError("The exact compatible native predecessor was not established.")
+    archive = payload(opened[0]).get("preparation_archive_root")
+    if not archive or any(
+        payload(item).get("preparation_archive_root") != archive for item in opened
+    ):
+        raise ValueError("SEC preparation archive custody changed.")
+    _reverify_prepared_bodies(events, Path(archive), get_settings().cache_dir)
     return {
         "digest": preparation_sha256, "recovery": recovery,
         "readiness_seal": _readiness_seal(db, tuple(tickers), signature),
     }
+
+
+def _reverify_prepared_bodies(events, archive, cache_root):
+    """Check current archived bytes before certification or recoverable promotion."""
+    cache = SecDocumentContentCache(cache_root)
+    root = archive.resolve(strict=True)
+    results = {}
+    for event in events:
+        if event.kind in (OPEN, SELECTED):
+            continue
+        result = payload(event)
+        filing = result["filing"]
+        results[(event.cik, filing["accession"], filing["filename"])] = result
+    if len(results) != 2570:
+        raise ValueError("SEC preparation completion inventory changed.")
+    for result in results.values():
+        filing, body = result["filing"], result.get("body")
+        if body:
+            document = SecGuidanceDocument(
+                "", filing["cik"], filing["accession"], filing["filename"],
+                filing["form"], filing["filing_date"],
+            )
+            valid = cache.load(document, expected_hash=body["body_sha256"]) is not None
+        else:
+            custody = result.get("custody") or {}
+            valid = False
+            if matches_reviewed_quarantine(filing, custody):
+                primary = f'{filing["cik"]}-{filing["accession"]}.body'
+                target = (root / "SEC_V4_FILINGS_FINAL/quarantine" / primary).resolve()
+                if target.is_relative_to(root) and target.is_file():
+                    with target.open("rb") as handle:
+                        content = handle.read(custody["wire_bytes"] + 1)
+                    valid = (
+                        len(content) == custody["wire_bytes"]
+                        and hashlib.sha256(content).hexdigest() == custody["wire_sha256"]
+                    )
+        if not valid:
+            raise ValueError(f'SEC preparation body custody unavailable: {filing["accession"]}')
 
 
 def record_recoverable_promotion(

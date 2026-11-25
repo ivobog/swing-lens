@@ -67,6 +67,7 @@ SCHEMA = "0097_sec_scope_evidence"
 SHA = r"^[0-9a-f]{64}$"
 COMMIT = r"^[0-9a-f]{40}$"
 INCUMBENT = "sec-guidance:eed017654682a0c9"
+COMPATIBLE_RECOVERY_GIT = "573e436730d571e20bd8483e091ef2461c1b9d6f"
 FROZEN_COHORT_SHA256 = "be92e76753bb2b707f2014de3657f2257f5b0ecbef479c3247f442f7243d0eba"
 FROZEN_SELECTION_SHA256 = "faeb8f8da74f3a87f13c1f8bb622517323809f5fb4854623a6467b40cc91d671"
 REVIEWED_WIRE_JOURNALS = {
@@ -323,8 +324,9 @@ def _inspect_preparation(db, identity, approval, ticker):
     runs = CeriIngestionRun.__table__
     evidence = CeriSecScopeEvidence.__table__
     sources = CeriSourceRecord.__table__
+    prefix = f"{PREPARATION_REQUEST_PREFIX}{scope}:{ticker}:refresh:"
     run = db.execute(select(runs.c.id, runs.c.status).where(
-        runs.c.request_key == f"{PREPARATION_REQUEST_PREFIX}{scope}:{ticker}",
+        runs.c.request_key == prefix + runs.c.refresh_cycle_id,
     )).mappings().one_or_none()
     if run is None:
         return {"scope_sha256": scope, "ticker": ticker, "run": None}
@@ -345,7 +347,10 @@ def _inspect_preparation(db, identity, approval, ticker):
 
 def _compatible_runtime(db, approval):
     root = Path(approval.recovery_root).resolve(strict=True)
-    if _checkout_identity(root) != approval.recovery_git:
+    if (
+        approval.recovery_git != COMPATIBLE_RECOVERY_GIT
+        or _checkout_identity(root) != approval.recovery_git
+    ):
         raise ValueError("SEC_PREPARATION_RECOVERY_GIT_MISMATCH")
     recovery = {
         "git": approval.recovery_git, "root": str(root), "config": approval.recovery_config_sha256,
@@ -430,7 +435,7 @@ def _prepare(session, settings, approval, approval_digest, manifest, proofs):
     scope = _scope_digest(approval)
     authority = _after_verified_approval(
         scope, approval.starts_at, approval.cutoff_at, wire, custody, approval_digest,
-        _quarantined_custody(archive_root, filings), recovery,
+        _quarantined_custody(archive_root, filings), recovery, str(archive_root),
     )
     authority.check_window()
     config = load_ceri_config()
@@ -450,6 +455,7 @@ def _prepare(session, settings, approval, approval_digest, manifest, proofs):
             request_key=f"{PREPARATION_REQUEST_PREFIX}{scope}:{ticker}",
             scope={"ticker": ticker},
         ), preparation=authority)
+        authority.check_window()
         session.commit()
         print(json.dumps({
             "ticker": ticker, "ingestion_run_id": result.ingestion_run_id,

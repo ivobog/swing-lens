@@ -47,6 +47,7 @@ class PreparationAuthorization:
     signed_approval_sha256: str | None = None
     quarantined: tuple[str, dict] | None = None
     recovery: dict | None = None
+    archive_root: str | None = None
     _verified: bool = field(default=False, init=False, repr=False)
 
     def check_window(self) -> None:
