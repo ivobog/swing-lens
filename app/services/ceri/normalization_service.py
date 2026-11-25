@@ -36,6 +36,7 @@ from app.services.ceri.pit_eligibility import (
     source_record_historical_eligibility_at,
     source_record_historical_eligibility_predicate,
 )
+from app.services.ceri.preparation_visibility import is_preparation_run, is_preparation_source
 from app.services.ceri.sec.issuer_succession import effective_symbol, ownership_conflict
 from app.services.ceri.sec.reporting_currency import CurrencyBinding, SecRevenueCurrencyCapture
 from app.services.domain_mutation import MutationDomain, MutationSemanticMode
@@ -207,7 +208,7 @@ class CeriNormalizationService:
         memberships = _memberships_by_source(db, ingestion_run_id)
         if ingestion_run_id is not None:
             ingestion = db.get(CeriIngestionRun, int(ingestion_run_id))
-            if ingestion is None:
+            if ingestion is None or is_preparation_run(ingestion):
                 raise CeriNormalizationClosureError(
                     f"CERI_NORMALIZATION_INGESTION_RUN_MISSING:{ingestion_run_id}"
                 )
@@ -219,6 +220,7 @@ class CeriNormalizationService:
         records = [
             source for source in all_records
             if source.dataset != CeriSourceProjection.SEC_REPORTING_CURRENCY
+            and not is_preparation_source(source)
         ]
         capture = self.sec_currency_capture
         if capture is not None and capture.ingestion_run_id != ingestion_run_id:
@@ -366,6 +368,8 @@ class CeriNormalizationService:
         # Source identity maintenance belongs to the same validated native
         # source transaction as normalization, including direct record calls.
         _persist_sec_identity(db, source_record, company_id)
+        if is_preparation_source(source_record):
+            raise ValueError("SEC_PREPARATION_SOURCE_IS_NONFINANCIAL")
         dataset = CeriDataset(source_record.dataset)
         if dataset is CeriDataset.ESTIMATES:
             if _exists_by_source(db, CeriEstimateSnapshot, source_record.id):

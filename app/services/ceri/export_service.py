@@ -28,6 +28,7 @@ from app.services.ceri.evidence_eligibility import (
     filter_eligible_snapshots,
 )
 from app.services.ceri.export_policy import CeriExportPolicyRegistry
+from app.services.ceri.preparation_visibility import is_preparation_source
 from app.services.ceri.snapshot_selection import (
     current_projection_contains,
     current_projection_snapshot_scope,
@@ -203,6 +204,8 @@ class CeriExportService:
         source_company_ids = _source_company_ids(db) if not isinstance(db, Session) else {}
         rows = []
         for source in sources:
+            if is_preparation_source(source):
+                continue
             if (
                 not isinstance(db, Session)
                 and company_id is not None

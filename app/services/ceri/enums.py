@@ -31,6 +31,7 @@ class CeriSourceProjection(StrEnum):
     """Source-only evidence. These are outside the dataset acquisition/normalization loops."""
 
     SEC_REPORTING_CURRENCY = "sec_reporting_currency"
+    SEC_GUIDANCE_PREPARATION = "sec_guidance_preparation"
 
 
 class CeriProvider(StrEnum):
