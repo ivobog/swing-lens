@@ -347,6 +347,12 @@ class SecCeriProvider:
                     document.accepted_at.isoformat() if document.accepted_at is not None else None
                 ),
             }
+            if extraction.target_period is not None:
+                payload["period_label"] = extraction.target_period
+                if extraction.financial_basis is not None and not any(
+                    warning.startswith("numeric_comparator:") for warning in extraction.warnings
+                ):
+                    payload["guidance_financial_basis"] = extraction.financial_basis
             record_id = f"{document.accession_number}:{extraction.evidence_locator}"
             records.append(
                 RawProviderRecord(

@@ -48,10 +48,10 @@ def test_real_sec_guidance_corpus_meets_certification_gates() -> None:
     }
     assert report["corpus_sha256"] == manifest["corpus_sha256"]
     assert report["versions"]["processor_signature"] == manifest[
-        "certification_reference"
+        "financial_correctness_certification_reference"
     ]["processor_signature"]
     assert report["output_fingerprint_sha256"] == manifest[
-        "certification_reference"
+        "financial_correctness_certification_reference"
     ]["output_fingerprint_sha256"]
 
 

@@ -183,6 +183,8 @@ def provider_storage_projection(
         for key, value in payload.items()
         if key in allowed or key.startswith("epsRevisions")
     }
+    if provider == "sec" and dataset == "guidance" and "guidance_financial_basis" in payload:
+        projected["guidance_financial_basis"] = payload["guidance_financial_basis"]
     if provider == "eodhd":
         # EODHD subscription data is not redistributed by SwingLens.  Keep
         # evidence locators only where the configured provider policy permits

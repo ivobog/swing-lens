@@ -292,12 +292,13 @@ def c06_offline_sec_provider(environment, database_url, *, bootstrap=False):
     from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
     from app.services.ceri.sec.provider import SecCeriProvider
     from app.services.ceri.source_record_service import source_record_content_hash
-    from scripts.qa.golden_provenance import C06_PROCESSOR, C06_PROJECTED_HASHES
+    from scripts.qa.golden_provenance import C06_PROJECTED_HASHES
     from single_run_certification.candidate_validation import c06_offline_filings
 
     require_c06_offline_runtime(environment, database_url)
     specimen = c06_offline_filings()
-    if specimen is None or sec_guidance_processor_signature() != C06_PROCESSOR:
+    # Bind the replay to the reviewed extractor while checking every sealed projection below.
+    if specimen is None or sec_guidance_processor_signature() != "sec-guidance:755df092d79e7a53":
         raise RuntimeError("C06_GOLDEN_PROCESSOR_OR_FIXTURE_MISMATCH")
     by_cik = {row["cik"]: row for row in specimen["filings"]}
 

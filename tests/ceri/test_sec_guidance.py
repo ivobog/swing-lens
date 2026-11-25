@@ -28,6 +28,36 @@ def test_guidance_extractor_preserves_locator_and_marks_ambiguous_claims() -> No
     assert "guidance_comparison_insufficient" in rows[1].warnings
 
 
+def test_forecast_evidence_cannot_borrow_an_unrelated_amount_or_scope() -> None:
+    extract = GuidanceExtractionService().extract
+    for source in (
+        "For fiscal year 2027, the company discussed its revenue outlook. "
+        "The license can require contingent milestone payments of USD 140 million.",
+        "Our revenue guidance is expected to improve; commitments include a licensing "
+        "payment of USD 140 million in fiscal year 2027.",
+        "The company reported consolidated revenue of USD 140 million for fiscal year 2025. "
+        "The fiscal year 2027 guidance will be released later.",
+        "In 2025, we experienced increases in revenues of approximately USD 9.4 million. "
+        "The exchange rate cannot be forecasted with reliable accuracy.",
+    ):
+        assert all(
+            row.point_value is None and row.low_value is None and row.high_value is None
+            for row in extract(source)
+        )
+
+    scoped, = extract(
+        "For fiscal year 2027, our facility forecasts revenue guidance of USD 140 million."
+    )
+    assert scoped.point_value == 140 and scoped.financial_basis is None
+    legitimate, = extract(
+        "For fiscal year 2027, the company expects consolidated revenue guidance of "
+        "USD 140 million."
+    )
+    assert legitimate.point_value == 140
+    assert legitimate.target_period == "FY2027"
+    assert legitimate.financial_basis == "REVENUE_REPORTED"
+
+
 def test_refactored_document_boundary_preserves_cold_provider_output(monkeypatch) -> None:
     class Client:
         config = SecClientConfig()

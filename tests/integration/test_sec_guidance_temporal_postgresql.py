@@ -47,7 +47,8 @@ class OfflineSec:
         self.filename = f"fixture-{number}.htm"
         self.body = (
             f"<SEC-HEADER>\nCENTRAL INDEX KEY: {CIK}\n</SEC-HEADER>\n"
-            f"<p>We expect full year revenue guidance of USD {amount} million.</p>"
+            f"<p>For fiscal year 2026, the company expects consolidated revenue guidance of "
+            f"USD {amount} million.</p>"
         )
 
     def submissions(self, issuer):

@@ -1,0 +1,75 @@
+[
+  {
+    "ticker": "AGIO",
+    "cik": "0001439222",
+    "submissions": "agio-submissions.json.gz",
+    "submissions_sha256": "a71fd856e46ccbe4ca128ea8a468d984e963e6ccaa4407bf85864d0807999f3f",
+    "submissions_possession": "2026-11-23T16:55:31.207318+00:00",
+    "documents": [
+      {
+        "accession_number": "0001439222-26-000118",
+        "document_name": "agio-20260630.htm",
+        "form": "10-Q",
+        "filing_date": "2026-07-30",
+        "sec_filing_accepted_at_utc": "2026-07-30T13:56:06+00:00",
+        "registry_possession_utc": "2026-10-19T23:16:07.580959+00:00",
+        "cache_sha256": "b1267e78f78f1e5514c2e871dcccfc3dfd91e8c8515fa6c5ba57e1b1865a9f1a",
+        "cache_utf8_bytes": 1337099,
+        "body_file": "0001439222-26-000118.html.gz"
+      },
+      {
+        "accession_number": "0001439222-26-000131",
+        "document_name": "agio-20260930.htm",
+        "form": "10-Q",
+        "filing_date": "2026-11-05",
+        "sec_filing_accepted_at_utc": "2026-11-05T14:38:29+00:00",
+        "registry_possession_utc": "2026-11-23T17:20:28.480303+00:00",
+        "cache_sha256": "1714f948c8732b6aa114ee9824a1f58dc1573783f849c1c2a83d6b83b55570a6",
+        "cache_utf8_bytes": 1400061,
+        "body_file": "0001439222-26-000131.html.gz"
+      }
+    ]
+  },
+  {
+    "ticker": "EMR",
+    "cik": "0000032604",
+    "submissions": "emr-submissions.json.gz",
+    "submissions_sha256": "496a933394040ea4c0862b515dbc215e7275cab9e199c76604bc225468824940",
+    "submissions_possession": "2026-11-23T16:52:24.442403+00:00",
+    "documents": [
+      {
+        "accession_number": "0000032604-26-000035",
+        "document_name": "emr-20260331.htm",
+        "form": "10-Q",
+        "filing_date": "2026-05-05",
+        "sec_filing_accepted_at_utc": "2026-05-05T20:08:11.000Z",
+        "registry_possession_utc": "2026-10-01 01:26:26.612418+00:00",
+        "cache_sha256": "968661e10edec4458e41f33ef6fd2865c2040ebb93962c3141e7219e97ef86b2",
+        "cache_utf8_bytes": 1529226,
+        "body_file": "0000032604-26-000035.html.gz"
+      },
+      {
+        "accession_number": "0000032604-26-000043",
+        "document_name": "emr-20260630.htm",
+        "form": "10-Q",
+        "filing_date": "2026-08-04",
+        "sec_filing_accepted_at_utc": "2026-08-04T20:07:29+00:00",
+        "registry_possession_utc": "2026-10-01T01:26:24.202990+00:00",
+        "cache_sha256": "75e8b8718021a23407236300505dad1a85e529ab3760817ee37fcdb60cf27489",
+        "cache_utf8_bytes": 1581806,
+        "body_file": "0000032604-26-000043.html.gz"
+      },
+      {
+        "accession_number": "0000032604-26-000054",
+        "document_name": "emr-20260930.htm",
+        "form": "10-K",
+        "filing_date": "2026-11-09",
+        "sec_filing_accepted_at_utc": "2026-11-09T21:27:01+00:00",
+        "registry_possession_utc": "2026-11-14T15:06:34.596050+00:00",
+        "cache_sha256": "f8f3d6bf26e8567ec77d2bb827f3f1291259678e029c0f639e86ba651b2d92a3",
+        "cache_utf8_bytes": 2812225,
+        "body_file": "0000032604-26-000054.html.gz"
+      }
+    ]
+  }
+]

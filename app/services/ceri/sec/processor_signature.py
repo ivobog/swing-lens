@@ -5,7 +5,7 @@ import hashlib
 SEC_PROCESSOR_SIGNATURE_ALGORITHM_VERSION = "sec-processor-signature-v1"
 SEC_PROCESSOR_NAME = "sec-guidance"
 DOCUMENT_PARSER_VERSION = "sec-html-text-v1"
-GUIDANCE_EXTRACTOR_VERSION = "guidance-regex-visible-text-v4"
+GUIDANCE_EXTRACTOR_VERSION = "guidance-financial-clause-comparability-v5"
 EVIDENCE_LOCATOR_VERSION = "paragraph-locator-v1"
 FILING_SELECTION_POLICY_VERSION = "guidance-forms-v1"
 SEC_GUIDANCE_TIMING_VERSION = "sec-guidance-accepted-pit-v1"

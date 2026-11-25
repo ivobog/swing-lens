@@ -339,7 +339,10 @@ def validate_normalized_change(
         if record.provider == "sec":
             from app.services.ceri.guidance_comparison_service import compare_guidance
 
-            comparison = compare_guidance(normalized, prior)
+            comparison = compare_guidance(
+                normalized, prior, current_source=record,
+                prior_source=predecessor_record if prior is not None else None,
+            )
             normalized.action, normalized.confidence = comparison.action, comparison.confidence
         expected_source = {
             key: getattr(normalized, key)
