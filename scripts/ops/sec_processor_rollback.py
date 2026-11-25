@@ -13,6 +13,7 @@ from contextlib import ExitStack, contextmanager
 from ctypes import wintypes
 from pathlib import Path
 
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from app.db import engine
@@ -31,6 +32,10 @@ from scripts.ops.ceri_prospective_revenue import (
 
 ROOT = Path(__file__).resolve().parents[2]
 NAMESPACE = "swinglens-sec-processor-rollback"
+QUALIFICATION_DATABASE = "swinglens_pytest_c06_r2_exactpair"
+QUALIFICATION_SERVICE = "SwingLensC06R1Qualification"
+QUALIFICATION_PORT = 55492
+QUALIFICATION_OWNER = "ivobog-c06-r2-qualification"
 
 
 def _assert_windows_trust_acl(executable: Path, signers: Path) -> None:
@@ -73,12 +78,48 @@ foreach ($path in @($env:SWINGLENS_ROLLBACK_TRUST,
         raise ValueError("Rollback signer trust or verifier is not protected.")
 
 
-def _verify_approval(path: Path, signature: Path) -> tuple[RollbackApproval, str]:
+def _operator_signer(qualification: bool) -> tuple[Path, Path, str]:
+    if not qualification:
+        executable, signers = _trust()
+        return executable, signers, OWNER
+
+    settings = get_settings()
+    target = make_url(settings.database_url)
+    if (
+        os.name != "nt"
+        or os.environ.get("SWINGLENS_DATABASE_SAFETY_CONTEXT") != "AUTHORITATIVE_LOCAL"
+        or not target.drivername.startswith("postgresql")
+        or (target.host, target.port, target.database)
+        != ("127.0.0.1", QUALIFICATION_PORT, QUALIFICATION_DATABASE)
+        or target.query
+        or settings.swinglens_postgres_service != QUALIFICATION_SERVICE
+        or settings.swinglens_postgres_data_dir.resolve()
+        != Path("D:/SwingLens-C06-R2-ExactNative-55492/pg")
+    ):
+        raise ValueError("Qualification trust requires the exact isolated PostgreSQL profile.")
+
+    from scripts.ops.lifecycle_probe import _provenance_report
+
+    report = _provenance_report()
+    if not report.get("verified") or (
+        report.get("service"), report.get("port"), report.get("database")
+    ) != (QUALIFICATION_SERVICE, QUALIFICATION_PORT, QUALIFICATION_DATABASE):
+        raise ValueError("Qualification PostgreSQL service ownership was not verified.")
+    system = _windows_system_dir()
+    signers = Path(system.anchor) / "ProgramData/SwingLensC06R1Qualification-55492/allowed-signers"
+    if not signers.is_file() or signers != signers.resolve():
+        raise ValueError("Qualification signer trust is unavailable.")
+    return system / "OpenSSH/ssh-keygen.exe", signers, QUALIFICATION_OWNER
+
+
+def _verify_approval(
+    path: Path, signature: Path, *, qualification: bool = False,
+) -> tuple[RollbackApproval, str]:
     with path.open("rb") as stream:
         content = stream.read(16385)
     if len(content) > 16384:
         raise ValueError("Rollback approval is too large.")
-    executable, signers = _trust()
+    executable, signers, owner = _operator_signer(qualification)
     _assert_windows_trust_acl(executable, signers)
     result = subprocess.run(
         [
@@ -88,7 +129,7 @@ def _verify_approval(path: Path, signature: Path) -> tuple[RollbackApproval, str
             "-f",
             str(signers),
             "-I",
-            OWNER,
+            owner,
             "-n",
             NAMESPACE,
             "-s",
@@ -225,12 +266,15 @@ def main() -> int:
     parser.add_argument("--approval", type=Path, required=True)
     parser.add_argument("--signature", type=Path, required=True)
     parser.add_argument("--qualification", type=Path, required=True)
+    parser.add_argument("--qualification-trust", action="store_true")
     args = parser.parse_args()
     if os.name != "nt":
         raise SystemExit("The supported rollback operator requires the native Windows launcher.")
     if get_settings().runtime_mode is not RuntimeMode.NORMAL:
         raise SystemExit("SEC processor rollback requires the NORMAL runtime profile.")
-    approval, approval_sha256 = _verify_approval(args.approval, args.signature)
+    approval, approval_sha256 = _verify_approval(
+        args.approval, args.signature, qualification=args.qualification_trust,
+    )
     candidate, predecessor = _verified_inputs(approval, args.qualification)
     with ExitStack() as locks:
         for root in sorted((candidate, predecessor)):

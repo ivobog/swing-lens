@@ -8,6 +8,12 @@ To inspect one preparation's receipt and projection IDs and hashes, add
 `inspect`. The approval must match the current identities and remain within its
 signed window. The output omits filing bodies and extracted payloads.
 
+For the isolated Windows C06 qualification, both signed operators accept
+`--qualification-trust`. It requires the exact loopback qualification database,
+the verified `SwingLensC06R1Qualification` Windows service, and the
+administrator-owned test signer under the separate qualification principal.
+The ordinary invocation uses the existing production trust configuration.
+
 Preparation requires a protected owner OpenSSH signature in the
 `swinglens-sec-cache-preparation` namespace. The signed JSON binds the runtime
 and recovery roots and Git identities, issuer manifest, replay identity, runtime

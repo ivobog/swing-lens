@@ -44,16 +44,15 @@ from app.services.ceri.sec.scope_evidence import exact_filing
 from app.services.entrypoint_authority import require_disposable_tool_target
 from app.settings import RuntimeMode, SecDocumentIncrementalMode, get_settings
 from scripts.ops.ceri_prospective_revenue import (
-    OWNER,
     _database,
     _principal,
-    _trust,
     _unique_fields,
 )
 from scripts.ops.sec_processor_rollback import (
     _assert_windows_trust_acl,
     _checkout_identity,
     _hold_launcher_lock,
+    _operator_signer,
 )
 from scripts.ops.validate_sec_cofiler import (
     check_frozen_selection,
@@ -113,12 +112,12 @@ def _read_json(path, limit, expected=None):
     return json.loads(content, object_pairs_hook=_unique_fields), content, fingerprint
 
 
-def _verify_approval(path, signature):
+def _verify_approval(path, signature, *, qualification=False):
     _, signed, digest = _read_json(path, 16384)
-    executable, signers = _trust()
+    executable, signers, owner = _operator_signer(qualification)
     _assert_windows_trust_acl(executable, signers)
     result = subprocess.run(
-        [str(executable), "-Y", "verify", "-f", str(signers), "-I", OWNER,
+        [str(executable), "-Y", "verify", "-f", str(signers), "-I", owner,
          "-n", NAMESPACE, "-s", str(signature)],
         input=signed, capture_output=True, timeout=5, check=False,
     )
@@ -471,6 +470,7 @@ def main():
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--wire-proofs", type=Path)
     parser.add_argument("--ticker")
+    parser.add_argument("--qualification-trust", action="store_true")
     args = parser.parse_args()
     settings = get_settings()
     engine = create_engine(settings.database_url)
@@ -482,7 +482,9 @@ def main():
                 if any((args.approval, args.signature, args.ticker)):
                     if not all((args.approval, args.signature, args.ticker)):
                         parser.error("signed inspection requires approval, signature and ticker")
-                    approval, _ = _verify_approval(args.approval, args.signature)
+                    approval, _ = _verify_approval(
+                        args.approval, args.signature, qualification=args.qualification_trust,
+                    )
                     identity = _inspect_preparation(db, identity, approval, args.ticker)
                 print(json.dumps(identity))
                 return
@@ -490,7 +492,9 @@ def main():
                 args.approval, args.signature, args.manifest, args.wire_proofs,
             )):
                 parser.error("prepare requires approval, signature, manifest and wire proofs")
-            approval, receipt = _verify_approval(args.approval, args.signature)
+            approval, receipt = _verify_approval(
+                args.approval, args.signature, qualification=args.qualification_trust,
+            )
             manifest, _, _ = _read_json(args.manifest, 8_000_000, approval.manifest_sha256)
             wire, _, _ = _read_json(args.wire_proofs, 1_000_000, approval.wire_proofs_sha256)
             if os.environ.get("SWINGLENS_DATABASE_SAFETY_CONTEXT") == "DISPOSABLE_TEST":
