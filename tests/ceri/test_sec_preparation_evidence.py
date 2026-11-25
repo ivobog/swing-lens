@@ -1,11 +1,19 @@
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from types import SimpleNamespace
 
+import pytest
+
 from app.services.ceri.pit_eligibility import source_record_historical_eligibility_at
 from app.services.ceri.preparation_visibility import PREPARATION_SOURCE
-from app.services.ceri.sec.preparation_evidence import archive_exclusion_proof, examine_attribution
+from app.services.ceri.sec.preparation_evidence import (
+    PreparationAuthorization,
+    PreparationExpired,
+    _after_verified_approval,
+    archive_exclusion_proof,
+    examine_attribution,
+)
 from app.services.ceri.sec.preparation_sources import PreparationSourceOwner
 from app.services.ceri.sec.processor_signature import (
     SEC_SCOPE_EVIDENCE_V1,
@@ -64,3 +72,20 @@ def test_refusal_requires_verified_archive_wire_custody_and_exact_body():
     assert archive_exclusion_proof(
         FILING, recorded, body, proof, "SEC_PROJECTED_SOURCE_QUARANTINED",
     ) is None
+
+
+def test_preparation_requires_verified_approval_and_checks_window_again():
+    now = datetime.now(UTC)
+    with pytest.raises(ValueError, match="PROTECTED_APPROVAL_REQUIRED"):
+        PreparationAuthorization("f" * 64, now, now + timedelta(minutes=5), {}).check_window()
+
+    approved = _after_verified_approval(
+        "f" * 64, now - timedelta(minutes=3), now - timedelta(minutes=2), {},
+    )
+    with pytest.raises(PreparationExpired, match="AUTHORIZATION_EXPIRED"):
+        approved.check_window()
+    resumed = _after_verified_approval(
+        approved.scope_sha256, now - timedelta(minutes=1), now + timedelta(minutes=2), {},
+    )
+    resumed.check_window()
+    assert resumed.scope_sha256 == approved.scope_sha256

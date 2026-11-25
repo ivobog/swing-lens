@@ -17,6 +17,7 @@ from app.services.ceri.sec.issuer_succession import ownership_conflict
 from app.services.ceri.sec.preparation_evidence import (
     EXCLUDED_ATTRIBUTION,
     PreparationAuthorization,
+    PreparationExpired,
     archive_exclusion_proof,
     examine_attribution,
     has_unresolved_legacy_collision,
@@ -37,6 +38,7 @@ from app.services.ceri.sec.scope_evidence import (
     ScopeGeneration,
     body_version,
     exact_filing,
+    extraction_completion,
     generation_ready,
     locked_events,
     open_generation,
@@ -44,6 +46,7 @@ from app.services.ceri.sec.scope_evidence import (
     preparation_owner,
     record_outcome,
     retain_selection,
+    retained_preparation_exclusion,
     reusable_outcome,
     reusable_preparation_outcome,
     selected_event,
@@ -192,6 +195,7 @@ class SecGuidanceIncrementalIngestionService:
             db, run_id, ticker.upper(), cik, self.processor_signature,
             preparation_sha256=preparation.scope_sha256 if preparation else None,
             approval_receipt_sha256=preparation.signed_approval_sha256 if preparation else None,
+            preparation_recovery=preparation.recovery if preparation else None,
         )
         db.commit()  # Current readiness is blocked before discovery starts.
         try:
@@ -423,12 +427,22 @@ class SecGuidanceIncrementalIngestionService:
                 db.commit()
             else:
                 outcome.documents_cache_reused += 1
-            refusal = examine_attribution(document, filing_text) if prepared else None
+            active_origin = (
+                retained_preparation_exclusion(db, events[0], filing, version)
+                if not prepared and cached is not None
+                and self.settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE
+                else None
+            )
+            refusal = (
+                examine_attribution(document, filing_text) if prepared or active_origin else None
+            )
             exclusion = None
             if refusal is not None:
-                exclusion = archive_exclusion_proof(
-                    filing, version, filing_text, preparation.proof_for(filing), refusal,
-                )
+                if active_origin is not None and active_origin[1] == refusal:
+                    custody = active_origin[2]
+                else:
+                    custody = preparation.proof_for(filing) if prepared else None
+                exclusion = archive_exclusion_proof(filing, version, filing_text, custody, refusal)
                 if exclusion is None or has_unresolved_legacy_collision(db, filing):
                     raise SecAttributionRefused(refusal)
                 records = ()
@@ -471,7 +485,10 @@ class SecGuidanceIncrementalIngestionService:
                     db, generation, filing,
                     {
                         "status": EXCLUDED_ATTRIBUTION, "body": version, "sources": [],
-                        "preparation": asdict(owner), "reason": refusal, "custody": exclusion,
+                        "reason": refusal, "custody": exclusion,
+                        **({"preparation": asdict(owner)} if prepared else {
+                            "exclusion_origin": active_origin[0],
+                        }),
                     },
                     kind=REFUSAL,
                 )
@@ -520,6 +537,7 @@ class SecGuidanceIncrementalIngestionService:
                 content_hash=version["body_sha256"],
                 content_bytes=len(filing_text.encode("utf-8")),
                 downloaded=False,
+                record_registry_use=not prepared,
             )
             record_outcome(
                 db,
@@ -531,10 +549,20 @@ class SecGuidanceIncrementalIngestionService:
                     "sources": prepared_sources if prepared else [
                         {"id": key, "hash": value} for key, value in sorted(sources.items())
                     ],
+                    **({"extraction": extraction_completion(db, claim.extraction_id)}
+                       if prepared else {}),
                     **({"preparation": asdict(owner)} if prepared_sources else {}),
                 },
             )
             db.commit()
+        except PreparationExpired:
+            db.rollback()
+            locked_events(db, generation)
+            self.state.cancel(
+                db, extraction_id=claim.extraction_id, execution_token=claim.execution_token,
+            )
+            db.commit()
+            raise
         except (SecIncrementalCancelled, ScopeEvidenceError):
             raise
         except Exception as exc:

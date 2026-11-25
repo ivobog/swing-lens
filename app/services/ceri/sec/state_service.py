@@ -244,6 +244,7 @@ class SecDocumentStateService:
         content_hash: str,
         content_bytes: int,
         downloaded: bool = True,
+        record_registry_use: bool = True,
     ) -> None:
         now = _utcnow()
         status = (
@@ -271,6 +272,8 @@ class SecDocumentStateService:
         )
         if result.rowcount != 1:
             raise RuntimeError("SEC extraction lease was lost before completion")
+        if not record_registry_use:
+            return
         extraction = db.get(CeriSecDocumentExtraction, extraction_id)
         assert extraction is not None
         document_values = {

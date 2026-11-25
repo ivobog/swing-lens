@@ -14,6 +14,7 @@ from app.models.ceri_tables import (
     CeriCompany,
     CeriIngestionRun,
     CeriIngestionRunSourceRecord,
+    CeriSecDocumentExtraction,
     CeriSecFilingDocument,
     CeriSecProcessorRelease,
     CeriSecScopeEvidence,
@@ -155,6 +156,7 @@ def _scope_run(db, run_id):
 def open_generation(
     db: Session, run_id: int, ticker: str, cik: str, signature: str,
     *, preparation_sha256: str | None = None, approval_receipt_sha256: str | None = None,
+    preparation_recovery: dict | None = None,
 ) -> ScopeGeneration:
     """Admit an owning SEC run, or resume its exact generation after interruption."""
     if signature != sec_guidance_processor_signature():
@@ -224,6 +226,7 @@ def open_generation(
         if latest.ingestion_run_id == run_id:
             if latest.scope_id != run.scope_id or (
                 previous_opening.get("preparation_sha256") != preparation_sha256
+                or previous_opening.get("preparation_recovery") != preparation_recovery
             ):
                 raise ScopeEvidenceError("SEC_SCOPE_RUN_AUTHORITY_CHANGED")
             return ScopeGeneration(cik, signature, latest.generation, run_id, run.scope_id)
@@ -246,6 +249,7 @@ def open_generation(
             **({
                 "preparation_sha256": preparation_sha256,
                 "approval_receipt_sha256": approval_receipt_sha256,
+                "preparation_recovery": preparation_recovery,
             } if prepared_run else {}),
         },
     )
@@ -372,6 +376,35 @@ def _matching_body(db, filing, body):
     )
 
 
+def extraction_completion(db, extraction_id):
+    row = db.get(CeriSecDocumentExtraction, extraction_id, populate_existing=True)
+    if row is None:
+        return None
+    return {
+        "id": row.id,
+        "document_id": row.document_id,
+        "processor_signature": row.processor_signature,
+        "status": row.status,
+        "attempt": row.attempt_count,
+        "records": row.record_count,
+        "completed_at": Canonical.canonicalize(row.completed_at),
+    }
+
+
+def _matching_prepared_completion(db, opening, body, result):
+    completion = result.get("extraction")
+    return (
+        isinstance(completion, dict)
+        and isinstance(completion.get("id"), int)
+        and completion.get("document_id") == body["document_id"]
+        and completion.get("processor_signature") == opening.processor_signature
+        and completion.get("status") == result["status"]
+        and completion.get("records") == len(result["sources"])
+        and completion.get("completed_at") is not None
+        and completion == extraction_completion(db, completion["id"])
+    )
+
+
 def _matches_sources(db, run_id, filing, result):
     sources = result["sources"]
     if result["status"] == "COMPLETED_NO_RECORDS":
@@ -418,7 +451,10 @@ def reusable_outcome(db, generation, filing, body):
                 .order_by(row.ordinal)
             )
         )
-        if len(previous) > 1 and payload(previous[1])["required"] == selected["required"]:
+        if (
+            len(previous) > 1 and not payload(previous[0]).get("preparation_sha256")
+            and payload(previous[1])["required"] == selected["required"]
+        ):
             run_id = previous[0].ingestion_run_id
             latest = _document_outcomes(previous[2:]).get(Canonical.fingerprint(filing))
     if latest is not None:
@@ -448,7 +484,11 @@ def generation_ready(
     if len(events) < 2 or (generation and events[0].generation != generation.number):
         return False
     opening, selection, *documents = events
-    if run_id is not None and opening.ingestion_run_id != run_id:
+    if (
+        opening.kind != OPEN or opening.ordinal != 0
+        or selection.kind != SELECTED or selection.ordinal != 1
+        or run_id is not None and opening.ingestion_run_id != run_id
+    ):
         return False
     opened = payload(opening)
     contract = scope_evidence_contract(signature)
@@ -511,21 +551,73 @@ def preparation_owner(db, opening, selection):
     )
 
 
+def retained_preparation_exclusion(db, opening, filing, body, anchor=None):
+    """Resolve an independently verified exclusion for the exact retained body version."""
+    row = CeriSecScopeEvidence
+    events = db.scalars(select(row).where(
+        row.cik == opening.cik,
+        row.processor_signature == opening.processor_signature,
+        row.kind == REFUSAL,
+        row.generation < opening.generation,
+    ).order_by(row.generation.desc(), row.ordinal.desc()))
+    for event in events:
+        if anchor is not None and event.evidence_sha256 != anchor:
+            continue
+        prior = payload(event)
+        if (
+            prior.get("status") != EXCLUDED_ATTRIBUTION or not prior.get("preparation")
+            or prior.get("filing") != filing or prior.get("body") != body
+        ):
+            continue
+        original = db.scalars(select(row).where(
+            row.cik == event.cik, row.processor_signature == event.processor_signature,
+            row.generation == event.generation, row.ordinal.in_((0, 1)),
+        ).order_by(row.ordinal)).all()
+        if (
+            len(original) == 2 and original[0].kind == OPEN and original[1].kind == SELECTED
+            and event.ingestion_run_id == original[0].ingestion_run_id
+            and filing in payload(original[1])["required"]
+            and _valid_processing_outcome(db, *original, filing, REFUSAL, prior)
+        ):
+            return event.evidence_sha256, prior["reason"], prior["custody"]
+    return None
+
+
 def _valid_processing_outcome(db, opening, selection, filing, kind, result):
     body = result.get("body")
-    if kind == REFUSAL and result.get("status") == EXCLUDED_ATTRIBUTION:
+    status = result.get("status")
+    excluded = kind == REFUSAL and status == EXCLUDED_ATTRIBUTION
+    if excluded or payload(opening).get("preparation_sha256") and status == "COMPLETED_NO_RECORDS":
         owner = preparation_owner(db, opening, selection)
-        custody = result.get("custody") or {}
         source_table = CeriSourceRecord.__table__
         members = CeriIngestionRunSourceRecord.__table__
         locator = f'{filing["accession"]}/{filing["filename"]}#paragraph-'
-        associated = db.scalar(select(source_table.c.id).join(members).where(
-            members.c.ingestion_run_id == opening.ingestion_run_id,
+        associated = db.scalar(select(source_table.c.id).outerjoin(members).where(
+            (members.c.ingestion_run_id == opening.ingestion_run_id)
+            | (source_table.c.ingestion_run_id == opening.ingestion_run_id),
             source_table.c.source_reference.startswith(locator, autoescape=True),
         ).limit(1))
+        if result.get("sources") != [] or associated is not None:
+            return False
+        if not excluded:
+            return (
+                owner is not None and kind == OUTCOME and _matching_body(db, filing, body)
+                and _matching_prepared_completion(db, opening, body, result)
+            )
+        custody = result.get("custody") or {}
+        origin = result.get("exclusion_origin")
+        if origin is not None:
+            if (
+                owner is not None
+                or scope_evidence_contract(opening.processor_signature)
+                != SEC_SCOPE_EVIDENCE_VERSION
+                or not _matching_body(db, filing, body)
+            ):
+                return False
+            expected = retained_preparation_exclusion(db, opening, filing, body, anchor=origin)
+            return expected == (origin, result["reason"], custody)
         return (
             owner is not None and result.get("preparation") == asdict(owner)
-            and result.get("sources") == [] and associated is None
             and not has_unresolved_legacy_collision(db, filing)
             and (
                 result.get("reason") == "SEC_REVIEWED_JOINT_FILING"
@@ -552,6 +644,7 @@ def _valid_processing_outcome(db, opening, selection, filing, kind, result):
         owner is not None
         and source_proof == asdict(owner)
         and result["status"] == "COMPLETED_WITH_RECORDS"
+        and _matching_prepared_completion(db, opening, body, result)
         and matches_prepared_sources(
             db, owner=owner, filing=filing, body=body, sources=result["sources"],
         )
@@ -576,6 +669,7 @@ def source_attribution_proved(db, source: CeriSourceRecord, company_cik: str | N
     row = CeriSecScopeEvidence
     for event in db.scalars(
         select(row)
+        .join(CeriIngestionRun, CeriIngestionRun.id == row.ingestion_run_id)
         .where(
             row.cik == cik,
             row.dataset == GUIDANCE,
@@ -587,7 +681,9 @@ def source_attribution_proved(db, source: CeriSourceRecord, company_cik: str | N
         result = payload(event)
         if result["filing"]["accession"] != source.provider_record_id.partition(":")[0]:
             continue
-        if result["status"] not in SUCCESS or result.get("preparation"):
+        if result.get("preparation"):
+            continue
+        if result["status"] not in SUCCESS:
             return False
         if (
             result["status"] == "COMPLETED_WITH_RECORDS"

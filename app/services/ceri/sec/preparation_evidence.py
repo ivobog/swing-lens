@@ -6,10 +6,11 @@ import hashlib
 import io
 import re
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from types import MappingProxyType
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.models.ceri_tables import CeriGuidanceEvent, CeriSourceRecord
 from app.services.ceri.sec.attribution import (
@@ -21,6 +22,7 @@ from app.services.ceri.sec.attribution import (
     SecAttributionRefused,
     prove_document_attribution,
 )
+from app.services.entrypoint_authority import require_disposable_tool_target
 
 EXCLUDED_ATTRIBUTION = "COMPLETED_EXCLUDED_ATTRIBUTION"
 REVIEWED_QUARANTINED_PRIMARY = ("0001534504", "0001534504-26-000043", "pbf-20261027.htm")
@@ -44,10 +46,14 @@ class PreparationAuthorization:
     expected_custody: dict | None = None
     signed_approval_sha256: str | None = None
     quarantined: tuple[str, dict] | None = None
+    recovery: dict | None = None
+    _verified: bool = field(default=False, init=False, repr=False)
 
     def check_window(self) -> None:
+        if not self._verified:
+            raise ValueError("SEC_PREPARATION_PROTECTED_APPROVAL_REQUIRED")
         if not self.starts_at <= datetime.now(UTC) < self.cutoff_at:
-            raise ValueError("SEC_PREPARATION_AUTHORIZATION_EXPIRED")
+            raise PreparationExpired("SEC_PREPARATION_AUTHORIZATION_EXPIRED")
 
     def has_filing(self, filing):
         return (filing["cik"], filing["accession"], filing["filename"]) in self.issuer_proofs
@@ -63,6 +69,26 @@ class PreparationAuthorization:
         return self.issuer_proofs.get(
             (filing["cik"], filing["accession"], filing["filename"])
         )
+
+
+class PreparationExpired(RuntimeError):
+    """A valid preparation may continue only under a newly signed window."""
+
+
+def _after_verified_approval(*args, **kwargs) -> PreparationAuthorization:
+    authorization = PreparationAuthorization(*args, **kwargs)
+    object.__setattr__(
+        authorization, "issuer_proofs", MappingProxyType(authorization.issuer_proofs.copy()),
+    )
+    object.__setattr__(authorization, "_verified", True)
+    return authorization
+
+
+def disposable_preparation_authorization(db, *args, **kwargs) -> PreparationAuthorization:
+    """Exercise the native writer in an explicitly disposable qualification database."""
+    bind = db.get_bind()
+    require_disposable_tool_target(bind.url if hasattr(bind, "url") else bind.engine.url)
+    return _after_verified_approval(*args, **kwargs)
 
 
 def examine_attribution(document, text: str) -> str | None:
@@ -174,11 +200,16 @@ def _is_cik(value, cik):
 
 
 def has_unresolved_legacy_collision(db, filing) -> bool:
-    """Never infer original body genealogy for already admitted legacy guidance."""
+    """Refuse exclusions that could leave body-ambiguous historical guidance in use."""
     locator = f'{filing["accession"]}/{filing["filename"]}#paragraph-'
     return db.scalar(select(CeriGuidanceEvent.id).join(CeriSourceRecord).where(
         CeriSourceRecord.provider == "sec",
         CeriSourceRecord.dataset == "guidance",
-        CeriSourceRecord.source_reference.startswith(locator, autoescape=True),
-        CeriGuidanceEvent.accepted_for_scoring.is_(True),
+        or_(
+            CeriSourceRecord.source_reference.startswith(locator, autoescape=True),
+            CeriSourceRecord.provider_record_id.startswith(
+                f'{filing["accession"]}:', autoescape=True,
+            ),
+            CeriGuidanceEvent.filing_accession == filing["accession"],
+        ),
     ).limit(1)) is not None

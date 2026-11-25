@@ -22,7 +22,7 @@ def sec_guidance_processor_signature() -> str:
 
 
 def sec_guidance_processor_identity_inputs() -> tuple[str, ...]:
-    """Ordered semantic identity contract for the v1 persisted signature."""
+    """Ordered semantic identity contract for the persisted processor signature."""
 
     return (
         DOCUMENT_PARSER_VERSION,

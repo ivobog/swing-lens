@@ -80,15 +80,20 @@ def matches_prepared_sources(db, *, owner, filing, body, sources):
     indexed = {item["id"]: item for item in sources}
     if not indexed or len(indexed) != len(sources):
         return False
-    rows = db.execute(select(table).join(members, table.c.id == members.c.source_record_id).where(
+    owned = (
         table.c.source_reference.startswith(
             f'{filing["accession"]}/{filing["filename"]}#paragraph-', autoescape=True,
         ),
         table.c.ingestion_run_id == owner.run_id,
-        members.c.ingestion_run_id == owner.run_id,
         table.c.dataset == PREPARATION_SOURCE,
-        members.c.dataset == PREPARATION_SOURCE,
         table.c.provider == "sec",
+    )
+    if set(db.scalars(select(table.c.id).where(*owned))) != set(indexed):
+        return False
+    rows = db.execute(select(table).join(members, table.c.id == members.c.source_record_id).where(
+        *owned,
+        members.c.ingestion_run_id == owner.run_id,
+        members.c.dataset == PREPARATION_SOURCE,
         members.c.provider == "sec",
     )).mappings().all()
     if {row["id"] for row in rows} != set(indexed) or len(rows) != len(indexed):

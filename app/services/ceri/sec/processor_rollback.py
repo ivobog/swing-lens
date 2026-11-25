@@ -172,7 +172,19 @@ def seal_prepared_scope(db, *, tickers, signature, preparation_sha256):
         or sum(len(payload(item)["required"]) for item in selected) != 2570
     ):
         raise ValueError("SEC preparation scope has changed or contains foreign evidence.")
-    return _readiness_seal(db, tuple(tickers), signature)
+    recovery = payload(opened[0]).get("preparation_recovery")
+    if (
+        not isinstance(recovery, dict) or not recovery.get("native_verified")
+        or not re.fullmatch(GIT_PATTERN, recovery.get("git", ""))
+        or not re.fullmatch(SHA_PATTERN, recovery.get("config", ""))
+        or not isinstance(recovery.get("root"), str) or not recovery["root"]
+        or any(payload(item).get("preparation_recovery") != recovery for item in opened)
+    ):
+        raise ValueError("The exact compatible native predecessor was not established.")
+    return {
+        "digest": preparation_sha256, "recovery": recovery,
+        "readiness_seal": _readiness_seal(db, tuple(tickers), signature),
+    }
 
 
 def record_recoverable_promotion(
@@ -204,13 +216,16 @@ def record_recoverable_promotion(
     tickers = certified_run_tickers(db, run_id)
     if candidate.certification_evidence_json.get("scope_tickers") != list(tickers):
         raise ValueError("The promoted run cohort changed after certification.")
-    if scope_evidence_contract(candidate.processor_signature) == SEC_SCOPE_EVIDENCE_VERSION:
-        preparation = candidate.certification_evidence_json.get("preparation_scope")
-        if preparation is not None and preparation["readiness_seal"] != seal_prepared_scope(
+    preparation = candidate.certification_evidence_json.get("preparation_scope")
+    if (
+        scope_evidence_contract(candidate.processor_signature) == SEC_SCOPE_EVIDENCE_VERSION
+        and preparation is not None
+        and preparation != seal_prepared_scope(
             db, tickers=tickers, signature=candidate.processor_signature,
             preparation_sha256=preparation["digest"],
-        ):
-            raise ValueError("The exact certified SEC preparation receipt has changed.")
+        )
+    ):
+        raise ValueError("The exact certified SEC preparation receipt has changed.")
     return {
         "id": uuid4().hex,
         "predecessor": predecessor.processor_signature,
@@ -224,6 +239,7 @@ def record_recoverable_promotion(
         "candidate_readiness": _readiness_seal(db, tickers, candidate.processor_signature),
         "predecessor_certification": _certification_digest(predecessor),
         "candidate_certification": _certification_digest(candidate),
+        **({"preparation_recovery": preparation["recovery"]} if preparation else {}),
     }
 
 
@@ -307,6 +323,13 @@ def rollback_committed_promotion(
         raise ValueError("The exact immediately preceding promotion is no longer reversible.")
     _lock_scope(db)
     _assert_database_quiescent(db)
+    recovery = receipt.get("preparation_recovery")
+    if recovery and (
+        approval.predecessor_git != recovery["git"]
+        or approval.predecessor_root != recovery["root"]
+        or approval.predecessor_config != recovery["config"]
+    ):
+        raise ValueError("Rollback approval does not bind the certified compatible recovery.")
     if certified_run_tickers(db, receipt["run_id"]) != tuple(receipt["tickers"]):
         raise ValueError("The recorded SEC readiness cohort changed.")
     if (

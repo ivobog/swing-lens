@@ -5,8 +5,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import subprocess
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -14,18 +15,24 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
-from app.models.ceri_tables import CeriCompany, CeriSecProcessorRelease
+from app.models.ceri_tables import (
+    CeriCompany,
+    CeriIngestionRun,
+    CeriSecProcessorRelease,
+    CeriSecScopeEvidence,
+    CeriSourceRecord,
+)
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
 from app.services.ceri.config import load_ceri_config
 from app.services.ceri.enums import CeriDataset
 from app.services.ceri.orchestration import CeriIngestionRequest, CeriIngestionService
-from app.services.ceri.preparation_visibility import PREPARATION_REQUEST_PREFIX
+from app.services.ceri.preparation_visibility import PREPARATION_REQUEST_PREFIX, PREPARATION_SOURCE
 from app.services.ceri.provider_registry import CeriProviderRegistry
 from app.services.ceri.sec.preparation_evidence import (
     REVIEWED_QUARANTINED_POSSESSION,
     REVIEWED_QUARANTINED_PRIMARY,
     REVIEWED_QUARANTINED_SHA256,
-    PreparationAuthorization,
+    _after_verified_approval,
 )
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.ceri.sec.provider import (
@@ -34,6 +41,7 @@ from app.services.ceri.sec.provider import (
     SecGuidanceSelection,
 )
 from app.services.ceri.sec.scope_evidence import exact_filing
+from app.services.entrypoint_authority import require_disposable_tool_target
 from app.settings import RuntimeMode, SecDocumentIncrementalMode, get_settings
 from scripts.ops.ceri_prospective_revenue import (
     OWNER,
@@ -42,7 +50,11 @@ from scripts.ops.ceri_prospective_revenue import (
     _trust,
     _unique_fields,
 )
-from scripts.ops.sec_processor_rollback import _assert_windows_trust_acl, _checkout_identity
+from scripts.ops.sec_processor_rollback import (
+    _assert_windows_trust_acl,
+    _checkout_identity,
+    _hold_launcher_lock,
+)
 from scripts.ops.validate_sec_cofiler import (
     check_frozen_selection,
     reviewed_filing,
@@ -77,6 +89,7 @@ class CachePreparationApproval(BaseModel):
     runtime_git: str = Field(pattern=COMMIT)
     recovery_git: str = Field(pattern=COMMIT)
     recovery_root: str
+    recovery_config_sha256: str = Field(pattern=SHA)
     processor_signature: str
     database_fingerprint: str = Field(pattern=SHA)
     database_role: str
@@ -291,13 +304,99 @@ def _inspect(db, settings):
     }
 
 
+def _scope_digest(approval):
+    return Canonical.fingerprint(approval.model_dump(
+        exclude={"starts_at", "cutoff_at"}, mode="json",
+    ))
+
+
+def _inspect_preparation(db, identity, approval, ticker):
+    if (
+        identity["schema"] != SCHEMA
+        or any(
+            getattr(approval, key) != value for key, value in identity.items() if key != "schema"
+        )
+        or not approval.starts_at <= datetime.now(UTC) < approval.cutoff_at
+    ):
+        raise ValueError("SEC_PREPARATION_INSPECTION_AUTHORITY_MISMATCH")
+    scope = _scope_digest(approval)
+    runs = CeriIngestionRun.__table__
+    evidence = CeriSecScopeEvidence.__table__
+    sources = CeriSourceRecord.__table__
+    run = db.execute(select(runs.c.id, runs.c.status).where(
+        runs.c.request_key == f"{PREPARATION_REQUEST_PREFIX}{scope}:{ticker}",
+    )).mappings().one_or_none()
+    if run is None:
+        return {"scope_sha256": scope, "ticker": ticker, "run": None}
+    events = db.execute(select(
+        evidence.c.kind, evidence.c.generation, evidence.c.ordinal, evidence.c.evidence_sha256,
+    ).where(
+        evidence.c.ingestion_run_id == run["id"],
+        evidence.c.processor_signature == approval.processor_signature,
+    ).order_by(evidence.c.generation, evidence.c.ordinal)).mappings()
+    records = db.execute(select(sources.c.id, sources.c.content_hash).where(
+        sources.c.ingestion_run_id == run["id"], sources.c.dataset == PREPARATION_SOURCE,
+    ).order_by(sources.c.id)).mappings()
+    return {
+        "scope_sha256": scope, "ticker": ticker, "run": dict(run),
+        "receipts": [dict(row) for row in events], "projections": [dict(row) for row in records],
+    }
+
+
+def _compatible_runtime(db, approval):
+    root = Path(approval.recovery_root).resolve(strict=True)
+    if _checkout_identity(root) != approval.recovery_git:
+        raise ValueError("SEC_PREPARATION_RECOVERY_GIT_MISMATCH")
+    recovery = {
+        "git": approval.recovery_git, "root": str(root), "config": approval.recovery_config_sha256,
+    }
+    if os.environ.get("SWINGLENS_DATABASE_SAFETY_CONTEXT") == "DISPOSABLE_TEST":
+        require_disposable_tool_target(db.get_bind().url)
+        return {**recovery, "native_verified": False}
+    script = """
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from sqlalchemy.orm import Session
+from app.db import engine
+from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+from scripts.ops.ceri_prospective_revenue import _database
+from scripts.ops.lifecycle_probe import _runtime_state_report
+with Session(engine) as session:
+    database, role, head = _database(session)
+print(json.dumps({"runtime": _runtime_state_report(None), "database": database,
+                  "role": role, "schema": head, "processor": sec_guidance_processor_signature()}))
+"""
+    system_names = {
+        "SYSTEMROOT", "WINDIR", "PATH", "TEMP", "TMP", "USERPROFILE", "PROGRAMDATA",
+        "COMPUTERNAME", "USERNAME", "LOCALAPPDATA", "APPDATA", "PROGRAMFILES",
+    }
+    child = subprocess.run(
+        [str(root / ".venv/Scripts/python.exe"), "-I", "-c", script, str(root)],
+        cwd=root, env={k: v for k, v in os.environ.items() if k.upper() in system_names},
+        capture_output=True, timeout=20, check=True,
+    )
+    observed = json.loads(child.stdout)
+    runtime = observed["runtime"]
+    state = runtime.get("state") or {}
+    if (
+        observed["database"] != approval.database_fingerprint
+        or observed["role"] != approval.database_role
+        or observed["schema"] != SCHEMA or observed["processor"] != INCUMBENT
+        or runtime.get("classification") != "ACTIVE_VALID"
+        or state.get("gitCommit") != approval.recovery_git
+        or state.get("runtimeConfigFingerprint") != approval.recovery_config_sha256
+    ):
+        raise ValueError("SEC_PREPARATION_COMPATIBLE_INCUMBENT_NOT_VERIFIED")
+    return {**recovery, "native_verified": True}
+
+
 def _verify_target(db, settings, approval, selections):
     result = _inspect(db, settings)
     if (
         result.pop("schema") != SCHEMA
         or any(getattr(approval, key) != value for key, value in result.items())
         or settings.runtime_mode is not RuntimeMode.NORMAL
-        or _checkout_identity(Path(approval.recovery_root).resolve()) != approval.recovery_git
+        or Path.cwd().resolve() != ROOT
     ):
         raise ValueError("SEC_PREPARATION_RUNTIME_AUTHORITY_MISMATCH")
     active = db.scalar(select(CeriSecProcessorRelease).where(
@@ -320,19 +419,18 @@ def _verify_target(db, settings, approval, selections):
         raise ValueError("SEC_PREPARATION_DB_ISSUER_SCOPE_MISMATCH")
     if {ticker for ticker, _, status in companies if status == "NOT_APPLICABLE"} != {"NBN", "TOWN"}:
         raise ValueError("SEC_PREPARATION_DB_EXEMPTIONS_MISMATCH")
+    return _compatible_runtime(db, approval)
 
 
 def _prepare(session, settings, approval, approval_digest, manifest, proofs):
     archive_root = Path(approval.archive_root).resolve(strict=True)
     cutoff, selections, custody, filings = _scope_from_manifest(manifest, archive_root)
     wire = _wire_custody(proofs, filings, archive_root)
-    _verify_target(session, settings, approval, selections)
-    scope = Canonical.fingerprint(approval.model_dump(
-        exclude={"starts_at", "cutoff_at"}, mode="json",
-    ))
-    authority = PreparationAuthorization(
+    recovery = _verify_target(session, settings, approval, selections)
+    scope = _scope_digest(approval)
+    authority = _after_verified_approval(
         scope, approval.starts_at, approval.cutoff_at, wire, custody, approval_digest,
-        _quarantined_custody(archive_root, filings),
+        _quarantined_custody(archive_root, filings), recovery,
     )
     authority.check_window()
     config = load_ceri_config()
@@ -366,6 +464,7 @@ def main():
     parser.add_argument("--signature", type=Path)
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--wire-proofs", type=Path)
+    parser.add_argument("--ticker")
     args = parser.parse_args()
     settings = get_settings()
     engine = create_engine(settings.database_url)
@@ -373,7 +472,13 @@ def main():
         with Session(engine) as db:
             if args.operation == "inspect":
                 db.execute(text("SET TRANSACTION READ ONLY"))
-                print(json.dumps(_inspect(db, settings)))
+                identity = _inspect(db, settings)
+                if any((args.approval, args.signature, args.ticker)):
+                    if not all((args.approval, args.signature, args.ticker)):
+                        parser.error("signed inspection requires approval, signature and ticker")
+                    approval, _ = _verify_approval(args.approval, args.signature)
+                    identity = _inspect_preparation(db, identity, approval, args.ticker)
+                print(json.dumps(identity))
                 return
             if any(value is None for value in (
                 args.approval, args.signature, args.manifest, args.wire_proofs,
@@ -382,7 +487,13 @@ def main():
             approval, receipt = _verify_approval(args.approval, args.signature)
             manifest, _, _ = _read_json(args.manifest, 8_000_000, approval.manifest_sha256)
             wire, _, _ = _read_json(args.wire_proofs, 1_000_000, approval.wire_proofs_sha256)
-            _prepare(db, settings, approval, receipt, manifest, wire)
+            if os.environ.get("SWINGLENS_DATABASE_SAFETY_CONTEXT") == "DISPOSABLE_TEST":
+                require_disposable_tool_target(engine.url)
+                _prepare(db, settings, approval, receipt, manifest, wire)
+            else:
+                recovery_root = Path(approval.recovery_root).resolve(strict=True)
+                with _hold_launcher_lock(recovery_root):
+                    _prepare(db, settings, approval, receipt, manifest, wire)
     finally:
         engine.dispose()
 

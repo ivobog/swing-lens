@@ -98,12 +98,9 @@ def main() -> int:
             preparation_scope = {}
             if scope_evidence_contract(signature) == SEC_SCOPE_EVIDENCE_VERSION:
                 digest = evidence.get("preparation_scope_sha256")
-                preparation_scope = {"preparation_scope": {
-                    "digest": digest,
-                    "readiness_seal": seal_prepared_scope(
-                        db, tickers=tickers, signature=signature, preparation_sha256=digest,
-                    ),
-                }}
+                preparation_scope = {"preparation_scope": seal_prepared_scope(
+                    db, tickers=tickers, signature=signature, preparation_sha256=digest,
+                )}
             certify_processor(
                 db,
                 processor_signature=signature,

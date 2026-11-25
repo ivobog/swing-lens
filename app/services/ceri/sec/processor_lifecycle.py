@@ -4,12 +4,18 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriSecProcessorRelease
-from app.services.ceri.sec.processor_rollback import PROMOTION_RECEIPT, record_recoverable_promotion
+from app.services.ceri.sec.processor_rollback import (
+    PROMOTION_RECEIPT,
+    certified_run_tickers,
+    record_recoverable_promotion,
+    seal_prepared_scope,
+)
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+from app.services.entrypoint_authority import require_disposable_tool_target
 from app.services.pipeline_prerequisites import (
     SecProcessorPromotionRequiredError,
     WorkerProcessorDriftError,
@@ -151,6 +157,22 @@ def establish_worker_processor_identity(
     return row
 
 
+def _requires_prepared_scope(signature):
+    from app.services.ceri.sec.processor_signature import (
+        SEC_SCOPE_EVIDENCE_VERSION,
+        scope_evidence_contract,
+    )
+    return scope_evidence_contract(signature) == SEC_SCOPE_EVIDENCE_VERSION
+
+
+def _require_disposable_release_control(db):
+    bind = db.get_bind()
+    target = bind.url if hasattr(bind, "url") else bind.engine.url
+    require_disposable_tool_target(target)
+    if db.scalar(text("SELECT current_database()")) != target.database:
+        raise ValueError("SEC disposable release database identity changed.")
+
+
 def certify_processor(
     db: Session,
     *,
@@ -158,6 +180,19 @@ def certify_processor(
     evidence: dict[str, Any],
     actor: str,
 ) -> CeriSecProcessorRelease:
+    if _requires_prepared_scope(processor_signature):
+        preparation = evidence.get("preparation_scope")
+        if preparation is None:
+            _require_disposable_release_control(db)
+        else:
+            tickers = certified_run_tickers(db, evidence["run_id"])
+            if list(tickers) != evidence.get("scope_tickers") or (
+                preparation != seal_prepared_scope(
+                    db, tickers=tickers, signature=processor_signature,
+                    preparation_sha256=preparation["digest"],
+                )
+            ):
+                raise ValueError("Exact SEC preparation certification evidence is invalid.")
     row = db.get(CeriSecProcessorRelease, processor_signature)
     if row is None:
         row = CeriSecProcessorRelease(
@@ -206,8 +241,11 @@ def promote_processor(
         return target
     if target is None or target.status != SecProcessorReleaseStatus.CERTIFIED:
         raise ValueError("SEC processor must be CERTIFIED before explicit promotion.")
-    if target.certification_evidence_json.get("preparation_scope") and rollback_run_id is None:
-        raise ValueError("SEC preparation activation requires an exact recoverable promotion.")
+    if _requires_prepared_scope(processor_signature):
+        if not target.certification_evidence_json.get("preparation_scope"):
+            _require_disposable_release_control(db)
+        elif rollback_run_id is None:
+            raise ValueError("SEC preparation activation requires an exact recoverable promotion.")
     now = datetime.now(UTC)
     if rollback_run_id is not None:
         previous = next(

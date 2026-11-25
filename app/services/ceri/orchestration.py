@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, date, datetime
@@ -27,8 +28,13 @@ from app.services.ceri.preparation_visibility import PREPARATION_REQUEST_PREFIX
 from app.services.ceri.provider_protocol import CeriProvider
 from app.services.ceri.provider_registry import CeriProviderRegistry
 from app.services.ceri.providers.eodhd_client import EodhdTransientError
-from app.services.ceri.sec.preparation_evidence import PreparationAuthorization
+from app.services.ceri.sec.preparation_evidence import (
+    PreparationAuthorization,
+    PreparationExpired,
+)
+from app.services.ceri.sec.processor_lifecycle import require_deployed_processor_active
 from app.services.ceri.source_record_service import CeriSourceRecordService
+from app.services.entrypoint_authority import require_disposable_tool_target
 from app.settings import SecDocumentIncrementalMode, Settings, get_settings
 
 
@@ -129,6 +135,16 @@ class CeriIngestionService:
             raise ValueError("SEC_PREPARATION_AUTHORITY_REQUIRED")
         if preparation is not None:
             preparation.check_window()
+        elif (
+            isinstance(db, Session)
+            and request.provider == "sec" and request.dataset is CeriDataset.GUIDANCE
+        ):
+            if os.environ.get("SWINGLENS_DATABASE_SAFETY_CONTEXT") == "DISPOSABLE_TEST":
+                bind = db.get_bind()
+                url = bind.url if hasattr(bind, "url") else bind.engine.url
+                require_disposable_tool_target(url)
+            else:
+                require_deployed_processor_active(db)
         if isinstance(db, Session) and authority is None:
             from app.services.canonical_evidence import CanonicalEvidenceSerializer
             from app.services.scope_refresh_adoption import (
@@ -356,7 +372,7 @@ class CeriIngestionService:
                 preparation=preparation,
             )
             status = "PARTIAL" if outcome.failed or outcome.quarantined else "COMPLETED"
-        except SecIncrementalCancelled:
+        except (SecIncrementalCancelled, PreparationExpired):
             raise CeriIngestionCancelled("CERI ingestion cancelled.") from None
         except SQLAlchemyError:
             raise

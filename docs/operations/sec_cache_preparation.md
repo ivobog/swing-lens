@@ -3,6 +3,11 @@
 `python -m scripts.ops.sec_cache_preparation inspect` returns the candidate runtime,
 operator and database identities using a read-only transaction.
 
+To inspect one preparation's receipt and projection IDs and hashes, add
+`--approval approve.json --signature approve.json.sig --ticker SYMBOL` to
+`inspect`. The approval must match the current identities and remain within its
+signed window. The output omits filing bodies and extracted payloads.
+
 Preparation requires a protected owner OpenSSH signature in the
 `swinglens-sec-cache-preparation` namespace. The signed JSON binds the runtime
 and recovery roots and Git identities, issuer manifest, replay identity, runtime
