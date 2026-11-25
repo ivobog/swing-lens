@@ -26,7 +26,7 @@ from app.services.ceri.catalyst_taxonomy import CeriCatalystTaxonomy
 from app.services.ceri.earnings_normalizer import CeriEarningsNormalizer
 from app.services.ceri.enums import CeriDataset, CeriSourceProjection
 from app.services.ceri.estimate_normalizer import CeriEstimateNormalizer
-from app.services.ceri.guidance_comparison_service import compare_guidance
+from app.services.ceri.guidance_comparison_service import compare_guidance, guidance_identity
 from app.services.ceri.guidance_normalizer import (
     CeriGuidanceNormalizer,
     apply_guidance_eligibility,
@@ -399,8 +399,14 @@ class CeriNormalizationService:
             db.flush()
             if source_record.provider == "sec":
                 known_at = source_record_historical_eligibility_at(source_record)
-                prior = _prior_guidance(db, guidance, known_by=known_at) if known_at else None
-                comparison = compare_guidance(guidance, prior)
+                prior = (
+                    _prior_guidance(db, guidance, source_record, known_by=known_at)
+                    if known_at else None
+                )
+                prior_source = db.get(CeriSourceRecord, prior.source_record_id) if prior else None
+                comparison = compare_guidance(
+                    guidance, prior, current_source=source_record, prior_source=prior_source,
+                )
                 if (
                     guidance.rejection_reason == "GUIDANCE_ACTION_UNKNOWN"
                     and guidance.confidence.upper() in {"HIGH", "NORMAL"}
@@ -767,9 +773,10 @@ def _update_processing_checkpoint(
 
 
 def _prior_guidance(
-    db: Session, current: CeriGuidanceEvent, *, known_by: datetime
+    db: Session, current: CeriGuidanceEvent, source: CeriSourceRecord, *, known_by: datetime
 ) -> CeriGuidanceEvent | None:
-    if current.effective_at is None:
+    identity = guidance_identity(current, source)
+    if current.effective_at is None or identity is None:
         return None
     statement = (
         select(CeriGuidanceEvent)
@@ -777,6 +784,21 @@ def _prior_guidance(
         .where(CeriGuidanceEvent.company_id == current.company_id)
         .where(CeriGuidanceEvent.metric == current.metric)
         .where(CeriGuidanceEvent.period_type == current.period_type)
+        .where(CeriGuidanceEvent.period_label == identity.period)
+        .where(CeriGuidanceEvent.unit == current.unit)
+        .where(CeriGuidanceEvent.currency == current.currency)
+        .where(CeriSourceRecord.provider == "sec", CeriSourceRecord.dataset == "guidance")
+        .where(
+            CeriSourceRecord.restricted_normalized_json["period_label"].astext == identity.period
+        )
+        .where(
+            CeriSourceRecord.restricted_normalized_json["guidance_financial_basis"].astext
+            == identity.financial_basis
+        )
+        .where(
+            CeriGuidanceEvent.point_value.is_not(None)
+            | (CeriGuidanceEvent.high_value >= CeriGuidanceEvent.low_value)
+        )
         .where(CeriGuidanceEvent.effective_at < current.effective_at)
         .where(
             CeriSourceRecord.quarantine_reason.is_(None),

@@ -225,6 +225,19 @@ def test_normalization_resume_starts_after_durable_checkpoint() -> None:
     assert processing_run.checkpoint_json["last_source_record_id"] == 8
 
 
+SEC_GUIDANCE_IDENTITY = {
+    "period_label": "FY2026",
+    "guidance_financial_basis": "REVENUE_REPORTED",
+}
+
+
+def _sec_guidance_source(**fields):
+    return CeriSourceRecord(
+        provider="sec", dataset="guidance",
+        restricted_normalized_json=SEC_GUIDANCE_IDENTITY, **fields,
+    )
+
+
 def test_prior_guidance_uses_bounded_sql_lookup() -> None:
     captured = []
 
@@ -240,10 +253,15 @@ def test_prior_guidance_uses_bounded_sql_lookup() -> None:
         action="UNKNOWN",
         metric="REVENUE",
         period_type="CURRENT_FISCAL_YEAR",
+        period_label="FY2026",
+        currency="USD",
+        unit="MILLION",
         effective_at=datetime(2026, 8, 1),
     )
 
-    assert _prior_guidance(Db(), current, known_by=datetime(2026, 8, 1, tzinfo=UTC)) is None
+    assert _prior_guidance(
+        Db(), current, _sec_guidance_source(id=7), known_by=datetime(2026, 8, 1, tzinfo=UTC),
+    ) is None
     compiled = str(
         captured[0].compile(
             dialect=postgresql.dialect(),
@@ -253,6 +271,8 @@ def test_prior_guidance_uses_bounded_sql_lookup() -> None:
     assert "WHERE ceri_guidance_events.company_id = 42" in compiled
     assert "ceri_guidance_events.metric = 'REVENUE'" in compiled
     assert "ceri_guidance_events.period_type = 'CURRENT_FISCAL_YEAR'" in compiled
+    assert "ceri_guidance_events.period_label = 'FY2026'" in compiled
+    assert "REVENUE_REPORTED" in compiled
     possession = "coalesce(ceri_source_records.retrieved_at, ceri_source_records.ingested_at)"
     assert f"{possession} <=" in compiled
     assert "ceri_source_records.quarantine_reason IS NULL" in compiled
@@ -266,7 +286,14 @@ def test_prior_guidance_uses_bounded_sql_lookup() -> None:
 def test_sec_comparison_rechecks_only_provisional_action_rejection(monkeypatch) -> None:
     from types import SimpleNamespace
 
-    monkeypatch.setattr(FakeDb, "get", lambda *_: SimpleNamespace(cik="0000000042"), raising=False)
+    monkeypatch.setattr(
+        FakeDb, "get",
+        lambda _, model, key: (
+            _sec_guidance_source(id=key)
+            if model is CeriSourceRecord else SimpleNamespace(cik="0000000042")
+        ),
+        raising=False,
+    )
     monkeypatch.setattr(
         "app.services.ceri.sec.scope_evidence.source_attribution_proved",
         lambda _db, source, cik: source.provider == "sec" and cik == "0000000042",
@@ -278,6 +305,7 @@ def test_sec_comparison_rechecks_only_provisional_action_rejection(monkeypatch) 
         action="UNKNOWN",
         metric="REVENUE",
         period_type="CURRENT_FISCAL_YEAR",
+        period_label="FY2026",
         currency="USD",
         unit="BILLION",
         point_value=10,
@@ -308,6 +336,7 @@ def test_sec_comparison_rechecks_only_provisional_action_rejection(monkeypatch) 
                 "unit": "BILLION",
                 "confidence": "HIGH",
                 "point_value": "11",
+                **SEC_GUIDANCE_IDENTITY,
                 **extra,
             },
         )
@@ -343,8 +372,8 @@ def test_sec_prior_guidance_cannot_use_late_or_quarantined_source(
                 retrieved_at = (
                     current_at + timedelta(days=1) if received_after_cutoff else announced_at
                 )
-                source = CeriSourceRecord(
-                    provider="sec", dataset="guidance", provider_record_id=str(days),
+                source = _sec_guidance_source(
+                    provider_record_id=str(days),
                     content_hash=f"fixture-{days}", idempotency_key=f"fixture-{days}",
                     observed_at=announced_at, retrieved_at=retrieved_at,
                     quarantine_reason=quarantine,
@@ -353,15 +382,19 @@ def test_sec_prior_guidance_cannot_use_late_or_quarantined_source(
                 db.flush()
                 events.append(CeriGuidanceEvent(
                     source_record_id=source.id, company_id=company.id, action="UNKNOWN",
-                    metric="REVENUE", period_type="CURRENT_FISCAL_YEAR", effective_at=announced_at,
+                    metric="REVENUE", period_type="CURRENT_FISCAL_YEAR", period_label="FY2026",
+                    currency="USD", unit="MILLION", point_value=10, effective_at=announced_at,
                 ))
             db.add_all(events)
             db.flush()
             current = CeriGuidanceEvent(
                 source_record_id=999, company_id=company.id, action="UNKNOWN",
-                metric="REVENUE", period_type="CURRENT_FISCAL_YEAR", effective_at=current_at,
+                metric="REVENUE", period_type="CURRENT_FISCAL_YEAR", period_label="FY2026",
+                currency="USD", unit="MILLION", effective_at=current_at,
             )
-            assert _prior_guidance(db, current, known_by=current_at).id == events[0].id
+            assert _prior_guidance(
+                db, current, _sec_guidance_source(id=999), known_by=current_at,
+            ).id == events[0].id
     finally:
         engine.dispose()
 

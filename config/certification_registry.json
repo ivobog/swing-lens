@@ -4371,6 +4371,14 @@
           {
             "path": "app/services/ceri/guidance_normalizer.py",
             "symbol": "CeriGuidanceNormalizer.normalize"
+          },
+          {
+            "path": "app/services/ceri/guidance_comparison_service.py",
+            "symbol": "compare_guidance"
+          },
+          {
+            "path": "app/services/ceri/normalization_service.py",
+            "symbol": "_prior_guidance"
           }
         ],
         "impact_patterns": [
@@ -4533,7 +4541,9 @@
           "tests/ceri/fixtures/pbf-000043-sec-primary.body.gz",
           "tests/ceri/test_normalization_service.py",
           "tests/integration/test_sec_incremental_ingestion_postgresql.py",
-          "tests/integration/test_sec_guidance_temporal_postgresql.py"
+          "tests/integration/test_sec_guidance_temporal_postgresql.py",
+          "tests/ceri/fixtures/sec_guidance_financial_v1/*",
+          "tests/ceri/test_sec_guidance_real_corpus.py"
         ],
         "tests": [
           {
@@ -5002,7 +5012,25 @@
             "lane": "python-regressions",
             "positive": "Exact SEC acceptance and local possession preserve same-basis guidance values and a valid New York effective session in native SQL and the in-memory selector.",
             "negative": "Premature, date-only or quarantined evidence cannot replace legitimately available guidance. Expiration does not revive a superseded predecessor.",
-            "reviewed_test_sha256": "f162ab35af6d56fc96ef6cc2bed69a85e79de16722739f57228adc00e65c40c0"
+            "reviewed_test_sha256": "327306097edaf2ba9991c6b0ab547e505c9676d997e8e0eb261cfd45a3164b46"
+          },
+          {
+            "id": "tests/integration/test_sec_guidance_financial_correctness_postgresql.py::test_retained_agio_emr_guidance_is_ineligible",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Five retained AGIO and EMR filings replay under their original hashes, effective source times and verified issuer attribution, retaining legitimate fiscal-year forecasts.",
+            "negative": "Contingent licensing obligations, cross-year EMR actions and late prior possession cannot produce eligible guidance or score snapshots.",
+            "reviewed_test_sha256": "9090b8ac37faffbe60d9835c98083d4663b0262c7eee9a89368c4021ec128160"
+          },
+          {
+            "id": "tests/integration/test_sec_guidance_financial_correctness_postgresql.py::test_native_prior_uses_exact_fiscal_period_and_financial_basis",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Same-period consolidated revenue and adjusted EPS produce the exact raised, lowered and maintained actions in native normalization and PIT selection.",
+            "negative": "Intervening forecasts for a different fiscal year, quarter or accounting basis cannot become the prior or hide the compatible prior.",
+            "reviewed_test_sha256": "9090b8ac37faffbe60d9835c98083d4663b0262c7eee9a89368c4021ec128160"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -5014,7 +5042,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "e35269b259178fd6efc8213fea7fd5f2f14961ead439dc8fcc7468c2980794f4",
+        "review_sha256": "74c5c43feaaf3f408a1ef90efddad000ccdd197a50fdb6b573140626881ef961",
         "review_addenda": [
           {
             "task": "MSI-20261103",

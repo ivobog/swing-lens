@@ -57,5 +57,10 @@
     "processor_signature": "sec-guidance:b0bd408b6358d605",
     "output_fingerprint_sha256": "e7165fccfbdc6e731bcc26230ac31981f1c5fbeafad6604dcb995e8f04c2d806",
     "certified": true
+  },
+  "financial_correctness_certification_reference": {
+    "processor_signature": "sec-guidance:70fcd76915774679",
+    "output_fingerprint_sha256": "e7165fccfbdc6e731bcc26230ac31981f1c5fbeafad6604dcb995e8f04c2d806",
+    "certified": true
   }
 }

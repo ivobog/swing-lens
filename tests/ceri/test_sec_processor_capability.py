@@ -43,11 +43,11 @@ class Db:
 
 def test_signature_v1_is_stable_for_one_hundred_computations() -> None:
     signatures = {sec_guidance_processor_signature() for _ in range(100)}
-    assert signatures == {"sec-guidance:57b3fae0e0886038"}
+    assert signatures == {"sec-guidance:70fcd76915774679"}
     assert SEC_PROCESSOR_SIGNATURE_ALGORITHM_VERSION == "sec-processor-signature-v1"
     assert sec_guidance_processor_identity_inputs() == (
         "sec-html-text-v1",
-        "guidance-regex-visible-text-v4",
+        "guidance-statement-comparability-v5",
         "paragraph-locator-v1",
         "guidance-forms-v1",
         "sec-guidance-accepted-pit-v1",
