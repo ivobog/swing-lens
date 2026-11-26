@@ -16,6 +16,7 @@ from app.services.ceri.pit_eligibility import (
     estimate_snapshot_historical_eligibility_at,
     source_record_historical_eligibility_at,
 )
+from app.services.ceri.preparation_visibility import is_preparation_source
 from app.services.ceri.provider_conflict_service import CeriProviderConflictService
 
 
@@ -339,12 +340,12 @@ class CeriPointInTimeQuery:
         return sorted(selected, key=_snapshot_sort)
 
     def source_record(self, db: Session, source_record_id: int) -> CeriSourceRecord | None:
-        if source_record_id in self._source_records:
-            return self._source_records[source_record_id]
-        get = getattr(db, "get", None)
-        if callable(get):
-            return get(CeriSourceRecord, source_record_id)
-        return None
+        source = self._source_records.get(source_record_id)
+        if source is None:
+            get = getattr(db, "get", None)
+            if callable(get):
+                source = get(CeriSourceRecord, source_record_id)
+        return None if is_preparation_source(source) else source
 
     def _load_snapshots(
         self,

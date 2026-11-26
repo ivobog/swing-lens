@@ -10,7 +10,8 @@ EVIDENCE_LOCATOR_VERSION = "paragraph-locator-v1"
 FILING_SELECTION_POLICY_VERSION = "guidance-forms-v1"
 SEC_GUIDANCE_TIMING_VERSION = "sec-guidance-accepted-pit-v1"
 SEC_ATTRIBUTION_VERSION = "sec-document-attribution-v1"
-SEC_SCOPE_EVIDENCE_VERSION = "sec-exact-scope-evidence-v1"
+SEC_SCOPE_EVIDENCE_V1 = "sec-exact-scope-evidence-v1"
+SEC_SCOPE_EVIDENCE_VERSION = "sec-exact-scope-evidence-v2"
 
 
 def sec_guidance_processor_signature() -> str:
@@ -21,7 +22,7 @@ def sec_guidance_processor_signature() -> str:
 
 
 def sec_guidance_processor_identity_inputs() -> tuple[str, ...]:
-    """Ordered semantic identity contract for the v1 persisted signature."""
+    """Ordered semantic identity contract for the persisted processor signature."""
 
     return (
         DOCUMENT_PARSER_VERSION,
@@ -32,3 +33,12 @@ def sec_guidance_processor_identity_inputs() -> tuple[str, ...]:
         SEC_ATTRIBUTION_VERSION,
         SEC_SCOPE_EVIDENCE_VERSION,
     )
+
+
+def scope_evidence_contract(signature: str) -> str | None:
+    """Resolve the two known ledger contracts without using the running version as a proxy."""
+    if signature == "sec-guidance:755df092d79e7a53":
+        return SEC_SCOPE_EVIDENCE_V1
+    if signature == sec_guidance_processor_signature():
+        return SEC_SCOPE_EVIDENCE_VERSION
+    return None

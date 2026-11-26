@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime
 
 from sqlalchemy import select
@@ -14,6 +14,17 @@ from app.services.ceri.enums import CeriDataset
 from app.services.ceri.sec.attribution import SecAttributionRefused
 from app.services.ceri.sec.content_cache import SecDocumentContentCache
 from app.services.ceri.sec.issuer_succession import ownership_conflict
+from app.services.ceri.sec.preparation_evidence import (
+    EXCLUDED_ATTRIBUTION,
+    REVIEWED_QUARANTINED_PRIMARY,
+    PreparationAuthorization,
+    PreparationExpired,
+    archive_exclusion_proof,
+    examine_attribution,
+    has_unresolved_legacy_collision,
+    matches_reviewed_quarantine,
+)
+from app.services.ceri.sec.preparation_sources import retain_prepared_sources
 from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from app.services.ceri.sec.provider import SecCeriProvider, SecGuidanceDocument
 from app.services.ceri.sec.readiness_service import (
@@ -28,13 +39,17 @@ from app.services.ceri.sec.scope_evidence import (
     ScopeGeneration,
     body_version,
     exact_filing,
+    extraction_completion,
     generation_ready,
     locked_events,
     open_generation,
     payload,
+    preparation_owner,
     record_outcome,
     retain_selection,
+    retained_preparation_exclusion,
     reusable_outcome,
+    reusable_preparation_outcome,
     selected_event,
 )
 from app.services.ceri.sec.state_service import (
@@ -71,6 +86,7 @@ class SecIncrementalOutcome:
     documents_skipped: int = 0
     documents_would_skip: int = 0
     documents_zero_records: int = 0
+    documents_excluded_attribution: int = 0
     documents_claimed_elsewhere: int = 0
     stale_leases_recovered: int = 0
     errors: list[dict[str, str]] = field(default_factory=list)
@@ -88,6 +104,7 @@ class SecIncrementalOutcome:
                 "documents_skipped",
                 "documents_would_skip",
                 "documents_zero_records",
+                "documents_excluded_attribution",
                 "documents_claimed_elsewhere",
                 "stale_leases_recovered",
             )
@@ -126,6 +143,7 @@ class SecGuidanceIncrementalIngestionService:
         should_cancel=None,
         worker_id: str | None = None,
         reuse_completed_documents: bool = False,
+        preparation: PreparationAuthorization | None = None,
     ) -> SecIncrementalOutcome:
         outcome = SecIncrementalOutcome()
         mode = self.settings.sec_document_incremental_mode
@@ -172,7 +190,15 @@ class SecGuidanceIncrementalIngestionService:
         if historical_backfill:
             raise ScopeEvidenceError("SEC_HISTORICAL_RUN_CANNOT_PUBLISH_CURRENT_READINESS")
         run_id = ingestion_run.id
-        generation = open_generation(db, run_id, ticker.upper(), cik, self.processor_signature)
+        if preparation is not None and mode is not SecDocumentIncrementalMode.SHADOW:
+            raise ScopeEvidenceError("SEC_PREPARATION_REQUIRES_SHADOW")
+        generation = open_generation(
+            db, run_id, ticker.upper(), cik, self.processor_signature,
+            preparation_sha256=preparation.scope_sha256 if preparation else None,
+            approval_receipt_sha256=preparation.signed_approval_sha256 if preparation else None,
+            preparation_recovery=preparation.recovery if preparation else None,
+            preparation_archive_root=preparation.archive_root if preparation else None,
+        )
         db.commit()  # Current readiness is blocked before discovery starts.
         try:
             selected = selected_event(db, generation)
@@ -216,6 +242,7 @@ class SecGuidanceIncrementalIngestionService:
                     outcome=outcome,
                     should_cancel=should_cancel,
                     worker_id=worker_id or self.settings.job_worker_id,
+                    preparation=preparation,
                 )
             locked_events(db, generation)
             certified = generation_ready(db, cik, self.processor_signature, generation=generation)
@@ -257,21 +284,83 @@ class SecGuidanceIncrementalIngestionService:
         outcome: SecIncrementalOutcome,
         should_cancel,
         worker_id: str,
+        preparation: PreparationAuthorization | None,
     ) -> None:
         dataset = CeriDataset.GUIDANCE.value
         filing = exact_filing(document, generation.cik)
-        locked_events(db, generation)
-        registered = self.state.register_document(
-            db,
-            SecDocumentIdentity(
-                cik=document.cik,
-                accession_number=document.accession_number,
-                document_name=document.document_name,
-                ticker_hint=document.ticker,
-                form=document.form,
-                filing_date=date.fromisoformat(filing["filing_date"]),
-            ),
-        )
+        events = locked_events(db, generation)
+        prepared = payload(events[0]).get("preparation_sha256") is not None
+        owner = preparation_owner(db, events[0], events[1]) if prepared else None
+        if prepared and (owner is None or preparation is None):
+            raise ScopeEvidenceError("SEC_PREPARATION_OWNER_INVALID")
+        if preparation is not None:
+            preparation.check_window()
+            if not preparation.has_filing(filing):
+                raise ScopeEvidenceError("SEC_PREPARATION_FILING_NOT_AUTHORIZED")
+            if preparation.quarantined is not None:
+                quarantined_text, custody = preparation.quarantined
+                if matches_reviewed_quarantine(filing, custody):
+                    if (
+                        hashlib.sha256(quarantined_text.encode("utf-8")).hexdigest()
+                        != custody["wire_sha256"]
+                        or examine_attribution(document, quarantined_text)
+                        != "SEC_REVIEWED_JOINT_FILING"
+                        or has_unresolved_legacy_collision(db, filing)
+                    ):
+                        raise ScopeEvidenceError("SEC_PREPARATION_QUARANTINE_PROOF_INVALID")
+                    if not reusable_preparation_outcome(db, events, filing, None):
+                        record_outcome(db, generation, filing, {
+                            "status": EXCLUDED_ATTRIBUTION, "sources": [],
+                            "reason": "SEC_REVIEWED_JOINT_FILING", "custody": custody,
+                            "preparation": asdict(owner),
+                        }, kind=REFUSAL, preparation=preparation)
+                    preparation.check_window()
+                    outcome.documents_excluded_attribution += 1
+                    db.commit()
+                    return
+        elif (
+            self.settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE
+            and (filing["cik"], filing["accession"], filing["filename"])
+            == REVIEWED_QUARANTINED_PRIMARY
+        ):
+            anchor = retained_preparation_exclusion(db, events[0], filing, None)
+            if anchor is not None:
+                record_outcome(db, generation, filing, {
+                    "status": EXCLUDED_ATTRIBUTION, "sources": [],
+                    "reason": anchor[1], "custody": anchor[2], "exclusion_origin": anchor[0],
+                }, kind=REFUSAL)
+                outcome.documents_excluded_attribution += 1
+                db.commit()
+                return
+
+        if prepared:
+            registered = db.scalar(select(CeriSecFilingDocument).where(
+                CeriSecFilingDocument.cik == filing["cik"],
+                CeriSecFilingDocument.accession_number == filing["accession"],
+                CeriSecFilingDocument.document_name == filing["filename"],
+                CeriSecFilingDocument.form == filing["form"],
+                CeriSecFilingDocument.filing_date == date.fromisoformat(filing["filing_date"]),
+            ))
+            if registered is None or not preparation.matches_body(filing, body_version(registered)):
+                record_outcome(db, generation, filing, {
+                    "status": "FAILED_RETRYABLE", "reason": "SEC_PREPARATION_CUSTODY_UNAVAILABLE",
+                }, preparation=preparation)
+                preparation.check_window()
+                outcome.failed += 1
+                db.commit()
+                return
+        else:
+            registered = self.state.register_document(
+                db,
+                SecDocumentIdentity(
+                    cik=document.cik,
+                    accession_number=document.accession_number,
+                    document_name=document.document_name,
+                    ticker_hint=document.ticker,
+                    form=document.form,
+                    filing_date=date.fromisoformat(filing["filing_date"]),
+                ),
+            )
         document_id = registered.id
         version = body_version(registered)
         cached = (
@@ -279,7 +368,17 @@ class SecGuidanceIncrementalIngestionService:
             if version["body_sha256"] and version["possessed_at"]
             else None
         )
-        prior = reusable_outcome(db, generation, filing, version) if cached is not None else None
+        if prepared and cached is not None and reusable_preparation_outcome(
+            db, events, filing, version,
+        ):
+            outcome.documents_skipped += 1
+            outcome.documents_cache_reused += 1
+            db.commit()
+            return
+        prior = (
+            reusable_outcome(db, generation, filing, version)
+            if cached is not None and not prepared else None
+        )
         if prior is not None:
             outcome.deduplicated += len(prior["sources"])
             self.source_records.retain_reused_sources(
@@ -319,6 +418,8 @@ class SecGuidanceIncrementalIngestionService:
             filing_text = cached
             retrieved_at = None
             if filing_text is None:
+                if prepared:
+                    raise ValueError("SEC_PREPARATION_CACHE_MISS")
                 filing_text = provider.download_guidance_document(document)
                 possessed_at = datetime.now(UTC)
                 retrieved_at = possessed_at
@@ -345,10 +446,30 @@ class SecGuidanceIncrementalIngestionService:
                 db.commit()
             else:
                 outcome.documents_cache_reused += 1
-            records = provider.extract_guidance_document(
-                document, text=filing_text, require_financial_attribution=True,
-                retrieved_at=retrieved_at,
+            active_origin = (
+                retained_preparation_exclusion(db, events[0], filing, version)
+                if not prepared and cached is not None
+                and self.settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE
+                else None
             )
+            refusal = (
+                examine_attribution(document, filing_text) if prepared or active_origin else None
+            )
+            exclusion = None
+            if refusal is not None:
+                if active_origin is not None and active_origin[1] == refusal:
+                    custody = active_origin[2]
+                else:
+                    custody = preparation.proof_for(filing) if prepared else None
+                exclusion = archive_exclusion_proof(filing, version, filing_text, custody, refusal)
+                if exclusion is None or has_unresolved_legacy_collision(db, filing):
+                    raise SecAttributionRefused(refusal)
+                records = ()
+            else:
+                records = provider.extract_guidance_document(
+                    document, text=filing_text, require_financial_attribution=True,
+                    retrieved_at=retrieved_at,
+                )
             cancelled = _cancelled(should_cancel)
             locked_events(db, generation)
             self.state.heartbeat(
@@ -368,8 +489,41 @@ class SecGuidanceIncrementalIngestionService:
                 != version
             ):
                 raise ScopeEvidenceError("SEC_PROCESSING_BODY_VERSION_CHANGED")
+            if preparation is not None:
+                preparation.check_window()
+            if exclusion is not None:
+                self.state.fail_retryable(
+                    db,
+                    extraction_id=claim.extraction_id,
+                    execution_token=claim.execution_token,
+                    error_code=refusal,
+                    message="Examined filing is excluded from financial attribution.",
+                    retry_base_seconds=0,
+                )
+                record_outcome(
+                    db, generation, filing,
+                    {
+                        "status": EXCLUDED_ATTRIBUTION, "body": version, "sources": [],
+                        "reason": refusal, "custody": exclusion,
+                        **({"preparation": asdict(owner)} if prepared else {
+                            "exclusion_origin": active_origin[0],
+                        }),
+                    },
+                    kind=REFUSAL, preparation=preparation,
+                )
+                if preparation is not None:
+                    preparation.check_window()
+                outcome.documents_excluded_attribution += 1
+                db.commit()
+                return
+            prepared_sources = (
+                retain_prepared_sources(
+                    db, owner=owner, filing=filing, body=version, records=records,
+                )
+                if prepared else []
+            )
             sources = {}
-            for record in records:
+            for record in (() if prepared else records):
                 if (
                     record.provider != "sec"
                     or record.dataset is not CeriDataset.GUIDANCE
@@ -404,6 +558,7 @@ class SecGuidanceIncrementalIngestionService:
                 content_hash=version["body_sha256"],
                 content_bytes=len(filing_text.encode("utf-8")),
                 downloaded=False,
+                record_registry_use=not prepared,
             )
             record_outcome(
                 db,
@@ -412,31 +567,53 @@ class SecGuidanceIncrementalIngestionService:
                 {
                     "status": "COMPLETED_WITH_RECORDS" if records else "COMPLETED_NO_RECORDS",
                     "body": version,
-                    "sources": [
+                    "sources": prepared_sources if prepared else [
                         {"id": key, "hash": value} for key, value in sorted(sources.items())
                     ],
+                    **({"extraction": extraction_completion(db, claim.extraction_id)}
+                       if prepared else {}),
+                    **({"preparation": asdict(owner)} if prepared_sources else {}),
                 },
+                preparation=preparation,
+            )
+            if preparation is not None:
+                preparation.check_window()
+            db.commit()
+        except PreparationExpired:
+            db.rollback()
+            locked_events(db, generation)
+            self.state.cancel(
+                db, extraction_id=claim.extraction_id, execution_token=claim.execution_token,
             )
             db.commit()
+            raise
         except (SecIncrementalCancelled, ScopeEvidenceError):
             raise
         except Exception as exc:
             db.rollback()
             locked_events(db, generation)
             self._record_failure(db, claim=claim, exc=exc, outcome=outcome)
-            record_outcome(
-                db,
-                generation,
-                filing,
-                {
-                    "status": "FAILED_RETRYABLE",
-                    "body": version,
-                    "reason": str(exc)
-                    if isinstance(exc, SecAttributionRefused)
-                    else type(exc).__name__,
-                },
-                kind=REFUSAL if isinstance(exc, SecAttributionRefused) else OUTCOME,
-            )
+            try:
+                record_outcome(
+                    db, generation, filing,
+                    {
+                        "status": "FAILED_RETRYABLE", "body": version,
+                        "reason": str(exc)
+                        if isinstance(exc, SecAttributionRefused) else type(exc).__name__,
+                    },
+                    kind=REFUSAL if isinstance(exc, SecAttributionRefused) else OUTCOME,
+                    preparation=preparation,
+                )
+                if preparation is not None:
+                    preparation.check_window()
+            except PreparationExpired:
+                db.rollback()
+                locked_events(db, generation)
+                self.state.cancel(
+                    db, extraction_id=claim.extraction_id, execution_token=claim.execution_token,
+                )
+                db.commit()
+                raise
             db.commit()
             if isinstance(exc, SQLAlchemyError):
                 raise

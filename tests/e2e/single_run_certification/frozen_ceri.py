@@ -297,8 +297,9 @@ def c06_offline_sec_provider(environment, database_url, *, bootstrap=False):
 
     require_c06_offline_runtime(environment, database_url)
     specimen = c06_offline_filings()
-    # Bind the replay to the reviewed extractor while checking every sealed projection below.
-    if specimen is None or sec_guidance_processor_signature() != "sec-guidance:755df092d79e7a53":
+    # Both exact readiness revisions use the reviewed extractor. Check every projection below.
+    reviewed_processors = {"sec-guidance:755df092d79e7a53", "sec-guidance:66a29b585c469f21"}
+    if specimen is None or sec_guidance_processor_signature() not in reviewed_processors:
         raise RuntimeError("C06_GOLDEN_PROCESSOR_OR_FIXTURE_MISMATCH")
     by_cik = {row["cik"]: row for row in specimen["filings"]}
 

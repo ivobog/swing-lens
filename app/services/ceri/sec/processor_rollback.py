@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,12 +13,21 @@ from sqlalchemy.orm import Session
 
 from app.models.ceri_tables import CeriSecProcessorRelease, CeriSecScopeEvidence, CeriSecSyncState
 from app.models.tables import RawCompanyRow
+from app.services.ceri.sec.content_cache import SecDocumentContentCache
+from app.services.ceri.sec.preparation_evidence import matches_reviewed_quarantine
+from app.services.ceri.sec.processor_signature import (
+    SEC_SCOPE_EVIDENCE_VERSION,
+    scope_evidence_contract,
+)
+from app.services.ceri.sec.provider import SecGuidanceDocument
 from app.services.ceri.sec.readiness_diagnostics import diagnose_sec_readiness
+from app.services.ceri.sec.scope_evidence import OPEN, SELECTED, payload
 from app.services.runtime_mutation_authority import (
     MutationCapability,
     RuntimeMutationAuthority,
     require_runtime_mutation_authority,
 )
+from app.settings import get_settings
 
 PROMOTION_RECEIPT = "sec_processor_promotion_v1"
 SIGNATURE_PATTERN = r"^sec-guidance:[0-9a-f]{16}$"
@@ -129,6 +139,103 @@ def _readiness_seal(db: Session, tickers: tuple[str, ...], signature: str) -> st
     return _digest(seal)
 
 
+def seal_prepared_scope(db, *, tickers, signature, preparation_sha256):
+    """Bind the exact completed owner-authorized frozen scope to certification."""
+    if not re.fullmatch(SHA_PATTERN, preparation_sha256 or ""):
+        raise ValueError("An exact SEC preparation scope digest is required.")
+    _lock_scope(db)
+    db.execute(text(
+        "LOCK TABLE work_scope_records, work_scope_members, ceri_ingestion_runs, "
+        "ceri_source_records, ceri_ingestion_run_source_records, ceri_guidance_events "
+        "IN SHARE MODE NOWAIT"
+    ))
+    readiness = diagnose_sec_readiness(db, tickers=tickers, processor_signature=signature)
+    ciks = {cik for item in readiness.tickers for cik in item.ciks}
+    exemptions = {
+        item.ticker for item in readiness.tickers if item.category == "SEC_NOT_APPLICABLE"
+    }
+    if len(tickers) != 516 or len(ciks) != 514 or exemptions != {"NBN", "TOWN"}:
+        raise ValueError("SEC preparation certification requires the full 514-CIK cohort.")
+    if not readiness.complete:
+        raise ValueError("SEC preparation certification requires every filing obligation.")
+    evidence = CeriSecScopeEvidence
+    latest = (
+        select(evidence.cik, func.max(evidence.generation).label("generation"))
+        .where(evidence.cik.in_(ciks), evidence.processor_signature == signature)
+        .group_by(evidence.cik).subquery()
+    )
+    events = db.scalars(select(evidence).join(latest, (
+        (latest.c.cik == evidence.cik) & (latest.c.generation == evidence.generation)
+    )).where(
+        evidence.processor_signature == signature,
+    ).order_by(evidence.cik, evidence.ordinal)).all()
+    opened = [item for item in events if item.kind == OPEN]
+    selected = [item for item in events if item.kind == SELECTED]
+    if (
+        len(opened) != 514 or len(selected) != 514
+        or any(payload(item).get("preparation_sha256") != preparation_sha256 for item in opened)
+        or sum(len(payload(item)["required"]) for item in selected) != 2570
+    ):
+        raise ValueError("SEC preparation scope has changed or contains foreign evidence.")
+    recovery = payload(opened[0]).get("preparation_recovery")
+    if (
+        not isinstance(recovery, dict) or not recovery.get("native_verified")
+        or not re.fullmatch(GIT_PATTERN, recovery.get("git", ""))
+        or not re.fullmatch(SHA_PATTERN, recovery.get("config", ""))
+        or not isinstance(recovery.get("root"), str) or not recovery["root"]
+        or any(payload(item).get("preparation_recovery") != recovery for item in opened)
+    ):
+        raise ValueError("The exact compatible native predecessor was not established.")
+    archive = payload(opened[0]).get("preparation_archive_root")
+    if not archive or any(
+        payload(item).get("preparation_archive_root") != archive for item in opened
+    ):
+        raise ValueError("SEC preparation archive custody changed.")
+    _reverify_prepared_bodies(events, Path(archive), get_settings().cache_dir)
+    return {
+        "digest": preparation_sha256, "recovery": recovery,
+        "readiness_seal": _readiness_seal(db, tuple(tickers), signature),
+    }
+
+
+def _reverify_prepared_bodies(events, archive, cache_root):
+    """Check current archived bytes before certification or recoverable promotion."""
+    cache = SecDocumentContentCache(cache_root)
+    root = archive.resolve(strict=True)
+    results = {}
+    for event in events:
+        if event.kind in (OPEN, SELECTED):
+            continue
+        result = payload(event)
+        filing = result["filing"]
+        results[(event.cik, filing["accession"], filing["filename"])] = result
+    if len(results) != 2570:
+        raise ValueError("SEC preparation completion inventory changed.")
+    for result in results.values():
+        filing, body = result["filing"], result.get("body")
+        if body:
+            document = SecGuidanceDocument(
+                "", filing["cik"], filing["accession"], filing["filename"],
+                filing["form"], filing["filing_date"],
+            )
+            valid = cache.load(document, expected_hash=body["body_sha256"]) is not None
+        else:
+            custody = result.get("custody") or {}
+            valid = False
+            if matches_reviewed_quarantine(filing, custody):
+                primary = f'{filing["cik"]}-{filing["accession"]}.body'
+                target = (root / "SEC_V4_FILINGS_FINAL/quarantine" / primary).resolve()
+                if target.is_relative_to(root) and target.is_file():
+                    with target.open("rb") as handle:
+                        content = handle.read(custody["wire_bytes"] + 1)
+                    valid = (
+                        len(content) == custody["wire_bytes"]
+                        and hashlib.sha256(content).hexdigest() == custody["wire_sha256"]
+                    )
+        if not valid:
+            raise ValueError(f'SEC preparation body custody unavailable: {filing["accession"]}')
+
+
 def record_recoverable_promotion(
     db: Session,
     *,
@@ -158,6 +265,16 @@ def record_recoverable_promotion(
     tickers = certified_run_tickers(db, run_id)
     if candidate.certification_evidence_json.get("scope_tickers") != list(tickers):
         raise ValueError("The promoted run cohort changed after certification.")
+    preparation = candidate.certification_evidence_json.get("preparation_scope")
+    if (
+        scope_evidence_contract(candidate.processor_signature) == SEC_SCOPE_EVIDENCE_VERSION
+        and preparation is not None
+        and preparation != seal_prepared_scope(
+            db, tickers=tickers, signature=candidate.processor_signature,
+            preparation_sha256=preparation["digest"],
+        )
+    ):
+        raise ValueError("The exact certified SEC preparation receipt has changed.")
     return {
         "id": uuid4().hex,
         "predecessor": predecessor.processor_signature,
@@ -171,6 +288,7 @@ def record_recoverable_promotion(
         "candidate_readiness": _readiness_seal(db, tickers, candidate.processor_signature),
         "predecessor_certification": _certification_digest(predecessor),
         "candidate_certification": _certification_digest(candidate),
+        **({"preparation_recovery": preparation["recovery"]} if preparation else {}),
     }
 
 
@@ -254,6 +372,13 @@ def rollback_committed_promotion(
         raise ValueError("The exact immediately preceding promotion is no longer reversible.")
     _lock_scope(db)
     _assert_database_quiescent(db)
+    recovery = receipt.get("preparation_recovery")
+    if recovery and (
+        approval.predecessor_git != recovery["git"]
+        or approval.predecessor_root != recovery["root"]
+        or approval.predecessor_config != recovery["config"]
+    ):
+        raise ValueError("Rollback approval does not bind the certified compatible recovery.")
     if certified_run_tickers(db, receipt["run_id"]) != tuple(receipt["tickers"]):
         raise ValueError("The recorded SEC readiness cohort changed.")
     if (

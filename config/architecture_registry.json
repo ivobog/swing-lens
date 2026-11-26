@@ -3641,7 +3641,7 @@
         "ceri_source_records",
         "ceri_provider_request_telemetry"
       ],
-      "functions": "source_record_service.start/finish_ingestion_run, source upsert, provider telemetry writer",
+      "functions": "source_record_service.start/finish_ingestion_run, source upsert, provider telemetry writer, ceri.sec.preparation_sources.retain_prepared_sources",
       "entrypoints": "CERI provider handlers/API",
       "authority_transaction": "provider/dataset/request/run; TX-08"
     },
@@ -4047,7 +4047,7 @@
       "tables": [
         "ceri_ingestion_run_source_records"
       ],
-      "functions": "ceri.source_record_service._associate_source_record",
+      "functions": "ceri.source_record_service._associate_source_record, ceri.sec.preparation_sources.retain_prepared_sources",
       "entrypoints": "CERI provider ingestion",
       "authority_transaction": "exact ingestion run and immutable source record membership in the source-record transaction"
     },
@@ -6173,6 +6173,16 @@
         "WRITE-065"
       ],
       "reason": "Exact production AST mutation family reviewed at R3."
+    },
+    {
+      "path": "app/services/ceri/sec/preparation_sources.py",
+      "function": "retain_prepared_sources",
+      "kind": "sql_dml",
+      "writer_ids": [
+        "WRITE-035",
+        "WRITE-076"
+      ],
+      "reason": "Signed cache-only scope and exact fenced extraction retain restricted preparation projections and original run membership."
     },
     {
       "path": "app/services/ceri/sec/state_service.py",

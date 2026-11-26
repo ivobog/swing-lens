@@ -244,6 +244,7 @@ class SecDocumentStateService:
         content_hash: str,
         content_bytes: int,
         downloaded: bool = True,
+        record_registry_use: bool = True,
     ) -> None:
         now = _utcnow()
         status = (
@@ -271,6 +272,8 @@ class SecDocumentStateService:
         )
         if result.rowcount != 1:
             raise RuntimeError("SEC extraction lease was lost before completion")
+        if not record_registry_use:
+            return
         extraction = db.get(CeriSecDocumentExtraction, extraction_id)
         assert extraction is not None
         document_values = {
@@ -404,10 +407,10 @@ class SecDocumentStateService:
     def is_bootstrap_certified(
         self, db: Session, *, cik: str, dataset: str, processor_signature: str
     ) -> bool:
-        from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+        from app.services.ceri.sec.processor_signature import scope_evidence_contract
         from app.services.ceri.sec.scope_evidence import generation_ready
 
-        if processor_signature == sec_guidance_processor_signature():
+        if scope_evidence_contract(processor_signature) is not None:
             return dataset == "guidance" and generation_ready(
                 db, _normalize_cik(cik), processor_signature,
             )

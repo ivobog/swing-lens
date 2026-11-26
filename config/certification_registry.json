@@ -17,6 +17,11 @@
       "entry_point": "scripts/ops/sec_processor_rollback.py",
       "target_lifecycle": "MANUAL_OPERATIONAL_RECOVERY",
       "scope": "Owner-authenticated one-promotion emergency recovery. Automatic execution denied."
+    },
+    {
+      "entry_point": "scripts/ops/sec_cache_preparation.py",
+      "target_lifecycle": "MANUAL_OPERATIONAL_RECOVERY",
+      "scope": "Protected owner-signed foreground SEC cache preparation. Automatic execution denied. No certificate authority."
     }
   ],
   "gates": [
@@ -4396,6 +4401,22 @@
           {
             "path": "scripts/ops/sec_processor_rollback.py",
             "symbol": "main"
+          },
+          {
+            "path": "scripts/ops/sec_cache_preparation.py",
+            "symbol": "main"
+          },
+          {
+            "path": "app/services/ceri/sec/preparation_sources.py",
+            "symbol": "matches_prepared_sources"
+          },
+          {
+            "path": "app/services/ceri/sec/preparation_evidence.py",
+            "symbol": "archive_exclusion_proof"
+          },
+          {
+            "path": "app/services/ceri/preparation_visibility.py",
+            "symbol": "install_preparation_visibility"
           }
         ],
         "impact_patterns": [
@@ -4566,7 +4587,10 @@
           "scripts/manage_sec_processor.py",
           "scripts/ops/sec_processor_rollback.py",
           "docs/operations/sec_processor_recovery.md",
-          "tests/integration/test_sec_processor_rollback_postgresql.py"
+          "tests/integration/test_sec_processor_rollback_postgresql.py",
+          "app/models/ceri_tables.py",
+          "docs/operations/sec_cache_preparation.md",
+          "docs/testing/standalone_lifecycle.csv"
         ],
         "tests": [
           {
@@ -5090,6 +5114,33 @@
             "positive": "The exact promoted state is preserved when durable work is present.",
             "negative": "A running database job prevents rollback.",
             "reviewed_test_sha256": "e72ba870b0f4f8ee4041e2fe01aad3d8d5f3d639ac1d1e472f58d3e0c5fe5bf9"
+          },
+          {
+            "id": "tests/ceri/test_sec_preparation_evidence.py::test_separate_preparation_identity_is_bound_to_exact_generation",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The same preparation generation deterministically reproduces its distinct identity.",
+            "negative": "Another run, generation or body cannot reuse that identity. The projection has no financial PIT result.",
+            "reviewed_test_sha256": "50784ad9493ca2041f36ef2b22b3019f21d5320ce2bbf3dc665e86fb5465e324"
+          },
+          {
+            "id": "tests/ceri/test_sec_preparation_evidence.py::test_refusal_requires_verified_archive_wire_custody_and_exact_body",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "An allowlisted refusal binds the exact primary and retained matching wire bytes.",
+            "negative": "Missing or changed bytes, a redirect or a nonallowlisted reason cannot certify an exclusion.",
+            "reviewed_test_sha256": "50784ad9493ca2041f36ef2b22b3019f21d5320ce2bbf3dc665e86fb5465e324"
+          },
+          {
+            "id": "tests/ceri/test_sec_preparation_evidence.py::test_preparation_requires_verified_approval_and_checks_window_again",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The verified scope can be checked under a new valid time window.",
+            "negative": "An unverified approval or expired UTC window cannot be used.",
+            "reviewed_test_sha256": "50784ad9493ca2041f36ef2b22b3019f21d5320ce2bbf3dc665e86fb5465e324"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -5101,7 +5152,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "87da57a5e83532b926ce688e8a011a0d141e1f20a6e429fcf71db36ac00e2a6f",
+        "review_sha256": "e2bc1cc88adb61da0c55f8f070eba5c94ea28ade752ace72c99c51c33ec0661b",
         "review_addenda": [
           {
             "task": "MSI-20261103",
