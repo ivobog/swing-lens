@@ -14,9 +14,11 @@ from sqlalchemy.orm import Session
 from app.models.ceri_tables import CeriSecProcessorRelease, CeriSecScopeEvidence, CeriSecSyncState
 from app.models.tables import RawCompanyRow
 from app.services.ceri.sec.content_cache import SecDocumentContentCache
+from app.services.ceri.sec.fresh_custody import load_fresh_body
 from app.services.ceri.sec.preparation_evidence import matches_reviewed_quarantine
 from app.services.ceri.sec.processor_signature import (
     SEC_SCOPE_EVIDENCE_VERSION,
+    requires_prepared_scope,
     scope_evidence_contract,
 )
 from app.services.ceri.sec.provider import SecGuidanceDocument
@@ -191,14 +193,14 @@ def seal_prepared_scope(db, *, tickers, signature, preparation_sha256):
         payload(item).get("preparation_archive_root") != archive for item in opened
     ):
         raise ValueError("SEC preparation archive custody changed.")
-    _reverify_prepared_bodies(events, Path(archive), get_settings().cache_dir)
+    _reverify_prepared_bodies(events, Path(archive), get_settings().cache_dir, signature=signature)
     return {
         "digest": preparation_sha256, "recovery": recovery,
         "readiness_seal": _readiness_seal(db, tuple(tickers), signature),
     }
 
 
-def _reverify_prepared_bodies(events, archive, cache_root):
+def _reverify_prepared_bodies(events, archive, cache_root, *, signature):
     """Check current archived bytes before certification or recoverable promotion."""
     cache = SecDocumentContentCache(cache_root)
     root = archive.resolve(strict=True)
@@ -212,28 +214,45 @@ def _reverify_prepared_bodies(events, archive, cache_root):
     if len(results) != 2570:
         raise ValueError("SEC preparation completion inventory changed.")
     for result in results.values():
-        filing, body = result["filing"], result.get("body")
-        if body:
-            document = SecGuidanceDocument(
-                "", filing["cik"], filing["accession"], filing["filename"],
-                filing["form"], filing["filing_date"],
+        _reverify_prepared_body(result, root, cache, signature)
+
+
+def _reverify_prepared_body(result, root, cache, signature):
+    filing, body = result["filing"], result.get("body")
+    fresh = result.get("fresh_custody")
+    if fresh is not None:
+        try:
+            valid = (
+                scope_evidence_contract(signature) == SEC_SCOPE_EVIDENCE_VERSION
+                and bool(body)
+                and body["body_sha256"] == fresh["wire_sha256"]
+                and datetime.fromisoformat(body["possessed_at"])
+                == datetime.fromisoformat(fresh["possessed_at"])
+                and bool(load_fresh_body(root, filing, fresh))
             )
-            valid = cache.load(document, expected_hash=body["body_sha256"]) is not None
-        else:
-            custody = result.get("custody") or {}
+        except (OSError, ValueError, KeyError, TypeError):
             valid = False
-            if matches_reviewed_quarantine(filing, custody):
-                primary = f'{filing["cik"]}-{filing["accession"]}.body'
-                target = (root / "SEC_V4_FILINGS_FINAL/quarantine" / primary).resolve()
-                if target.is_relative_to(root) and target.is_file():
-                    with target.open("rb") as handle:
-                        content = handle.read(custody["wire_bytes"] + 1)
-                    valid = (
-                        len(content) == custody["wire_bytes"]
-                        and hashlib.sha256(content).hexdigest() == custody["wire_sha256"]
-                    )
-        if not valid:
-            raise ValueError(f'SEC preparation body custody unavailable: {filing["accession"]}')
+    elif body:
+        document = SecGuidanceDocument(
+            "", filing["cik"], filing["accession"], filing["filename"],
+            filing["form"], filing["filing_date"],
+        )
+        valid = cache.load(document, expected_hash=body["body_sha256"]) is not None
+    else:
+        custody = result.get("custody") or {}
+        valid = False
+        if matches_reviewed_quarantine(filing, custody):
+            primary = f'{filing["cik"]}-{filing["accession"]}.body'
+            target = (root / "SEC_V4_FILINGS_FINAL/quarantine" / primary).resolve()
+            if target.is_relative_to(root) and target.is_file():
+                with target.open("rb") as handle:
+                    content = handle.read(custody["wire_bytes"] + 1)
+                valid = (
+                    len(content) == custody["wire_bytes"]
+                    and hashlib.sha256(content).hexdigest() == custody["wire_sha256"]
+                )
+    if not valid:
+        raise ValueError(f'SEC preparation body custody unavailable: {filing["accession"]}')
 
 
 def record_recoverable_promotion(
@@ -267,7 +286,7 @@ def record_recoverable_promotion(
         raise ValueError("The promoted run cohort changed after certification.")
     preparation = candidate.certification_evidence_json.get("preparation_scope")
     if (
-        scope_evidence_contract(candidate.processor_signature) == SEC_SCOPE_EVIDENCE_VERSION
+        requires_prepared_scope(candidate.processor_signature)
         and preparation is not None
         and preparation != seal_prepared_scope(
             db, tickers=tickers, signature=candidate.processor_signature,

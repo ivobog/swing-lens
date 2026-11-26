@@ -48,6 +48,7 @@ from scripts.ops.ceri_prospective_revenue import (
     _principal,
     _unique_fields,
 )
+from scripts.ops.sec_fresh_custody import load_fresh_proofs
 from scripts.ops.sec_processor_rollback import (
     _assert_windows_trust_acl,
     _checkout_identity,
@@ -426,15 +427,30 @@ def _verify_target(db, settings, approval, selections):
     return _compatible_runtime(db, approval)
 
 
-def _prepare(session, settings, approval, approval_digest, manifest, proofs):
+def _prepare(
+    session, settings, approval, approval_digest, manifest, proofs, *, qualification=False,
+):
     archive_root = Path(approval.archive_root).resolve(strict=True)
     cutoff, selections, custody, filings = _scope_from_manifest(manifest, archive_root)
-    wire = _wire_custody(proofs, filings, archive_root)
+    historic_rows, fresh_rows = [], []
+    for item in proofs:
+        if "fresh_acquisition_sha256" in item or "fresh_journal_sha256" in item:
+            fresh_rows.append(item)
+        else:
+            historic_rows.append(item)
+    wire = _wire_custody(historic_rows, filings, archive_root)
+    fresh = load_fresh_proofs(
+        fresh_rows, filings=filings, archive_root=archive_root,
+        manifest_sha256=approval.manifest_sha256, qualification=qualification,
+    )
+    if any(wire[key] is not None for key in fresh):
+        raise ValueError("SEC_PREPARATION_DUPLICATE_CUSTODY_AUTHORITY")
     recovery = _verify_target(session, settings, approval, selections)
     scope = _scope_digest(approval)
     authority = _after_verified_approval(
         scope, approval.starts_at, approval.cutoff_at, wire, custody, approval_digest,
         _quarantined_custody(archive_root, filings), recovery, str(archive_root),
+        fresh_custody=fresh,
     )
     authority.check_window()
     config = load_ceri_config()
@@ -499,11 +515,17 @@ def main():
             wire, _, _ = _read_json(args.wire_proofs, 1_000_000, approval.wire_proofs_sha256)
             if os.environ.get("SWINGLENS_DATABASE_SAFETY_CONTEXT") == "DISPOSABLE_TEST":
                 require_disposable_tool_target(engine.url)
-                _prepare(db, settings, approval, receipt, manifest, wire)
+                _prepare(
+                    db, settings, approval, receipt, manifest, wire,
+                    qualification=args.qualification_trust,
+                )
             else:
                 recovery_root = Path(approval.recovery_root).resolve(strict=True)
                 with _hold_launcher_lock(recovery_root):
-                    _prepare(db, settings, approval, receipt, manifest, wire)
+                    _prepare(
+                        db, settings, approval, receipt, manifest, wire,
+                        qualification=args.qualification_trust,
+                    )
     finally:
         engine.dispose()
 

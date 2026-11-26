@@ -22,6 +22,11 @@
       "entry_point": "scripts/ops/sec_cache_preparation.py",
       "target_lifecycle": "MANUAL_OPERATIONAL_RECOVERY",
       "scope": "Protected owner-signed foreground SEC cache preparation. Automatic execution denied. No certificate authority."
+    },
+    {
+      "entry_point": "scripts/ops/sec_fresh_custody.py",
+      "target_lifecycle": "MANUAL_OPERATIONAL_RECOVERY",
+      "scope": "Owner-window-bound foreground capture under independent protected SEC attestation. Automatic execution denied. No certificate authority."
     }
   ],
   "gates": [
@@ -4417,6 +4422,18 @@
           {
             "path": "app/services/ceri/preparation_visibility.py",
             "symbol": "install_preparation_visibility"
+          },
+          {
+            "path": "scripts/ops/sec_fresh_custody.py",
+            "symbol": "main"
+          },
+          {
+            "path": "scripts/ops/sec_fresh_custody.py",
+            "symbol": "load_fresh_proofs"
+          },
+          {
+            "path": "app/services/ceri/sec/fresh_custody.py",
+            "symbol": "load_fresh_body"
           }
         ],
         "impact_patterns": [
@@ -4590,7 +4607,9 @@
           "tests/integration/test_sec_processor_rollback_postgresql.py",
           "app/models/ceri_tables.py",
           "docs/operations/sec_cache_preparation.md",
-          "docs/testing/standalone_lifecycle.csv"
+          "docs/testing/standalone_lifecycle.csv",
+          "scripts/ops/sec_fresh_custody.py",
+          "app/services/ceri/sec/fresh_custody.py"
         ],
         "tests": [
           {
@@ -5141,6 +5160,123 @@
             "positive": "The verified scope can be checked under a new valid time window.",
             "negative": "An unverified approval or expired UTC window cannot be used.",
             "reviewed_test_sha256": "50784ad9493ca2041f36ef2b22b3019f21d5320ce2bbf3dc665e86fb5465e324"
+          },
+          {
+            "id": "tests/ceri/test_sec_fresh_custody_release.py::test_historical_signatures_retain_exact_preparation_contracts",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact historical v1/v2 identities and the new readiness identity resolve their own contracts.",
+            "negative": "The new candidate cannot be silently mapped to historical v2, and v2 retains its preparation requirement.",
+            "reviewed_test_sha256": "cf227e4844b1053858f88ae2c40f7981c338d5650d84f62b51e0b81c1e085e25"
+          },
+          {
+            "id": "tests/ceri/test_sec_fresh_custody_release.py::test_release_reopens_exact_fresh_archive_instead_of_ordinary_cache",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The v3 certification and promotion body validator reopens the exact fresh archive through the shared validator.",
+            "negative": "The fresh branch fails for historical v2, changed hash or possession, or rejected archive bytes, without falling through to the ordinary cache.",
+            "reviewed_test_sha256": "cf227e4844b1053858f88ae2c40f7981c338d5650d84f62b51e0b81c1e085e25"
+          },
+          {
+            "id": "tests/ceri/test_sec_fresh_custody.py::test_independent_signatures_and_exact_later_body_are_required",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Independent owner and capture signatures close over one exact protected archive proof and verify the later body.",
+            "negative": "A caller-supplied body reference cannot replace the digest-derived protected path.",
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
+          },
+          {
+            "id": "tests/ceri/test_sec_fresh_custody.py::test_owner_cannot_attest_the_origin_with_its_own_key",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The owner and independent capture principal are role-bound to distinct trust keys.",
+            "negative": "An owner-signed journal does not authenticate SEC acquisition.",
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
+          },
+          {
+            "id": "tests/ceri/test_sec_fresh_custody.py::test_authenticated_journal_cannot_override_time_or_scope",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Signed capture provenance is rechecked against the exact filing, response and approved chronology.",
+            "negative": "A valid signature cannot authorize wrong UTC possession, canonically different content identity or mismatched selection.",
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
+          },
+          {
+            "id": "tests/ceri/test_sec_fresh_custody.py::test_lifecycle_revalidation_rejects_mutated_body_and_journal",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "A success proof reopens the exact immutable journal and body.",
+            "negative": "Journal or body byte changes invalidate custody.",
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
+          },
+          {
+            "id": "tests/ceri/test_sec_fresh_custody.py::test_capture_slot_prevents_replay_with_new_signature",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The exact owner acquisition ID obtains one serialized durable capture slot.",
+            "negative": "A fresh signature for an already consumed acquisition ID cannot repeat a GET.",
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
+          },
+          {
+            "id": "tests/ceri/test_sec_fresh_custody.py::test_fixed_https_transport_never_follows_redirect",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "The capture transport performs one fixed canonical SEC HTTPS GET.",
+            "negative": "A redirect terminates the attempt without a follow-up request.",
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
+          },
+          {
+            "id": "tests/ceri/test_sec_fresh_custody.py::test_capture_retains_authenticated_terminal_result_when_every_request_fails",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Even a zero-admission capture retains authenticated terminal evidence, including raw quarantine bytes when identity is rejected.",
+            "negative": "An HTTP failure or inconsistent filing identity cannot produce an admissible fresh custody proof.",
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
+          },
+          {
+            "id": "tests/integration/test_sec_fresh_scope_postgresql.py::test_native_fresh_exclusion_reexamines_archive_in_active_generations",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "The native preparation, promotion and two ordinary ACTIVE generations reopen the same fresh zero-source body while preserving historical custody.",
+            "negative": "Changes to a detached signature, archive or ordinary registry, a newer attempt or changed refusal stop readiness and prevent ordinary fallback.",
+            "reviewed_test_sha256": "15ab7140a79ced644636904ae012a643bdfd514c652e31b35f07517e0f91efc1"
+          },
+          {
+            "id": "tests/integration/test_sec_fresh_scope_postgresql.py::test_native_fresh_positive_sources_are_preparation_only_and_bind_frozen_selection",
+            "tier": "NATIVE",
+            "fidelity": "POSTGRESQL_SERVICE",
+            "lane": "python-regressions",
+            "positive": "Exact authenticated fresh body evidence can complete native preparation using held-only sources and original registry custody.",
+            "negative": "A mismatched discovery digest cannot establish readiness, and the held source is invisible to ordinary processing.",
+            "reviewed_test_sha256": "15ab7140a79ced644636904ae012a643bdfd514c652e31b35f07517e0f91efc1"
+          },
+          {
+            "id": "tests/ceri/test_sec_fresh_custody.py::test_lifecycle_revalidation_requires_both_exact_detached_signatures",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Release body revalidation reopens both exact detached signatures previously authenticated against the sealed journal and owner payload.",
+            "negative": "Replacing or deleting either detached signature invalidates the body and release proof even when the journal and body remain unchanged.",
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
+          },
+          {
+            "id": "tests/ceri/test_sec_fresh_custody.py::test_intake_cannot_seal_signature_bytes_changed_during_verification",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact detached signature bytes can be bound only when unchanged across the protected OpenSSH verification.",
+            "negative": "Signature mutation during intake cannot produce a sealed fresh custody proof.",
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -5152,7 +5288,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "e2bc1cc88adb61da0c55f8f070eba5c94ea28ade752ace72c99c51c33ec0661b",
+        "review_sha256": "34cf37dc1ab29a02398a19d4097fbb76100789ec8893827f5d69e13be43616ea",
         "review_addenda": [
           {
             "task": "MSI-20261103",

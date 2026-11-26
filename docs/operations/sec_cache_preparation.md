@@ -46,3 +46,43 @@ After the signed window expires, use a newly signed window for the same
 preparation identity and immutable inputs. A different scope requires its own
 approval. Keep the incumbent ACTIVE and the successor DEPLOYED throughout this
 operation. Certification and recoverable promotion are independently controlled.
+
+## Fresh SEC custody
+
+The v3 readiness contract can use an independently authenticated, immutable
+body acquired after the frozen selection cutoff. The original registry version
+and ordinary cache stay in place. Preparation uses the exact new possession
+time and cannot supply ordinary financial source authority. Historical v1/v2
+events retain their existing verification rules.
+
+Authorize each archive capture with an owner signature in the
+`swinglens-sec-fresh-acquisition` namespace. The approval binds the clean
+capture Git commit, protected archive, manifest digest, exact frozen primary
+identities, accountable User-Agent fingerprint, distinct capture attestor
+fingerprint, request count and UTC window. It allows up to two requests per
+second, zero redirects and zero retries. Reusing a consumed acquisition ID
+fails. Record the terminal result even when a batch admits no bodies.
+
+Stage an administrator-owned standalone checkout and protected Python
+environment before launching the foreground capture under Windows SYSTEM.
+The invoking operator needs read-only access to the finalized archive. Give
+only SYSTEM and Administrators write access to the archive and its protected
+parent. The attestor private key remains separate from the owner key and
+inaccessible to the preparation operator. The protected allowed-signers file
+must bind the attestor principal `swinglens-sec-capture-attestor` solely to
+`swinglens-sec-fresh-attestation`. Keep existing namespaces and keys.
+
+Invoke `scripts.ops.sec_fresh_custody` from the protected checkout through
+an isolated Python interpreter with the exact checkout explicitly admitted
+to its module path. Supply `--approval`, `--signature` and `--manifest`.
+Use the signed acquisition and terminal journal digests in fresh rows of
+the normal signed wire-proof index. Each fresh row has the existing
+`cik`, `accession` and `primary` fields plus `fresh_acquisition_sha256`
+and `fresh_journal_sha256`. Historical rows keep their existing journal
+and line binding.
+
+The preparation operator independently verifies both OpenSSH signatures,
+canonical filing and archive identity, current possession, storage controls,
+and exact bytes. It uses no network. Certification and promotion rehash the
+same archived proof and body. Any conflicting body or unproved attribution
+stays blocked under the existing filing and financial checks.
