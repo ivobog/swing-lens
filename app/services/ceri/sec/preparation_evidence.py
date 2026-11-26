@@ -6,13 +6,15 @@ import hashlib
 import io
 import re
 import xml.etree.ElementTree as ET
+from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from types import MappingProxyType
 
 from sqlalchemy import or_, select
 
 from app.models.ceri_tables import CeriGuidanceEvent, CeriSourceRecord
+from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
 from app.services.ceri.sec.attribution import (
     CIK_SCHEMES,
     HEADER_CIK,
@@ -22,6 +24,7 @@ from app.services.ceri.sec.attribution import (
     SecAttributionRefused,
     prove_document_attribution,
 )
+from app.services.ceri.sec.fresh_custody import load_fresh_body
 from app.services.entrypoint_authority import require_disposable_tool_target
 
 EXCLUDED_ATTRIBUTION = "COMPLETED_EXCLUDED_ATTRIBUTION"
@@ -48,6 +51,7 @@ class PreparationAuthorization:
     quarantined: tuple[str, dict] | None = None
     recovery: dict | None = None
     archive_root: str | None = None
+    fresh_custody: dict | None = None
     _verified: bool = field(default=False, init=False, repr=False)
 
     def check_window(self) -> None:
@@ -59,17 +63,27 @@ class PreparationAuthorization:
     def has_filing(self, filing):
         return (filing["cik"], filing["accession"], filing["filename"]) in self.issuer_proofs
 
-    def matches_body(self, filing, body):
+    def matches_body(self, filing, body, *, has_fresh_custody: bool = False):
         if self.expected_custody is None:
             return True
-        return self.expected_custody.get(
+        expected = self.expected_custody.get(
             (filing["cik"], filing["accession"], filing["filename"])
-        ) == (body["body_sha256"], body["possessed_at"])
+        )
+        if expected is None and has_fresh_custody:
+            # Fresh custody is allowed for a missing historic body, but cannot excuse
+            # a discrepancy against previously approved historic custody.
+            return True
+        return expected == (body["body_sha256"], body["possessed_at"])
 
     def proof_for(self, filing):
         return self.issuer_proofs.get(
             (filing["cik"], filing["accession"], filing["filename"])
         )
+
+    def fresh_proof_for(self, filing):
+        return deepcopy((self.fresh_custody or {}).get(
+            (filing["cik"], filing["accession"], filing["filename"])
+        ))
 
 
 class PreparationExpired(RuntimeError):
@@ -81,6 +95,10 @@ def _after_verified_approval(*args, **kwargs) -> PreparationAuthorization:
     object.__setattr__(
         authorization, "issuer_proofs", MappingProxyType(authorization.issuer_proofs.copy()),
     )
+    if authorization.fresh_custody is not None:
+        object.__setattr__(
+            authorization, "fresh_custody", MappingProxyType(deepcopy(authorization.fresh_custody)),
+        )
     object.__setattr__(authorization, "_verified", True)
     return authorization
 
@@ -133,6 +151,28 @@ def archive_exclusion_proof(filing, body, content: str, proof: dict | None, refu
     if not _identity_consistent(content, filing["cik"], filing["form"]):
         return None
     return proof
+
+
+def fresh_archive_body(archive_root, filing, proof, registered, *, observed_at):
+    """Load authenticated late custody without replacing ordinary registry possession."""
+    if not archive_root or not isinstance(proof, dict) or registered is None:
+        raise ValueError("SEC_FRESH_CUSTODY_REGISTRY_IDENTITY_REQUIRED")
+    if (
+        (registered.cik, registered.accession_number, registered.document_name,
+         registered.form, registered.filing_date)
+        != (filing["cik"], filing["accession"], filing["filename"],
+            filing["form"], date.fromisoformat(filing["filing_date"]))
+    ):
+        raise ValueError("SEC_FRESH_CUSTODY_REGISTRY_CONTRADICTION")
+    content = load_fresh_body(archive_root, filing, proof)
+    possessed = datetime.fromisoformat(proof["possessed_at"])
+    if possessed > observed_at:
+        raise ValueError("SEC_FRESH_CUSTODY_POSSESSION_AFTER_EXAMINATION")
+    return {
+        "document_id": registered.id,
+        "body_sha256": proof["wire_sha256"],
+        "possessed_at": Canonical.canonicalize(possessed),
+    }, content
 
 
 def matches_reviewed_quarantine(filing, custody):

@@ -20,8 +20,7 @@ from app.services.ceri.sec.processor_rollback import (
     seal_prepared_scope,
 )
 from app.services.ceri.sec.processor_signature import (
-    SEC_SCOPE_EVIDENCE_VERSION,
-    scope_evidence_contract,
+    requires_prepared_scope,
     sec_guidance_processor_signature,
 )
 from app.services.ceri.sec.readiness_diagnostics import diagnose_sec_readiness
@@ -96,7 +95,7 @@ def main() -> int:
                     f"{readiness.requested_tickers}."
                 )
             preparation_scope = {}
-            if scope_evidence_contract(signature) == SEC_SCOPE_EVIDENCE_VERSION:
+            if requires_prepared_scope(signature):
                 digest = evidence.get("preparation_scope_sha256")
                 preparation_scope = {"preparation_scope": seal_prepared_scope(
                     db, tickers=tickers, signature=signature, preparation_sha256=digest,

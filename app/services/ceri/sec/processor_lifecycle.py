@@ -14,7 +14,10 @@ from app.services.ceri.sec.processor_rollback import (
     record_recoverable_promotion,
     seal_prepared_scope,
 )
-from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
+from app.services.ceri.sec.processor_signature import (
+    requires_prepared_scope,
+    sec_guidance_processor_signature,
+)
 from app.services.entrypoint_authority import require_disposable_tool_target
 from app.services.pipeline_prerequisites import (
     SecProcessorPromotionRequiredError,
@@ -157,14 +160,6 @@ def establish_worker_processor_identity(
     return row
 
 
-def _requires_prepared_scope(signature):
-    from app.services.ceri.sec.processor_signature import (
-        SEC_SCOPE_EVIDENCE_VERSION,
-        scope_evidence_contract,
-    )
-    return scope_evidence_contract(signature) == SEC_SCOPE_EVIDENCE_VERSION
-
-
 def _require_disposable_release_control(db):
     bind = db.get_bind()
     target = bind.url if hasattr(bind, "url") else bind.engine.url
@@ -180,7 +175,7 @@ def certify_processor(
     evidence: dict[str, Any],
     actor: str,
 ) -> CeriSecProcessorRelease:
-    if _requires_prepared_scope(processor_signature):
+    if requires_prepared_scope(processor_signature):
         preparation = evidence.get("preparation_scope")
         if preparation is None:
             _require_disposable_release_control(db)
@@ -241,7 +236,7 @@ def promote_processor(
         return target
     if target is None or target.status != SecProcessorReleaseStatus.CERTIFIED:
         raise ValueError("SEC processor must be CERTIFIED before explicit promotion.")
-    if _requires_prepared_scope(processor_signature):
+    if requires_prepared_scope(processor_signature):
         if not target.certification_evidence_json.get("preparation_scope"):
             _require_disposable_release_control(db)
         elif rollback_run_id is None:

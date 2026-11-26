@@ -40,13 +40,16 @@ from app.services.ceri.sec.scope_evidence import (
     body_version,
     exact_filing,
     extraction_completion,
+    extraction_refusal,
     generation_ready,
+    load_fresh_scope_body,
     locked_events,
     open_generation,
     payload,
     preparation_owner,
     record_outcome,
     retain_selection,
+    retained_fresh_exclusion,
     retained_preparation_exclusion,
     reusable_outcome,
     reusable_preparation_outcome,
@@ -293,11 +296,14 @@ class SecGuidanceIncrementalIngestionService:
         owner = preparation_owner(db, events[0], events[1]) if prepared else None
         if prepared and (owner is None or preparation is None):
             raise ScopeEvidenceError("SEC_PREPARATION_OWNER_INVALID")
+        fresh_proof = preparation.fresh_proof_for(filing) if preparation else None
+        fresh_exclusion = None
+        active = self.settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE
         if preparation is not None:
             preparation.check_window()
             if not preparation.has_filing(filing):
                 raise ScopeEvidenceError("SEC_PREPARATION_FILING_NOT_AUTHORIZED")
-            if preparation.quarantined is not None:
+            if preparation.quarantined is not None and fresh_proof is None:
                 quarantined_text, custody = preparation.quarantined
                 if matches_reviewed_quarantine(filing, custody):
                     if (
@@ -318,11 +324,12 @@ class SecGuidanceIncrementalIngestionService:
                     outcome.documents_excluded_attribution += 1
                     db.commit()
                     return
-        elif (
-            self.settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE
-            and (filing["cik"], filing["accession"], filing["filename"])
-            == REVIEWED_QUARANTINED_PRIMARY
-        ):
+        elif active:
+            fresh_exclusion = retained_fresh_exclusion(db, events[0], events[1], filing)
+
+        if preparation is None and active and fresh_exclusion is None and (
+            filing["cik"], filing["accession"], filing["filename"]
+        ) == REVIEWED_QUARANTINED_PRIMARY:
             anchor = retained_preparation_exclusion(db, events[0], filing, None)
             if anchor is not None:
                 record_outcome(db, generation, filing, {
@@ -341,7 +348,9 @@ class SecGuidanceIncrementalIngestionService:
                 CeriSecFilingDocument.form == filing["form"],
                 CeriSecFilingDocument.filing_date == date.fromisoformat(filing["filing_date"]),
             ))
-            if registered is None or not preparation.matches_body(filing, body_version(registered)):
+            if registered is None or not preparation.matches_body(
+                filing, body_version(registered), has_fresh_custody=fresh_proof is not None,
+            ):
                 record_outcome(db, generation, filing, {
                     "status": "FAILED_RETRYABLE", "reason": "SEC_PREPARATION_CUSTODY_UNAVAILABLE",
                 }, preparation=preparation)
@@ -349,6 +358,12 @@ class SecGuidanceIncrementalIngestionService:
                 outcome.failed += 1
                 db.commit()
                 return
+        elif fresh_exclusion is not None:
+            registered = db.get(
+                CeriSecFilingDocument, fresh_exclusion.body["document_id"], populate_existing=True,
+            )
+            if registered is None:
+                raise ScopeEvidenceError("SEC_ACTIVE_FRESH_CUSTODY_REGISTRY_IDENTITY_REQUIRED")
         else:
             registered = self.state.register_document(
                 db,
@@ -362,12 +377,37 @@ class SecGuidanceIncrementalIngestionService:
                 ),
             )
         document_id = registered.id
-        version = body_version(registered)
-        cached = (
-            self.content_cache.load(document, expected_hash=version["body_sha256"])
-            if version["body_sha256"] and version["possessed_at"]
-            else None
-        )
+        registered_version = body_version(registered)
+        version = registered_version
+        if fresh_exclusion is not None:
+            version, cached = fresh_exclusion.body, fresh_exclusion.content
+            fresh_proof = fresh_exclusion.proof
+        elif fresh_proof is not None:
+            try:
+                version, cached = load_fresh_scope_body(
+                    db, events[0], events[1], filing, fresh_proof, registered_version,
+                    observed_at=datetime.now(UTC),
+                )
+            except (KeyError, TypeError, ValueError):
+                record_outcome(db, generation, filing, {
+                    "status": "FAILED_RETRYABLE", "reason": "SEC_PREPARATION_FRESH_CUSTODY_INVALID",
+                }, preparation=preparation)
+                outcome.failed += 1
+                db.commit()
+                return
+        else:
+            cached = (
+                self.content_cache.load(document, expected_hash=version["body_sha256"])
+                if version["body_sha256"] and version["possessed_at"]
+                else None
+            )
+        body_proof = ({
+            "fresh_custody": fresh_proof,
+            "fresh_registry_baseline": (
+                fresh_exclusion.registry_baseline
+                if fresh_exclusion is not None else registered_version
+            ),
+        } if fresh_proof is not None else {})
         if prepared and cached is not None and reusable_preparation_outcome(
             db, events, filing, version,
         ):
@@ -377,7 +417,7 @@ class SecGuidanceIncrementalIngestionService:
             return
         prior = (
             reusable_outcome(db, generation, filing, version)
-            if cached is not None and not prepared else None
+            if cached is not None and not prepared and fresh_exclusion is None else None
         )
         if prior is not None:
             outcome.deduplicated += len(prior["sources"])
@@ -442,22 +482,27 @@ class SecGuidanceIncrementalIngestionService:
                 version = body_version(
                     db.get(CeriSecFilingDocument, document_id, populate_existing=True)
                 )
+                registered_version = version
                 outcome.documents_downloaded += 1
                 db.commit()
             else:
                 outcome.documents_cache_reused += 1
             active_origin = (
                 retained_preparation_exclusion(db, events[0], filing, version)
-                if not prepared and cached is not None
-                and self.settings.sec_document_incremental_mode is SecDocumentIncrementalMode.ACTIVE
+                if not prepared and cached is not None and active and fresh_exclusion is None
                 else None
             )
             refusal = (
-                examine_attribution(document, filing_text) if prepared or active_origin else None
+                examine_attribution(document, filing_text)
+                if prepared or active_origin or fresh_exclusion else None
             )
+            if fresh_exclusion is not None and refusal != fresh_exclusion.reason:
+                raise SecAttributionRefused("SEC_ACTIVE_FRESH_CUSTODY_REFUSAL_CHANGED")
             exclusion = None
             if refusal is not None:
-                if active_origin is not None and active_origin[1] == refusal:
+                if fresh_proof is not None:
+                    custody = fresh_proof
+                elif active_origin is not None and active_origin[1] == refusal:
                     custody = active_origin[2]
                 else:
                     custody = preparation.proof_for(filing) if prepared else None
@@ -466,6 +511,10 @@ class SecGuidanceIncrementalIngestionService:
                     raise SecAttributionRefused(refusal)
                 records = ()
             else:
+                if fresh_proof is not None and registered_version["body_sha256"] not in (
+                    None, fresh_proof["wire_sha256"],
+                ):
+                    raise ValueError("SEC_PREPARATION_FRESH_POSITIVE_REGISTRY_CONTRADICTION")
                 records = provider.extract_guidance_document(
                     document, text=filing_text, require_financial_attribution=True,
                     retrieved_at=retrieved_at,
@@ -486,7 +535,7 @@ class SecGuidanceIncrementalIngestionService:
                 raise SecIncrementalCancelled("CERI SEC ingestion cancelled")
             if (
                 body_version(db.get(CeriSecFilingDocument, document_id, populate_existing=True))
-                != version
+                != registered_version
             ):
                 raise ScopeEvidenceError("SEC_PROCESSING_BODY_VERSION_CHANGED")
             if preparation is not None:
@@ -504,9 +553,14 @@ class SecGuidanceIncrementalIngestionService:
                     db, generation, filing,
                     {
                         "status": EXCLUDED_ATTRIBUTION, "body": version, "sources": [],
-                        "reason": refusal, "custody": exclusion,
+                        "reason": refusal, "custody": exclusion, **body_proof,
+                        **({"extraction_refusal": extraction_refusal(db, claim.extraction_id)}
+                           if fresh_proof is not None else {}),
                         **({"preparation": asdict(owner)} if prepared else {
-                            "exclusion_origin": active_origin[0],
+                            "exclusion_origin": (
+                                fresh_exclusion.seal if fresh_exclusion is not None
+                                else active_origin[0]
+                            ),
                         }),
                     },
                     kind=REFUSAL, preparation=preparation,
@@ -567,6 +621,7 @@ class SecGuidanceIncrementalIngestionService:
                 {
                     "status": "COMPLETED_WITH_RECORDS" if records else "COMPLETED_NO_RECORDS",
                     "body": version,
+                    **body_proof,
                     "sources": prepared_sources if prepared else [
                         {"id": key, "hash": value} for key, value in sorted(sources.items())
                     ],

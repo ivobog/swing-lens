@@ -11,7 +11,8 @@ FILING_SELECTION_POLICY_VERSION = "guidance-forms-v1"
 SEC_GUIDANCE_TIMING_VERSION = "sec-guidance-accepted-pit-v1"
 SEC_ATTRIBUTION_VERSION = "sec-document-attribution-v1"
 SEC_SCOPE_EVIDENCE_V1 = "sec-exact-scope-evidence-v1"
-SEC_SCOPE_EVIDENCE_VERSION = "sec-exact-scope-evidence-v2"
+SEC_SCOPE_EVIDENCE_V2 = "sec-exact-scope-evidence-v2"
+SEC_SCOPE_EVIDENCE_VERSION = "sec-exact-scope-evidence-v3"
 
 
 def sec_guidance_processor_signature() -> str:
@@ -36,9 +37,15 @@ def sec_guidance_processor_identity_inputs() -> tuple[str, ...]:
 
 
 def scope_evidence_contract(signature: str) -> str | None:
-    """Resolve the two known ledger contracts without using the running version as a proxy."""
+    """Resolve immutable historical identities and the current ledger contract."""
     if signature == "sec-guidance:755df092d79e7a53":
         return SEC_SCOPE_EVIDENCE_V1
+    if signature == "sec-guidance:66a29b585c469f21":
+        return SEC_SCOPE_EVIDENCE_V2
     if signature == sec_guidance_processor_signature():
         return SEC_SCOPE_EVIDENCE_VERSION
     return None
+
+
+def requires_prepared_scope(signature: str) -> bool:
+    return scope_evidence_contract(signature) in {SEC_SCOPE_EVIDENCE_V2, SEC_SCOPE_EVIDENCE_VERSION}

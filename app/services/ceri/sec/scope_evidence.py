@@ -29,6 +29,9 @@ from app.services.ceri.preparation_visibility import (
 from app.services.ceri.sec.preparation_evidence import (
     EXCLUDABLE_REFUSALS,
     EXCLUDED_ATTRIBUTION,
+    archive_exclusion_proof,
+    examine_attribution,
+    fresh_archive_body,
     has_unresolved_legacy_collision,
     matches_reviewed_quarantine,
 )
@@ -38,9 +41,11 @@ from app.services.ceri.sec.preparation_sources import (
 )
 from app.services.ceri.sec.processor_signature import (
     SEC_SCOPE_EVIDENCE_VERSION,
+    requires_prepared_scope,
     scope_evidence_contract,
     sec_guidance_processor_signature,
 )
+from app.services.ceri.sec.provider import SecGuidanceDocument
 from app.services.work_scope_identity import (
     ScopeIdentityStore,
     ScopeMember,
@@ -340,6 +345,11 @@ def record_outcome(
         if preparation is None or preparation.scope_sha256 != grant:
             raise ScopeEvidenceError("SEC_PREPARATION_OUTCOME_AUTHORITY_MISMATCH")
         preparation.check_window()
+        if (
+            result.get("status") in SUCCESS | {EXCLUDED_ATTRIBUTION}
+            and result.get("fresh_custody") != preparation.fresh_proof_for(filing)
+        ):
+            raise ScopeEvidenceError("SEC_PREPARATION_FRESH_CUSTODY_AUTHORITY_MISMATCH")
         data["preparation_approval"] = {
             "approval_sha256": preparation.signed_approval_sha256,
             "starts_at": preparation.starts_at, "cutoff_at": preparation.cutoff_at,
@@ -405,6 +415,52 @@ def extraction_completion(db, extraction_id):
         "records": row.record_count,
         "completed_at": Canonical.canonicalize(row.completed_at),
     }
+
+
+def extraction_refusal(db, extraction_id):
+    row = db.get(CeriSecDocumentExtraction, extraction_id, populate_existing=True)
+    if row is None:
+        return None
+    return {
+        "id": row.id, "document_id": row.document_id, "dataset": row.dataset,
+        "processor_signature": row.processor_signature, "attempt": row.attempt_count,
+        "status": row.status, "reason": row.last_error_code,
+        "recorded_at": Canonical.canonicalize(row.heartbeat_at),
+        "has_token": row.execution_token is not None,
+    }
+
+
+def _matching_fresh_refusal(db, opening, body, result, *, historical_origin=False):
+    receipt = result.get("extraction_refusal")
+    if not isinstance(receipt, dict):
+        return False
+    try:
+        recorded = datetime.fromisoformat(receipt["recorded_at"])
+        approval = result.get("preparation_approval")
+        latest = datetime.fromisoformat(approval["recorded_at"]) if approval else datetime.now(UTC)
+        if (
+            receipt["document_id"] != body["document_id"]
+            or receipt["processor_signature"] != opening.processor_signature
+            or receipt["dataset"] != GUIDANCE
+            or receipt["status"] != "FAILED_RETRYABLE" or receipt["has_token"] is not False
+            or receipt["reason"] != result["reason"] or receipt["attempt"] < 1
+            or not opening.recorded_at <= recorded <= latest
+        ):
+            return False
+        current = extraction_refusal(db, receipt["id"])
+        if current == receipt:
+            return True
+        # A later ACTIVE examination owns a newer attempt for the same extraction.
+        return (
+            historical_origin and current is not None
+            and current["document_id"] == receipt["document_id"]
+            and current["dataset"] == receipt["dataset"]
+            and current["processor_signature"] == receipt["processor_signature"]
+            and current["attempt"] > receipt["attempt"]
+            and datetime.fromisoformat(current["recorded_at"]) >= recorded
+        )
+    except (KeyError, TypeError, ValueError):
+        return False
 
 
 def _matching_prepared_completion(db, opening, body, result):
@@ -512,7 +568,7 @@ def generation_ready(
     opened = payload(opening)
     contract = scope_evidence_contract(signature)
     if contract is None or (
-        contract == SEC_SCOPE_EVIDENCE_VERSION and opened.get("contract") != contract
+        requires_prepared_scope(signature) and opened.get("contract") != contract
     ):
         return False
     selected = payload(selection)
@@ -556,8 +612,8 @@ def preparation_owner(db, opening, selection):
         not isinstance(grant, str)
         or not re.fullmatch("[a-f0-9]{64}", grant)
         or not re.fullmatch("[a-f0-9]{64}", opened.get("approval_receipt_sha256") or "")
-        or scope_evidence_contract(opening.processor_signature) != SEC_SCOPE_EVIDENCE_VERSION
-        or opened.get("contract") != SEC_SCOPE_EVIDENCE_VERSION
+        or not requires_prepared_scope(opening.processor_signature)
+        or opened.get("contract") != scope_evidence_contract(opening.processor_signature)
         or release is None
         or run is None
         or run.scope_id != opening.scope_id
@@ -586,6 +642,7 @@ def retained_preparation_exclusion(db, opening, filing, body, anchor=None):
         if (
             prior.get("status") != EXCLUDED_ATTRIBUTION or not prior.get("preparation")
             or prior.get("filing") != filing or prior.get("body") != body
+            or prior.get("fresh_custody") is not None
         ):
             continue
         original = db.scalars(select(row).where(
@@ -602,13 +659,183 @@ def retained_preparation_exclusion(db, opening, filing, body, anchor=None):
     return None
 
 
-def _valid_processing_outcome(db, opening, selection, filing, kind, result):
+def load_fresh_scope_body(db, opening, selection, filing, proof, registry_baseline, *, observed_at):
+    """Bind late custody to the precise approved, sealed discovery and its archived bytes."""
+    selected = payload(selection)
+    discovery = selected["discovery"]
+    if (
+        scope_evidence_contract(opening.processor_signature) != SEC_SCOPE_EVIDENCE_VERSION
+        or not payload(opening).get("preparation_sha256")
+        or filing not in selected["required"]
+        or not isinstance(proof, dict)
+        or proof.get("filing") != filing
+        or proof.get("submissions_sha256") != discovery.get("submissions_wire_sha256")
+        or discovery.get("source") != f'SEC/submissions/CIK{filing["cik"]}.json'
+    ):
+        raise ValueError("SEC_FRESH_CUSTODY_SELECTION_MISMATCH")
+    accepted = datetime.fromisoformat(filing["accepted_at"])
+    cutoff = datetime.fromisoformat(discovery["frozen_selection_cutoff_at"])
+    discovered = datetime.fromisoformat(discovery["submissions_possessed_at"])
+    if accepted > cutoff or not accepted <= discovered <= observed_at:
+        raise ValueError("SEC_FRESH_CUSTODY_SELECTION_TIME_INVALID")
+    if not isinstance(registry_baseline, dict) or set(registry_baseline) != {
+        "document_id", "body_sha256", "possessed_at",
+    }:
+        raise ValueError("SEC_FRESH_CUSTODY_REGISTRY_BASELINE_INVALID")
+    registered = db.get(
+        CeriSecFilingDocument, registry_baseline["document_id"], populate_existing=True,
+    )
+    if registered is None or body_version(registered) != registry_baseline:
+        raise ValueError("SEC_FRESH_CUSTODY_REGISTRY_CONTRADICTION")
+    original_possession = registry_baseline["possessed_at"]
+    if original_possession is not None and (
+        datetime.fromisoformat(proof["received_at"])
+        <= datetime.fromisoformat(original_possession)
+    ):
+        raise ValueError("SEC_FRESH_CUSTODY_DID_NOT_FOLLOW_ORIGINAL_POSSESSION")
+    return fresh_archive_body(
+        payload(opening).get("preparation_archive_root"), filing, proof, registered,
+        observed_at=observed_at,
+    )
+
+
+@dataclass(frozen=True)
+class FreshExclusionAnchor:
+    seal: str
+    body: dict
+    proof: dict
+    registry_baseline: dict
+    reason: str
+    content: str
+
+
+def retained_fresh_exclusion(db, opening, selection, filing):
+    """Continue only the latest exact zero-source exclusion, after reopening its archive."""
+    if scope_evidence_contract(opening.processor_signature) != SEC_SCOPE_EVIDENCE_VERSION:
+        return None
+    row = CeriSecScopeEvidence
+    prior_events = db.scalars(select(row).where(
+        row.cik == opening.cik, row.processor_signature == opening.processor_signature,
+        row.generation < opening.generation, row.kind.in_((OUTCOME, REFUSAL)),
+    ).order_by(row.generation.desc(), row.ordinal.desc()))
+    latest = None
+    for event in prior_events:
+        prior = payload(event)
+        if prior.get("filing", {}).get("accession") != filing["accession"]:
+            continue
+        if latest is None:
+            latest = event.evidence_sha256
+        if (
+            event.kind == REFUSAL and prior.get("status") == EXCLUDED_ATTRIBUTION
+            and prior.get("fresh_custody") is not None
+        ):
+            break
+    else:
+        return None
+    if latest != event.evidence_sha256:
+        raise ScopeEvidenceError("SEC_ACTIVE_FRESH_CUSTODY_PREVIOUS_EXAMINATION_BLOCKED")
+    proof = prior["fresh_custody"]
+    current = payload(selection)
+    discovery_digest = current["discovery"].get("submissions_sha256")
+    if (
+        prior.get("filing") != filing or filing not in current["required"]
+        or not isinstance(discovery_digest, str)
+        or not re.fullmatch("[a-f0-9]{64}", discovery_digest)
+        or current["discovery"].get("source") != f'SEC/submissions/CIK{filing["cik"]}.json'
+    ):
+        raise ScopeEvidenceError("SEC_ACTIVE_FRESH_CUSTODY_SELECTION_CONTRADICTION")
+    origin = event
+    if prior.get("exclusion_origin") is not None:
+        origin = db.scalar(select(row).where(
+            row.cik == opening.cik, row.processor_signature == opening.processor_signature,
+            row.generation < event.generation, row.kind == REFUSAL,
+            row.evidence_sha256 == prior["exclusion_origin"],
+        ))
+    if origin is None:
+        raise ScopeEvidenceError("SEC_ACTIVE_FRESH_CUSTODY_ORIGIN_MISSING")
+    original = db.scalars(select(row).where(
+        row.cik == origin.cik, row.processor_signature == origin.processor_signature,
+        row.generation == origin.generation, row.ordinal.in_((0, 1)),
+    ).order_by(row.ordinal)).all()
+    result = payload(origin)
+    if (
+        len(original) != 2 or original[0].kind != OPEN or original[1].kind != SELECTED
+        or origin.ingestion_run_id != original[0].ingestion_run_id
+        or origin.scope_id != original[1].scope_id
+        or result.get("filing") != filing or result.get("fresh_custody") != proof
+        or result.get("body") != prior.get("body") or result.get("reason") != prior.get("reason")
+        or result.get("fresh_registry_baseline") != prior.get("fresh_registry_baseline")
+        or not result.get("preparation")
+        or not _valid_processing_outcome(
+            db, *original, filing, REFUSAL, result, historical_origin=True,
+        )
+    ):
+        raise ScopeEvidenceError("SEC_ACTIVE_FRESH_CUSTODY_ORIGIN_INVALID")
+    try:
+        body, content = load_fresh_scope_body(
+            db, *original, filing, proof, result["fresh_registry_baseline"],
+            observed_at=datetime.now(UTC),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ScopeEvidenceError("SEC_ACTIVE_FRESH_CUSTODY_ARCHIVE_INVALID") from exc
+    if body != result["body"]:
+        raise ScopeEvidenceError("SEC_ACTIVE_FRESH_CUSTODY_BODY_CHANGED")
+    return FreshExclusionAnchor(
+        origin.evidence_sha256, body, proof, result["fresh_registry_baseline"],
+        result["reason"], content,
+    )
+
+
+def _fresh_processing_body(db, opening, selection, filing, result):
+    body = result.get("body")
+    proof = result.get("fresh_custody")
+    try:
+        checked, content = load_fresh_scope_body(
+            db, opening, selection, filing, proof, result["fresh_registry_baseline"],
+            observed_at=datetime.fromisoformat(result["preparation_approval"]["recorded_at"]),
+        )
+        return content if checked == body else None
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _document_for_filing(filing):
+    return SecGuidanceDocument(
+        "", filing["cik"], filing["accession"], filing["filename"], filing["form"],
+        filing["filing_date"], datetime.fromisoformat(filing["accepted_at"]),
+    )
+
+
+def _valid_processing_outcome(
+    db, opening, selection, filing, kind, result, *, historical_origin=False,
+):
     body = result.get("body")
     status = result.get("status")
     prepared = bool(payload(opening).get("preparation_sha256"))
     if prepared and not _valid_preparation_window(opening, result.get("preparation_approval")):
         return False
     excluded = kind == REFUSAL and status == EXCLUDED_ATTRIBUTION
+    if not excluded and (kind != OUTCOME or status not in SUCCESS):
+        return False
+    fresh_proof = result.get("fresh_custody")
+    fresh_content = None
+    if fresh_proof is not None:
+        if scope_evidence_contract(opening.processor_signature) != SEC_SCOPE_EVIDENCE_VERSION:
+            return False
+        if prepared:
+            fresh_content = _fresh_processing_body(db, opening, selection, filing, result)
+            if fresh_content is None or (
+                not excluded
+                and result["fresh_registry_baseline"]["body_sha256"] not in (
+                    None, body["body_sha256"],
+                )
+            ):
+                return False
+        elif not excluded:
+            return False
+    body_matches = (
+        fresh_content is not None if fresh_proof is not None else _matching_body(db, filing, body)
+    )
     if excluded or prepared and status == "COMPLETED_NO_RECORDS":
         owner = preparation_owner(db, opening, selection)
         source_table = CeriSourceRecord.__table__
@@ -623,7 +850,9 @@ def _valid_processing_outcome(db, opening, selection, filing, kind, result):
             return False
         if not excluded:
             return (
-                owner is not None and kind == OUTCOME and _matching_body(db, filing, body)
+                owner is not None and kind == OUTCOME and body_matches
+                and (fresh_content is None
+                     or examine_attribution(_document_for_filing(filing), fresh_content) is None)
                 and _matching_prepared_completion(db, opening, body, result)
             )
         custody = result.get("custody") or {}
@@ -639,11 +868,36 @@ def _valid_processing_outcome(db, opening, selection, filing, kind, result):
             ).limit(1))
         )
         origin = result.get("exclusion_origin")
+        if fresh_proof is not None:
+            if prepared:
+                return (
+                    owner is not None and origin is None
+                    and result.get("preparation") == asdict(owner)
+                    and custody == fresh_proof and fresh_content is not None
+                    and examine_attribution(_document_for_filing(filing), fresh_content)
+                    == result["reason"]
+                    and archive_exclusion_proof(
+                        filing, body, fresh_content, custody, result["reason"],
+                    ) is not None
+                    and _matching_fresh_refusal(
+                        db, opening, body, result, historical_origin=historical_origin,
+                    )
+                    and not has_unresolved_legacy_collision(db, filing)
+                )
+            try:
+                anchor = retained_fresh_exclusion(db, opening, selection, filing)
+            except ScopeEvidenceError:
+                return False
+            return (
+                anchor is not None and anchor.seal == origin and anchor.body == body
+                and anchor.proof == custody == fresh_proof and anchor.reason == result["reason"]
+                and result.get("fresh_registry_baseline") == anchor.registry_baseline
+                and _matching_fresh_refusal(db, opening, body, result)
+            )
         if origin is not None:
             if (
                 owner is not None
-                or scope_evidence_contract(opening.processor_signature)
-                != SEC_SCOPE_EVIDENCE_VERSION
+                or not requires_prepared_scope(opening.processor_signature)
                 or not (quarantined or _matching_body(db, filing, body))
             ):
                 return False
@@ -661,8 +915,8 @@ def _valid_processing_outcome(db, opening, selection, filing, kind, result):
             )
         )
     if (
-        kind != OUTCOME or result.get("status") not in SUCCESS
-        or not _matching_body(db, filing, body)
+        not body_matches or (fresh_content is not None
+            and examine_attribution(_document_for_filing(filing), fresh_content) is not None)
     ):
         return False
     source_proof = result.get("preparation")
