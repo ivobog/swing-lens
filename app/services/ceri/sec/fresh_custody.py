@@ -15,6 +15,7 @@ MAX_ATTEMPTS = 522
 MAX_WIRE_BYTES = 40 * 1024 * 1024
 MAX_APPROVAL_BYTES = 128 * 1024
 MAX_JOURNAL_BYTES = 2 * 1024 * 1024
+MAX_SIGNATURE_BYTES = 16_384
 SHA256 = re.compile(r"[0-9a-f]{64}")
 KEY_FIELDS = ("cik", "accession", "filename")
 ALLOWED_FORMS = frozenset({"8-K", "10-K", "10-Q", "6-K", "20-F"})
@@ -174,13 +175,25 @@ def read_bundle(archive_root, approval_sha256, journal_sha256):
     return approval_bytes, journal_bytes, approval, header, receipts
 
 
-def make_proof(receipt: dict, line_sha256: str, approval_sha256: str, journal_sha256: str):
+def signature_digest(path: Path) -> str:
+    signature = read_bytes(path, MAX_SIGNATURE_BYTES)
+    if not signature:
+        raise ValueError("SEC_FRESH_DETACHED_SIGNATURE_EMPTY")
+    return digest(signature)
+
+
+def make_proof(
+    receipt: dict, line_sha256: str, approval_sha256: str, journal_sha256: str, *,
+    approval_signature_sha256: str, journal_signature_sha256: str,
+):
     reference = bundle_reference(approval_sha256, journal_sha256)
     body = reference / "bodies" / f'{_digest_value(receipt["wire_sha256"])}.body'
     return {
         **receipt, "archive_receipt_sha256": _digest_value(line_sha256),
         "acquisition_approval_sha256": approval_sha256,
         "acquisition_journal_sha256": journal_sha256,
+        "approval_signature_sha256": _digest_value(approval_signature_sha256),
+        "journal_signature_sha256": _digest_value(journal_signature_sha256),
         "body_reference": body.as_posix(),
     }
 
@@ -192,8 +205,16 @@ def load_fresh_body(archive_root, filing, proof) -> str:
         journal_sha = proof["acquisition_journal_sha256"]
         _, _, approval, header, receipts = read_bundle(archive_root, approval_sha, journal_sha)
         receipt, line_sha = receipts[filing_key(filing)]
+        reference = bundle_reference(approval_sha, journal_sha)
+        approval_sig = immutable_path(archive_root, reference / "approval.json.sig")
+        journal_sig = immutable_path(archive_root, reference / "journal.jsonl.sig")
+        expected = make_proof(
+            receipt, line_sha, approval_sha, journal_sha,
+            approval_signature_sha256=signature_digest(approval_sig),
+            journal_signature_sha256=signature_digest(journal_sig),
+        )
         if (
-            proof != make_proof(receipt, line_sha, approval_sha, journal_sha)
+            proof != expected
             or Path(approval["archive_root"]) != Path(archive_root)
             or receipt["filing"] != filing
             or receipt["archive_url"] != archive_url(filing)

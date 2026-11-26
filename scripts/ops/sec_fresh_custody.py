@@ -29,6 +29,7 @@ from app.services.ceri.sec.fresh_custody import (
     HOLDOUT_ACCESSIONS,
     MAX_APPROVAL_BYTES,
     MAX_ATTEMPTS,
+    MAX_SIGNATURE_BYTES,
     MAX_WIRE_BYTES,
     archive_url,
     bundle_reference,
@@ -41,6 +42,7 @@ from app.services.ceri.sec.fresh_custody import (
     read_bundle,
     read_bytes,
     read_json,
+    signature_digest,
 )
 from app.settings import get_settings
 from scripts.ops.ceri_prospective_revenue import _principal, _windows_system_dir
@@ -55,9 +57,9 @@ ACQUISITION_NAMESPACE = "swinglens-sec-fresh-acquisition"
 ATTESTATION_NAMESPACE = "swinglens-sec-fresh-attestation"
 ATTESTOR_PRINCIPAL = "swinglens-sec-capture-attestor"
 ATTESTOR_KEY_NAME = "sec-capture-attestor"
+SSH_TIMEOUT_SECONDS = 20
 COMMIT = r"^[0-9a-f]{40}$"
 SHA = r"^[0-9a-f]{64}$"
-MAX_SIGNATURE_BYTES = 16_384
 
 
 class FrozenTarget(BaseModel):
@@ -117,7 +119,7 @@ class Authenticator:
         result = subprocess.run(
             [str(self.executable), "-Y", "verify", "-f", str(self.signers),
              "-I", principal, "-n", namespace, "-s", str(signature)],
-            input=content, capture_output=True, timeout=5, check=False,
+            input=content, capture_output=True, timeout=SSH_TIMEOUT_SECONDS, check=False,
         )
         if result.returncode:
             raise ValueError("SEC_FRESH_OWNER_OR_ATTESTOR_SIGNATURE_INVALID")
@@ -214,6 +216,14 @@ def _check_exact_fresh_scope(approval, filings, archive_root, manifest_sha256):
     return keys
 
 
+def _verified_signature_digest(auth, content, path, *, owner):
+    original = signature_digest(path)
+    auth.verify(content, path, owner=owner)
+    if signature_digest(path) != original:
+        raise ValueError("SEC_FRESH_DETACHED_SIGNATURE_CHANGED_DURING_VERIFICATION")
+    return original
+
+
 def load_fresh_proofs(
     rows, *, filings, archive_root, manifest_sha256, qualification=False,
 ):
@@ -240,28 +250,36 @@ def load_fresh_proofs(
             parent = immutable_path(archive_root, reference)
             approval_sig = immutable_path(archive_root, reference / "approval.json.sig")
             journal_sig = immutable_path(archive_root, reference / "journal.jsonl.sig")
-            read_bytes(approval_sig, MAX_SIGNATURE_BYTES)
-            read_bytes(journal_sig, MAX_SIGNATURE_BYTES)
+
             protected = (parent, parent.parent, approval_sig, journal_sig,
                          parent / "approval.json", parent / "journal.jsonl", parent / "bodies")
             _protected_paths([archive_root.parent, archive_root, vault, *protected])
             raw_approval, raw_journal, _, _, receipts = read_bundle(
                 archive_root, approval_sha, journal_sha,
             )
-            auth.verify(raw_approval, approval_sig, owner=True)
+            approval_signature_sha = _verified_signature_digest(
+                auth, raw_approval, approval_sig, owner=True,
+            )
             signed = _parse_approval(raw_approval)
             _check_exact_fresh_scope(signed, filings, archive_root, manifest_sha256)
             if signed.attestor_key_sha256 != auth.attestor_fingerprint:
                 raise ValueError("SEC_FRESH_APPROVED_ATTESTOR_CHANGED")
-            auth.verify(raw_journal, journal_sig, owner=False)
-            bundles[reference] = receipts
-        receipt, line_sha = bundles[reference].get(key, (None, None))
+            journal_signature_sha = _verified_signature_digest(
+                auth, raw_journal, journal_sig, owner=False,
+            )
+            bundles[reference] = (receipts, approval_signature_sha, journal_signature_sha)
+        receipts, approval_signature_sha, journal_signature_sha = bundles[reference]
+        receipt, line_sha = receipts.get(key, (None, None))
         if receipt is None:
             raise ValueError("SEC_FRESH_EXACT_SIGNED_RECEIPT_MISSING")
         filing, submissions_sha = filings[key]
         if receipt["submissions_sha256"] != submissions_sha:
             raise ValueError("SEC_FRESH_RECEIPT_SUBMISSIONS_SCOPE_MISMATCH")
-        proof = make_proof(receipt, line_sha, approval_sha, journal_sha)
+        proof = make_proof(
+            receipt, line_sha, approval_sha, journal_sha,
+            approval_signature_sha256=approval_signature_sha,
+            journal_signature_sha256=journal_signature_sha,
+        )
         body = immutable_path(archive_root, reference / "bodies" / f'{proof["wire_sha256"]}.body')
         paths.add(body)
         output[key] = proof
@@ -458,7 +476,7 @@ def _private_attestor_key(auth: Authenticator) -> Path:
     _protected_paths([key], confidential=True)
     result = subprocess.run(
         [str(auth.executable), "-y", "-f", str(key)], stdin=subprocess.DEVNULL,
-        capture_output=True, timeout=5, check=False,
+        capture_output=True, timeout=SSH_TIMEOUT_SECONDS, check=False,
         env={**os.environ, "SSH_ASKPASS_REQUIRE": "never"},
     )
     public = result.stdout.split()
@@ -534,7 +552,7 @@ def _capture(approval_path: Path, signature_path: Path, manifest_path: Path):
         _write_new(staged / "journal.jsonl", journal)
         signed = subprocess.run(
             [str(auth.executable), "-Y", "sign", "-n", ATTESTATION_NAMESPACE, "-f", str(key)],
-            input=journal, capture_output=True, timeout=5, check=False,
+            input=journal, capture_output=True, timeout=SSH_TIMEOUT_SECONDS, check=False,
             env={**os.environ, "SSH_ASKPASS_REQUIRE": "never"},
         )
         if signed.returncode or not 0 < len(signed.stdout) <= MAX_SIGNATURE_BYTES:

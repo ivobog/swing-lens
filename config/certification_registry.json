@@ -5186,7 +5186,7 @@
             "lane": "python-regressions",
             "positive": "Independent owner and capture signatures close over one exact protected archive proof and verify the later body.",
             "negative": "A caller-supplied body reference cannot replace the digest-derived protected path.",
-            "reviewed_test_sha256": "6cb62746d3f5bee5046b219957c09086c5ebfd059ab366c2c470cf07d828b44f"
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
           },
           {
             "id": "tests/ceri/test_sec_fresh_custody.py::test_owner_cannot_attest_the_origin_with_its_own_key",
@@ -5195,7 +5195,7 @@
             "lane": "python-regressions",
             "positive": "The owner and independent capture principal are role-bound to distinct trust keys.",
             "negative": "An owner-signed journal does not authenticate SEC acquisition.",
-            "reviewed_test_sha256": "6cb62746d3f5bee5046b219957c09086c5ebfd059ab366c2c470cf07d828b44f"
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
           },
           {
             "id": "tests/ceri/test_sec_fresh_custody.py::test_authenticated_journal_cannot_override_time_or_scope",
@@ -5204,7 +5204,7 @@
             "lane": "python-regressions",
             "positive": "Signed capture provenance is rechecked against the exact filing, response and approved chronology.",
             "negative": "A valid signature cannot authorize wrong UTC possession, canonically different content identity or mismatched selection.",
-            "reviewed_test_sha256": "6cb62746d3f5bee5046b219957c09086c5ebfd059ab366c2c470cf07d828b44f"
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
           },
           {
             "id": "tests/ceri/test_sec_fresh_custody.py::test_lifecycle_revalidation_rejects_mutated_body_and_journal",
@@ -5213,7 +5213,7 @@
             "lane": "python-regressions",
             "positive": "A success proof reopens the exact immutable journal and body.",
             "negative": "Journal or body byte changes invalidate custody.",
-            "reviewed_test_sha256": "6cb62746d3f5bee5046b219957c09086c5ebfd059ab366c2c470cf07d828b44f"
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
           },
           {
             "id": "tests/ceri/test_sec_fresh_custody.py::test_capture_slot_prevents_replay_with_new_signature",
@@ -5222,7 +5222,7 @@
             "lane": "python-regressions",
             "positive": "The exact owner acquisition ID obtains one serialized durable capture slot.",
             "negative": "A fresh signature for an already consumed acquisition ID cannot repeat a GET.",
-            "reviewed_test_sha256": "6cb62746d3f5bee5046b219957c09086c5ebfd059ab366c2c470cf07d828b44f"
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
           },
           {
             "id": "tests/ceri/test_sec_fresh_custody.py::test_fixed_https_transport_never_follows_redirect",
@@ -5231,7 +5231,7 @@
             "lane": "python-regressions",
             "positive": "The capture transport performs one fixed canonical SEC HTTPS GET.",
             "negative": "A redirect terminates the attempt without a follow-up request.",
-            "reviewed_test_sha256": "6cb62746d3f5bee5046b219957c09086c5ebfd059ab366c2c470cf07d828b44f"
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
           },
           {
             "id": "tests/ceri/test_sec_fresh_custody.py::test_capture_retains_authenticated_terminal_result_when_every_request_fails",
@@ -5240,7 +5240,7 @@
             "lane": "python-regressions",
             "positive": "Even a zero-admission capture retains authenticated terminal evidence, including raw quarantine bytes when identity is rejected.",
             "negative": "An HTTP failure or inconsistent filing identity cannot produce an admissible fresh custody proof.",
-            "reviewed_test_sha256": "6cb62746d3f5bee5046b219957c09086c5ebfd059ab366c2c470cf07d828b44f"
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
           },
           {
             "id": "tests/integration/test_sec_fresh_scope_postgresql.py::test_native_fresh_exclusion_reexamines_archive_in_active_generations",
@@ -5248,8 +5248,8 @@
             "fidelity": "POSTGRESQL_SERVICE",
             "lane": "python-regressions",
             "positive": "The native preparation, promotion and two ordinary ACTIVE generations reopen the same fresh zero-source body while preserving historical custody.",
-            "negative": "Archive or ordinary registry alteration, a newer attempt or changed refusal stops readiness and prevents ordinary fallback.",
-            "reviewed_test_sha256": "55f9efe5b5e32dbc6c42498b284598122d813588b4f4b8beb3779f829f3bb2e4"
+            "negative": "Changes to a detached signature, archive or ordinary registry, a newer attempt or changed refusal stop readiness and prevent ordinary fallback.",
+            "reviewed_test_sha256": "15ab7140a79ced644636904ae012a643bdfd514c652e31b35f07517e0f91efc1"
           },
           {
             "id": "tests/integration/test_sec_fresh_scope_postgresql.py::test_native_fresh_positive_sources_are_preparation_only_and_bind_frozen_selection",
@@ -5258,7 +5258,25 @@
             "lane": "python-regressions",
             "positive": "Exact authenticated fresh body evidence can complete native preparation using held-only sources and original registry custody.",
             "negative": "A mismatched discovery digest cannot establish readiness, and the held source is invisible to ordinary processing.",
-            "reviewed_test_sha256": "55f9efe5b5e32dbc6c42498b284598122d813588b4f4b8beb3779f829f3bb2e4"
+            "reviewed_test_sha256": "15ab7140a79ced644636904ae012a643bdfd514c652e31b35f07517e0f91efc1"
+          },
+          {
+            "id": "tests/ceri/test_sec_fresh_custody.py::test_lifecycle_revalidation_requires_both_exact_detached_signatures",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Release body revalidation reopens both exact detached signatures previously authenticated against the sealed journal and owner payload.",
+            "negative": "Replacing or deleting either detached signature invalidates the body and release proof even when the journal and body remain unchanged.",
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
+          },
+          {
+            "id": "tests/ceri/test_sec_fresh_custody.py::test_intake_cannot_seal_signature_bytes_changed_during_verification",
+            "tier": "FAST",
+            "fidelity": "UNIT_DOUBLES",
+            "lane": "python-regressions",
+            "positive": "Exact detached signature bytes can be bound only when unchanged across the protected OpenSSH verification.",
+            "negative": "Signature mutation during intake cannot produce a sealed fresh custody proof.",
+            "reviewed_test_sha256": "6e71df466a7e8de03fa28778548e25e5e2d19b59063750531bd9816f4e7b4ca7"
           }
         ],
         "oracle": "Explicit PIT fixtures and persisted ownership/lineage equality; A04 independent CERI oracle.",
@@ -5270,7 +5288,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "79d3541f92852968ac84d06543aa699a9521783ec2521dc3be84592ef50b6295",
-        "review_sha256": "45255ff5e59485288c009ba5b167af56a8e31f671dd0405c7d1803eee811393a",
+        "review_sha256": "34cf37dc1ab29a02398a19d4097fbb76100789ec8893827f5d69e13be43616ea",
         "review_addenda": [
           {
             "task": "MSI-20261103",

@@ -115,7 +115,16 @@ def _bundle(root, filing, content, now, submissions_digest):
     (archive / "bodies").mkdir(parents=True)
     (archive / "approval.json").write_bytes(approval_bytes)
     (archive / "journal.jsonl").write_bytes(journal)
-    proof = make_proof(receipt, digest(line), approval_sha, journal_sha)
+    # Operator tests verify real OpenSSH signatures. This DB fixture seals opaque bytes.
+    approval_signature = b"disposable fixture owner signature"
+    journal_signature = b"disposable fixture attestor signature"
+    (archive / "approval.json.sig").write_bytes(approval_signature)
+    (archive / "journal.jsonl.sig").write_bytes(journal_signature)
+    proof = make_proof(
+        receipt, digest(line), approval_sha, journal_sha,
+        approval_signature_sha256=digest(approval_signature),
+        journal_signature_sha256=digest(journal_signature),
+    )
     path = root / proof["body_reference"]
     path.write_bytes(body)
     return path, proof
@@ -281,6 +290,12 @@ def test_native_fresh_exclusion_reexamines_archive_in_active_generations(
             datetime.fromisoformat(proof["possessed_at"]),
         )
         assert generation_ready(db, CIK, SIGNATURE)
+        owner_signature = archive.parents[1] / "approval.json.sig"
+        owner_bytes = owner_signature.read_bytes()
+        owner_signature.unlink()
+        assert not generation_ready(db, CIK, SIGNATURE)
+        owner_signature.write_bytes(owner_bytes)
+        assert generation_ready(db, CIK, SIGNATURE)
         certify_processor(
             db, processor_signature=SIGNATURE, evidence={"disposable_fresh_scope_control": True},
             actor="fresh-scope-test",
@@ -304,6 +319,12 @@ def test_native_fresh_exclusion_reexamines_archive_in_active_generations(
         assert newer.acquired
         assert not generation_ready(db, CIK, SIGNATURE)
         db.rollback()
+        assert generation_ready(db, CIK, SIGNATURE)
+        attestor_signature = archive.parents[1] / "journal.jsonl.sig"
+        attestor_bytes = attestor_signature.read_bytes()
+        attestor_signature.write_bytes(attestor_bytes + b"changed")
+        assert not generation_ready(db, CIK, SIGNATURE)
+        attestor_signature.write_bytes(attestor_bytes)
         assert generation_ready(db, CIK, SIGNATURE)
         archive.write_text("changed", encoding="utf-8")
         assert not generation_ready(db, CIK, SIGNATURE)

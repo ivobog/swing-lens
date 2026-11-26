@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.services.canonical_evidence import CanonicalEvidenceSerializer as Canonical
+from app.services.ceri.sec import processor_rollback
 from app.services.ceri.sec.fresh_custody import (
     FRESH_DIRECTORY,
     FRESH_JOURNAL,
@@ -18,6 +19,7 @@ from app.services.ceri.sec.fresh_custody import (
     digest,
     load_fresh_body,
 )
+from app.services.ceri.sec.processor_signature import sec_guidance_processor_signature
 from scripts.ops import sec_fresh_custody as operator
 
 FILING = {
@@ -138,8 +140,14 @@ def _verify(root, index):
 
 def test_independent_signatures_and_exact_later_body_are_required(signed_bundle):
     root, make = signed_bundle
-    index, _ = make()
+    index, bundle = make()
     proof = _verify(root, index)[KEY]
+    assert proof["approval_signature_sha256"] == digest(
+        (bundle / "approval.json.sig").read_bytes(),
+    )
+    assert proof["journal_signature_sha256"] == digest(
+        (bundle / "journal.jsonl.sig").read_bytes(),
+    )
     assert proof["filing"] == FILING
     assert proof["possessed_at"] == "2026-11-21T16:00:02.000000Z"
     assert load_fresh_body(root, FILING, proof) == BODY.decode("utf-8")
@@ -187,6 +195,55 @@ def test_lifecycle_revalidation_rejects_mutated_body_and_journal(signed_bundle):
     journal.write_bytes(journal.read_bytes().replace(b"16:00:02", b"16:00:01"))
     with pytest.raises(ValueError, match="SEC_FRESH_ARCHIVE_DIGEST_OR_SIZE_INVALID"):
         load_fresh_body(root, FILING, proof)
+
+
+@pytest.mark.parametrize("name", ["approval.json.sig", "journal.jsonl.sig"])
+@pytest.mark.parametrize("delete", [False, True])
+def test_lifecycle_revalidation_requires_both_exact_detached_signatures(
+    signed_bundle, name, delete,
+):
+    root, make = signed_bundle
+    index, bundle = make()
+    proof = _verify(root, index)[KEY]
+    result = {
+        "filing": FILING,
+        "body": {"body_sha256": proof["wire_sha256"], "possessed_at": proof["possessed_at"]},
+        "fresh_custody": proof,
+    }
+    signature = sec_guidance_processor_signature()
+    processor_rollback._reverify_prepared_body(result, root, None, signature)
+    path = bundle / name
+    if delete:
+        path.unlink()
+    else:
+        path.write_bytes(b"Different signature bytes")
+    error = "SEC_FRESH_ARCHIVE_PATH_INVALID" if delete else "SEC_FRESH_RECEIPT_INVALID"
+    with pytest.raises(ValueError, match=error):
+        load_fresh_body(root, FILING, proof)
+    with pytest.raises(ValueError, match="SEC preparation body custody unavailable"):
+        processor_rollback._reverify_prepared_body(result, root, None, signature)
+
+
+def test_intake_cannot_seal_signature_bytes_changed_during_verification(
+    signed_bundle, isolated_signers, monkeypatch,
+):
+    root, make = signed_bundle
+    index, _ = make()
+    auth, *_ = isolated_signers
+    verify = auth.verify
+
+    def changed_after_verify(content, path, *, owner):
+        verify(content, path, owner=owner)
+        path.write_bytes(b"Different signature bytes")
+
+    monkeypatch.setattr(
+        operator, "_authenticator", lambda **_: SimpleNamespace(
+            verify=changed_after_verify, attestor_fingerprint=auth.attestor_fingerprint,
+        ),
+    )
+    error = "SEC_FRESH_DETACHED_SIGNATURE_CHANGED_DURING_VERIFICATION"
+    with pytest.raises(ValueError, match=error):
+        _verify(root, index)
 
 
 def test_capture_slot_prevents_replay_with_new_signature(tmp_path, monkeypatch):
