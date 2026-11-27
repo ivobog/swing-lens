@@ -2,7 +2,7 @@ name: Golden approval (sole owner)
 
 on:
   pull_request_target:
-    branches: [main]
+    branches: [main, maintenance/0096]
     types: [opened, reopened, synchronize, ready_for_review, edited]
 
 permissions: read-all
@@ -14,9 +14,16 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out trusted base code only
+        if: github.event.pull_request.base.ref == 'main'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, verified repository tag
         with:
           ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Check out protected main verifier for maintenance
+        if: github.event.pull_request.base.ref == 'maintenance/0096'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, verified repository tag
+        with:
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
