@@ -663,11 +663,129 @@ def test_component_dying_before_final_certification_cannot_exit_start_zero(
         "function Invoke-LifecycleProbe { [pscustomobject]@{reachable=$true;schemaAtHead=$true} }; "
         "function Start-SwingLensWeb {}; function Start-SwingLensObservability { $true }; "
         f"function Write-SwingLensStatus {{ [pscustomobject]@{{Overall='FAILED';"
-        f"FailedComponent='{failed_component}'}} }}; Start-SwingLensStack -Config $cfg"
+        f"FailedComponent='{failed_component}';ReadinessProbe=$null;"
+        "ReadinessClassification='not_ready'} }; Start-SwingLensStack -Config $cfg"
     )
     result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
     assert result.returncode != 0
     assert "Start certification failed with state FAILED" in result.stderr
+
+
+@pytest.mark.skipif(PWSH is None, reason="PowerShell 7 is required")
+@pytest.mark.parametrize(
+    ("scenario", "expected_calls", "expected_result"),
+    [
+        ("recover", 4, "0"),
+        ("expired", 0, "CORE_READINESS_TIMEOUT:deadline_exhausted:True"),
+        ("late_reply", 1, "CORE_READINESS_TIMEOUT:deadline_exhausted:True"),
+        ("not_ready", 1, "CORE_READINESS_FAILED:not_ready:True"),
+        ("http_failure", 1, "CORE_READINESS_HTTP_ERROR:http_application_failure:True"),
+        ("foreign_owner", 1, "FOREIGN_LISTENER:ready:True"),
+    ],
+)
+def test_final_start_certification_retries_only_transient_failures(
+    scenario, expected_calls, expected_result
+) -> None:
+    command = _module_command(
+        f"$scenario='{scenario}'; "
+        r"""
+        $script:calls = 0
+        $script:firstTimeout = 0
+        $script:identityChecks = 0
+        $timeout = switch ($scenario) { 'expired' {0} 'late_reply' {2} default {30} }
+        $cfg = [pscustomobject]@{
+            web = [pscustomobject]@{port=8000}
+            coreReadinessTimeoutSeconds = $timeout
+        }
+        function Get-ValidatedRuntime {}
+        function Start-AuthoritativeDatabase {}
+        function Invoke-AlembicUpgrade {}
+        function Set-RuntimeGeneration {}
+        function Start-SwingLensWeb {
+            [pscustomobject]@{
+                NewGeneration = $true
+                Launch = [pscustomobject]@{
+                    runtimeInstanceId='g1'; pid=444; supervisorPid=445; processGroupPid=446
+                }
+            }
+        }
+        function Start-SwingLensObservability { $false }
+        function Test-DockerEngine { $false }
+        function Start-Sleep {}
+        function Get-WebOwner { [pscustomobject]@{ProcessId=444} }
+        function Invoke-LifecycleProbe {
+            param($Command, $Arguments)
+            switch ($Command) {
+                'database' { [pscustomobject]@{reachable=$true; schemaAtHead=$true} }
+                'runtime-state' {
+                    $script:identityChecks++
+                    $replaced = $scenario -eq 'foreign_owner' -and $script:identityChecks -gt 1
+                    $generation = if ($replaced) { 'g2' } else { 'g1' }
+                    [pscustomobject]@{
+                        valid=$true; runtimeActive=$true; stale=$false
+                        state=[pscustomobject]@{runtimeInstanceId=$generation}
+                    }
+                }
+                'prometheus-targets' { [pscustomobject]@{allUp=$false} }
+                'processes' { [pscustomobject]@{processes=@()} }
+                'jobs' { [pscustomobject]@{activeCount=0; active=@()} }
+            }
+        }
+        function New-MockReadinessResponse {
+            param([int]$Http, $Payload)
+            [pscustomobject]@{
+                Reachable = $Http -ne 0
+                StatusCode = $Http
+                Payload = $Payload
+                Error = ''
+                BodySnippet = ''
+            }
+        }
+        function Invoke-HttpProbe {
+            param($Uri, $TimeoutSeconds)
+            if ($Uri.EndsWith('/ready')) { return New-MockReadinessResponse -Http 0 }
+            $script:calls++
+            if ($script:calls -eq 1) { $script:firstTimeout = $TimeoutSeconds }
+            if ($scenario -eq 'recover' -and $script:calls -eq 1) {
+                return New-MockReadinessResponse -Http 0
+            }
+            if ($scenario -eq 'recover' -and $script:calls -lt 4) {
+                return New-MockReadinessResponse -Http 503 -Payload ([pscustomobject]@{
+                    status='failed'; check_states=[pscustomobject]@{database='failed'}
+                })
+            }
+            if ($scenario -eq 'not_ready') {
+                return New-MockReadinessResponse -Http 503 -Payload ([pscustomobject]@{
+                    status='failed'; check_states=[pscustomobject]@{database='ok'; worker='failed'}
+                })
+            }
+            if ($scenario -eq 'late_reply') { Microsoft.PowerShell.Utility\Start-Sleep -Seconds 3 }
+            $http = if ($scenario -eq 'http_failure') { 500 } else { 200 }
+            New-MockReadinessResponse -Http $http -Payload ([pscustomobject]@{
+                status='ok'; worker_ok=$true
+            })
+        }
+        try {
+            $result = Start-SwingLensStack -Config $cfg
+        } catch {
+            $reason = Get-LifecycleExceptionReasonCode -Exception $_.Exception
+            $details = $_.Exception.Data
+            $classification = $details['readiness_classification']
+            $result = '{0}:{1}:{2}' -f $reason,$classification,$details['runtime_retained']
+            Write-Host $_.Exception.Message
+        }
+        "first_timeout=$script:firstTimeout"
+        "result=$result calls=$script:calls"
+        """
+    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.strip().splitlines()
+    assert lines[-1] == f"result={expected_result} calls={expected_calls}", result.stdout
+    if scenario == "recover":
+        assert 5 < int(lines[-2].removeprefix("first_timeout=")) <= 30
+        assert "Application        UNREACHABLE" in result.stdout
+        assert "OVERALL            DEGRADED" in result.stdout
 
 
 def test_restart_keeps_one_lock_and_isolates_observability_failures() -> None:
