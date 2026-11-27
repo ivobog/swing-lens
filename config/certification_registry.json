@@ -5476,7 +5476,7 @@
             "lane": "browser-smoke",
             "positive": "Owned ALFA prediction reaches committed matured outcomes and GUI parity.",
             "negative": "Omitting maturation cannot satisfy the reached positive assertion.",
-            "reviewed_test_sha256": "c3e730ef1699f513cb3fee0dc4210220d78f4b8092e30bb1628e48ca1db4d11b"
+            "reviewed_test_sha256": "7bd8c759ae5bc0f913f2b4c62a24bc6f3347458ab98a5c33985de8c1e9874c7f"
           },
           {
             "id": "tests/integration/test_run40_lifecycle_remediation_postgresql.py::test_native_winner_fixture_preserves_v1_readiness_boundary[False]",
@@ -5516,7 +5516,7 @@
         "coverage_claim": "STATIC_INTENT",
         "reviewed_revision": "3a78cfbda12f9d05823dd51a749328ec5bd0a2ec",
         "reviewed_source_fingerprint": "a972e8a57cdf44c820470aefb3d9bbf8acd89ae4ffae777fe7236de566389285",
-        "review_sha256": "e6fa9ea0c21384824f644d8f046508ca68dab17c13365cb16b2e4c346dce0aa0",
+        "review_sha256": "1fa7cb0f0607bc61991cbd98381cb451598886cf964a3f4e06dff5bd4409d8e7",
         "review_addenda": [
           {
             "task": "FR02",

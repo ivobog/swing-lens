@@ -685,6 +685,11 @@ class CeriRunCaptureService:
                     evidence_lineage.update(
                         identity_metadata(ceri_identity, policy=CERI_CONTEXT_COMPATIBILITY.name)
                     )
+                    evidence_lineage["catalyst_considered_event_ids"] = sorted(
+                        feature.catalyst_event_id
+                        for feature in catalyst_features
+                        if feature.catalyst_event_id is not None
+                    )
                     source_ids = sorted(
                         set(
                             _source_ids(features)

@@ -1674,7 +1674,7 @@ def _execute_resumed_pipeline(
             return _to_execution_result(pipeline, result)
 
         _raise_if_cancelled(should_cancel)
-        _validate_ceri_completion_barrier(db, pipeline, tickers=tickers)
+        result.update(_validate_ceri_completion_barrier(db, pipeline, tickers=tickers))
         if _pipeline_has_step(db, pipeline.id, DECISION_HANDOFF_PIPELINE_STEP):
             retained_handoff = _reusable_decision_handoff(db, pipeline, upload_run.id)
             if retained_handoff is not None:
@@ -2330,7 +2330,7 @@ def _validate_ceri_completion_barrier(
     pipeline: PipelineRun,
     *,
     tickers: list[str],
-) -> None:
+) -> dict[str, int]:
     retained = dict(pipeline.result_json or {})
     workflow_key = str(retained.get("ceri_provider_workflow_key") or "")
     if retained.get("ceri_completion_state") != "CERTIFIED" or not workflow_key.startswith(
@@ -2338,7 +2338,7 @@ def _validate_ceri_completion_barrier(
     ):
         raise ValueError("CERI_COMPLETION_BARRIER_NOT_CERTIFIED")
     if not isinstance(db, Session):
-        return
+        return {}
     from app.services.ceri.score_population import certified_scores
     from app.services.market_calculation_context_service import resolve_pipeline_ceri_context
 
@@ -2365,6 +2365,10 @@ def _validate_ceri_completion_barrier(
             "CERI_CERTIFIED_CAPTURE_INCOMPLETE: "
             f"expected {len(expected)} certified run snapshots, observed {len(captured)}"
         )
+    return {
+        "ceri_score_snapshots": len(scores),
+        "ceri_unrated": sum(row.opportunity_score is None for row in scores),
+    }
 
 
 def _validate_resume_evidence(
