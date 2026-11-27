@@ -183,6 +183,14 @@ class EodhdCeriProvider:
                         else row.get("revenueEstimateGrowth")
                     )
                 if metric == "EPS_DILUTED":
+                    # Select both directions from the same provider window.
+                    for window in (30, 7):
+                        upward = row.get(f"epsRevisionsUpLast{window}days")
+                        downward = row.get(f"epsRevisionsDownLast{window}days")
+                        if upward not in (None, "") and downward not in (None, ""):
+                            break
+                    else:
+                        upward = downward = None
                     payload.update(
                         {
                             "eps_trend_current": row.get("epsTrendCurrent"),
@@ -190,10 +198,8 @@ class EodhdCeriProvider:
                             "eps_trend_30d": row.get("epsTrend30daysAgo"),
                             "eps_trend_60d": row.get("epsTrend60daysAgo"),
                             "eps_trend_90d": row.get("epsTrend90daysAgo"),
-                            "upward_count": row.get(
-                                "epsRevisionsUpLast30days", row.get("epsRevisionsUpLast7days")
-                            ),
-                            "downward_count": row.get("epsRevisionsDownLast30days"),
+                            "upward_count": upward,
+                            "downward_count": downward,
                         }
                     )
                 yield self._record(
