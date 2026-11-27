@@ -349,6 +349,7 @@ def require_authorized_update(
 # None of these declarations authenticates a reviewer without fresh API reads.
 GITHUB_REPOSITORY = "ivobog/swing-lens"
 GITHUB_BRANCH = "main"
+MAINTENANCE_BRANCH = "maintenance/0096"
 GITHUB_ACTIONS_APP_ID = 15368
 GITHUB_WORKFLOW = ".github/workflows/golden-approval.yml"
 PROPOSAL_PATH = "docs/testing/golden-update-proposal.json"
@@ -563,9 +564,9 @@ def _codeowners(text: str, paths: set[str]) -> dict[str, set[str]]:
     return owners
 
 
-def _protected_branch(api, branch: dict) -> tuple[set[str], str]:
+def _protected_branch(api, branch: dict, *, ref: str = GITHUB_BRANCH) -> tuple[set[str], str]:
     _require(branch.get("protected") is True, "GITHUB_TARGET_BRANCH_UNPROTECTED")
-    protection = api.get(f"/repos/{GITHUB_REPOSITORY}/branches/{GITHUB_BRANCH}/protection")
+    protection = api.get(f"/repos/{GITHUB_REPOSITORY}/branches/{quote(ref, safe='')}/protection")
     review = protection.get("required_pull_request_reviews")
     _require(
         protection.get("enforce_admins", {}).get("enabled") is True,
@@ -858,9 +859,24 @@ def _trusted_github_context(api, number: int, root: Path) -> dict:
         "GITHUB_TRUSTED_PR_CONTEXT_REQUIRED",
     )
     pr = api.get(f"/repos/{GITHUB_REPOSITORY}/pulls/{number}")
+    ref = pr["base"].get("ref")
+    _require(ref in {GITHUB_BRANCH, MAINTENANCE_BRANCH}, "GITHUB_PROTECTED_PR_REQUIRED")
+    verifier_sha = pr["base"]["sha"]
+    if ref == MAINTENANCE_BRANCH:
+        main = api.get(f"/repos/{GITHUB_REPOSITORY}/branches/{GITHUB_BRANCH}")
+        verifier_sha = os.environ.get("GITHUB_SHA")
+        _require(
+            os.environ.get("GITHUB_REF") == f"refs/heads/{GITHUB_BRANCH}"
+            and event["pull_request"]["base"].get("ref") == ref
+            and event["pull_request"]["base"].get("sha") == pr["base"]["sha"]
+            and main.get("protected") is True
+            and verifier_sha is not None
+            and main.get("commit", {}).get("sha") == verifier_sha,
+            "GITHUB_MAINTENANCE_VERIFIER_NOT_TRUSTED",
+        )
     checked_out = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
     _require(
-        checked_out == pr["base"]["sha"]
+        checked_out == verifier_sha
         and not subprocess.check_output(
             ["git", "status", "--porcelain", "--untracked-files=no"], cwd=root, text=True
         ).strip(),
@@ -881,7 +897,7 @@ def _trusted_github_context(api, number: int, root: Path) -> dict:
             item.get("number") == number
             and item.get("head", {}).get("sha") == pr["head"]["sha"]
             and item.get("base", {}).get("sha") == pr["base"]["sha"]
-            and item.get("base", {}).get("ref") == GITHUB_BRANCH
+            and item.get("base", {}).get("ref") == ref
             for item in own.get("pull_requests", [])
         )
         and own.get("status") == "in_progress",
@@ -926,15 +942,17 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
         repo.get("full_name") == GITHUB_REPOSITORY and repo.get("default_branch") == GITHUB_BRANCH,
         "GITHUB_CONFIGURED_REPOSITORY_OR_BRANCH_MISMATCH",
     )
+    ref = pr["base"].get("ref")
     _require(
         pr.get("state") == "open"
         and not pr.get("draft")
         and not pr.get("merged")
-        and pr["base"].get("ref") == GITHUB_BRANCH
+        and ref in {GITHUB_BRANCH, MAINTENANCE_BRANCH}
         and pr["base"]["repo"]["full_name"] == GITHUB_REPOSITORY,
         "GITHUB_PROTECTED_PR_REQUIRED",
     )
-    branch = api.get(prefix + "/branches/" + GITHUB_BRANCH)
+    branch_path = prefix + "/branches/" + quote(ref, safe="")
+    branch = api.get(branch_path)
     _require(branch["commit"]["sha"] == pr["base"]["sha"], "GITHUB_BASE_BRANCH_CHANGED")
     errors = api.get(prefix + "/codeowners/errors?ref=" + pr["base"]["sha"])
     _require(errors.get("errors") == [], "GITHUB_CODEOWNERS_ERRORS_OR_UNKNOWN")
@@ -961,6 +979,17 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
         or n == PROPOSAL_PATH
         for n in changed
     )
+    if ref == MAINTENANCE_BRANCH:
+        _require(
+            not governance_change and not any(
+                path == "alembic.ini"
+                or path.startswith(("alembic/", "app/services/ceri/sec/"))
+                for path in changed
+            ),
+            "GITHUB_MAINTENANCE_FINANCIAL_CHANGE_FORBIDDEN",
+        )
+        maintenance_protection = _protected_branch(api, branch, ref=ref)
+
     if not governance_change:
         # Exercise the actual workflow credential before enabling protection.
         # These are read-only capability checks, never financial authorization.
@@ -972,7 +1001,15 @@ def verify_github_update(number: int, *, root: Path = ROOT) -> dict:
             "GITHUB_ENFORCEMENT_READ_CAPABILITY_UNVERIFIED",
         )
         bypass_status = "NOT_EVALUATED_UNPROTECTED"
-        if branch.get("protected") is True:
+        if ref == MAINTENANCE_BRANCH:
+            _, bypass_status = maintenance_protection
+            final_branch = api.get(branch_path)
+            _require(
+                final_branch["commit"]["sha"] == pr["base"]["sha"]
+                and _protected_branch(api, final_branch, ref=ref) == maintenance_protection,
+                "GITHUB_PROTECTION_CHANGED_DURING_VERIFICATION",
+            )
+        elif branch.get("protected") is True:
             _, bypass_status = _protected_branch(api, branch)
         _require(
             _pr_identity(api.get(prefix + f"/pulls/{number}")) == _pr_identity(pr),
