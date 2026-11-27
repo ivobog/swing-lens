@@ -179,6 +179,7 @@ class WinnerPredictionCaptureService:
                 raise WinnerCalculationIdentityError(
                     "Winner decision_at precedes the frozen market cutoff"
                 )
+        pipeline_run_id = None
         if identity_enforced:
             loader = self.repository.load_run_context
             parameters = signature(loader).parameters
@@ -196,7 +197,7 @@ class WinnerPredictionCaptureService:
                     if accepts_kwargs or name in parameters
                 },
             )
-            validate_winner_handoff(
+            _, pipeline_run_id = validate_winner_handoff(
                 run_context.decision_handoff_manifest,
                 run_id=run_id,
                 market_cutoff=market_cutoff,
@@ -352,6 +353,7 @@ class WinnerPredictionCaptureService:
                                 decision_at=decision_at,
                                 market_cutoff=market_cutoff,
                                 outcome=WinnerAcquisitionOutcome.EXCLUDED,
+                                pipeline_run_id=pipeline_run_id,
                                 reason=exc.reason,
                                 decisions=exc.decisions,
                             )
@@ -389,6 +391,7 @@ class WinnerPredictionCaptureService:
                                 decision_at=decision_at,
                                 market_cutoff=market_cutoff,
                                 outcome=WinnerAcquisitionOutcome.FAILED,
+                                pipeline_run_id=pipeline_run_id,
                                 reason=type(exc).__name__,
                                 acquisition=acquisition,
                             )
@@ -888,6 +891,7 @@ def _persist_winner_attempt(
     ticker_context: TickerCaptureContext,
     decision_at: datetime | None,
     outcome: WinnerAcquisitionOutcome,
+    pipeline_run_id: int | None = None,
     reason: str | None = None,
     prediction_id: int | None = None,
     acquisition: WinnerSourceAcquisition | None = None,
@@ -938,7 +942,6 @@ def _persist_winner_attempt(
             continue
         readiness = item.get("producer_readiness") or {}
         all_warning_codes.extend(readiness.get("warning_flags") or ())
-    pipeline_run_id = None
     if acquisition is not None:
         candidate = acquisition.decision_identity.ownership.pipeline_id.value
         if isinstance(candidate, int):

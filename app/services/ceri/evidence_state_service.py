@@ -73,12 +73,15 @@ class CeriEvidenceLedgerService:
             for row in lineage.get("catalyst_rejected") or []
         }
         catalyst_selected = set(lineage.get("catalyst_selected_event_ids") or [])
-        for evidence_id in lineage.get("catalyst_event_ids") or []:
+        catalyst_events = lineage.get("catalyst_event_ids") or []
+        catalyst_considered = set(lineage.get("catalyst_considered_event_ids", catalyst_events))
+        for evidence_id in catalyst_events:
             rejected = evidence_id in catalyst_rejections
             rows.append(
                 self._row(
                     "CATALYST_EVENT",
                     evidence_id,
+                    considered=evidence_id in catalyst_considered,
                     accepted=not rejected,
                     selected=evidence_id in catalyst_selected,
                     scored=evidence_id in selected_risk,
