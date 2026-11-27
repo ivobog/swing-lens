@@ -12,6 +12,7 @@ from test_golden_github_approval import (  # noqa: F401
     synthetic_remote,
     target_context,
 )
+from test_golden_update_governance import isolated  # noqa: F401
 
 from scripts.qa import golden_provenance as provenance
 
