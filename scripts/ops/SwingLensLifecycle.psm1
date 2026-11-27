@@ -155,6 +155,12 @@ function Complete-ReadinessProbe {
 }
 
 function New-DeadlineExhaustedProbe {
+    param($LastProbe)
+    if ($null -ne $LastProbe) {
+        $LastProbe.Classification = 'deadline_exhausted'
+        $LastProbe.Retryable = $false
+        return $LastProbe
+    }
     return [pscustomobject]@{
         Reachable = $false; StatusCode = 0; Payload = $null; ParseState = 'none'
         BodySnippet = ''; Error = 'parent readiness deadline exhausted'
@@ -163,34 +169,51 @@ function New-DeadlineExhaustedProbe {
 }
 
 function Get-ReadinessProbe {
-    param([int]$WebPort, [Nullable[DateTime]]$DeadlineUtc = $null)
+    param([int]$WebPort, [Nullable[DateTime]]$DeadlineUtc = $null, [switch]$WaitUntilDeadline)
+    if ($WaitUntilDeadline -and $null -eq $DeadlineUtc) { throw 'A startup readiness wait requires a deadline.' }
     $probe = $null
-    foreach ($attempt in 1..3) {
+    $attempt = 0
+    while ($true) {
+        $attempt++
         $timeoutSeconds = 5
         if ($null -ne $DeadlineUtc) {
             $remainingSeconds = (([DateTime]$DeadlineUtc) - [DateTime]::UtcNow).TotalSeconds
-            if ($remainingSeconds -lt 1) { return New-DeadlineExhaustedProbe }
-            $timeoutSeconds = [Math]::Min(5, [int][Math]::Floor($remainingSeconds))
+            if ($remainingSeconds -lt 1) { return New-DeadlineExhaustedProbe -LastProbe $probe }
+            $remainingWholeSeconds = [int][Math]::Floor($remainingSeconds)
+            $timeoutSeconds = if ($WaitUntilDeadline) { $remainingWholeSeconds } else { [Math]::Min(5, $remainingWholeSeconds) }
         }
         $probe = Complete-ReadinessProbe (Invoke-HttpProbe -Uri ("http://127.0.0.1:{0}/ready/core" -f $WebPort) -TimeoutSeconds $timeoutSeconds)
+        if ($WaitUntilDeadline -and [DateTime]::UtcNow -ge $DeadlineUtc) {
+            return New-DeadlineExhaustedProbe -LastProbe $probe
+        }
         if ($probe.Classification -eq 'ready') {
-            if ($attempt -gt 1) { Write-Host ("Readiness probe recovered on attempt {0}/3." -f $attempt) }
+            if ($attempt -gt 1) {
+                $attemptLabel = if ($WaitUntilDeadline) { [string]$attempt } else { "$attempt/3" }
+                Write-Host ("Readiness probe recovered on attempt {0}." -f $attemptLabel)
+            }
             return $probe
         }
         if (-not [bool]$probe.Retryable) { return $probe }
-        if ($attempt -lt 3) {
-            Write-Warning ("Transient readiness probe failure ({0}) on attempt {1}/3; retrying." -f $probe.Classification,$attempt)
-            $sleepMilliseconds = 300
-            if ($null -ne $DeadlineUtc) {
-                $remainingMilliseconds = (([DateTime]$DeadlineUtc) - [DateTime]::UtcNow).TotalMilliseconds
-                if ($remainingMilliseconds -le 0) { return New-DeadlineExhaustedProbe }
-                $sleepMilliseconds = [Math]::Min(300, [int][Math]::Floor($remainingMilliseconds))
+        if ($WaitUntilDeadline) {
+            if ($attempt -eq 1) {
+                Write-Warning ("Transient readiness probe failure ({0}); retrying within the startup deadline." -f $probe.Classification)
             }
-            if ($sleepMilliseconds -gt 0) { Start-Sleep -Milliseconds $sleepMilliseconds }
         }
-        else { Write-Warning 'Transient readiness probe failure exhausted the 3-attempt budget.' }
+        elseif ($attempt -ge 3) {
+            Write-Warning 'Transient readiness probe failure exhausted the 3-attempt budget.'
+            return $probe
+        }
+        else {
+            Write-Warning ("Transient readiness probe failure ({0}) on attempt {1}/3; retrying." -f $probe.Classification,$attempt)
+        }
+        $sleepMilliseconds = 300
+        if ($null -ne $DeadlineUtc) {
+            $remainingMilliseconds = (([DateTime]$DeadlineUtc) - [DateTime]::UtcNow).TotalMilliseconds
+            if ($remainingMilliseconds -le 0) { return New-DeadlineExhaustedProbe -LastProbe $probe }
+            $sleepMilliseconds = [Math]::Min(300, [int][Math]::Floor($remainingMilliseconds))
+        }
+        if ($sleepMilliseconds -gt 0) { Start-Sleep -Milliseconds $sleepMilliseconds }
     }
-    return $probe
 }
 
 function Get-ApplicationReadinessProbe {
@@ -484,9 +507,27 @@ function New-RetainedRuntimeFailureException {
     return New-LifecycleFailureException -ReasonCode $ReasonCode -Message $Message -Details $details
 }
 
+function Get-CoreReadinessTimeout {
+    param($Config)
+    if ($Config.PSObject.Properties.Name -contains 'coreReadinessTimeoutSeconds') {
+        return [int]$Config.coreReadinessTimeoutSeconds
+    }
+    return 90
+}
+
+function Get-CoreReadinessFailureCode {
+    param([string]$Classification)
+    switch ($Classification) {
+        'deadline_exhausted' { return 'CORE_READINESS_TIMEOUT' }
+        'http_application_failure' { return 'CORE_READINESS_HTTP_ERROR' }
+        'malformed' { return 'CORE_READINESS_MALFORMED' }
+        default { return 'CORE_READINESS_FAILED' }
+    }
+}
+
 function Start-SwingLensWeb {
     param($Config)
-    $timeoutSeconds = $(if ($Config.PSObject.Properties.Name -contains 'coreReadinessTimeoutSeconds') { [int]$Config.coreReadinessTimeoutSeconds } else { 90 })
+    $timeoutSeconds = Get-CoreReadinessTimeout -Config $Config
     $runtime = Get-ValidatedRuntime -WebPort ([int]$Config.web.port)
     if ($null -ne $runtime) {
         if ([string]$runtime.state.gitCommit -ne (Get-GitCommit)) {
@@ -504,7 +545,7 @@ function Start-SwingLensWeb {
             Write-Host ('Web/API: reusing strongly verified PID {0}' -f $runtime.state.web.pid)
             return [pscustomobject]@{ NewGeneration = $false; RuntimeInstanceId = [string]$runtime.state.runtimeInstanceId }
         }
-        $reuseReason = $(if ($probe.Classification -eq 'deadline_exhausted') { 'CORE_READINESS_TIMEOUT' } elseif ($probe.Classification -eq 'http_application_failure') { 'CORE_READINESS_HTTP_ERROR' } elseif ($probe.Classification -eq 'malformed') { 'CORE_READINESS_MALFORMED' } else { 'CORE_READINESS_FAILED' })
+        $reuseReason = Get-CoreReadinessFailureCode -Classification $probe.Classification
         throw (New-LifecycleFailureException -ReasonCode $reuseReason -Message ('Verified SwingLens runtime is not core-ready ({0}); use restart after reviewing status.' -f $probe.Classification) -Details @{
             readiness_classification = [string]$probe.Classification
             readiness_status_code = [int]$probe.StatusCode
@@ -750,7 +791,7 @@ function Stop-AuthoritativeDatabase {
 }
 
 function Get-SwingLensStatusReport {
-    param($Config)
+    param($Config, [switch]$CertifyStartup)
     $database = Invoke-LifecycleProbe -Command 'database'
     $owner = Get-WebOwner -Port ([int]$Config.web.port)
     $runtimeValid = $false
@@ -766,12 +807,29 @@ function Get-SwingLensStatusReport {
         $runtimeValid = [bool]$runtime.valid
         $conflict = -not $runtimeValid
         if ($runtimeValid) {
-            $readinessProbe = Get-ReadinessProbe -WebPort ([int]$Config.web.port)
+            $probeArguments = @{ WebPort = [int]$Config.web.port }
+            if ($CertifyStartup) {
+                $probeArguments.DeadlineUtc = [DateTime]::UtcNow.AddSeconds((Get-CoreReadinessTimeout -Config $Config))
+                $probeArguments.WaitUntilDeadline = $true
+            }
+            $readinessProbe = Get-ReadinessProbe @probeArguments
             $readinessPayload = $readinessProbe.Payload
             $readiness = $(if ($readinessProbe.Reachable) { Resolve-ReadinessPayloadState -Payload $readinessPayload } else { 'failed' })
-            $applicationProbe = Get-ApplicationReadinessProbe -WebPort ([int]$Config.web.port)
-            $applicationPayload = $applicationProbe.Payload
-            $applicationReadiness = $(if ($applicationProbe.Reachable) { Resolve-ReadinessPayloadState -Payload $applicationPayload } else { 'failed' })
+            if ($CertifyStartup -and $readinessProbe.Classification -eq 'ready') {
+                # Confirm the verified generation still owns the listener after the readiness wait.
+                $confirmedOwner = Get-WebOwner -Port ([int]$Config.web.port)
+                $runtimeValid = $null -ne $confirmedOwner -and [int]$confirmedOwner.ProcessId -eq [int]$owner.ProcessId
+                if ($runtimeValid) {
+                    $confirmedRuntime = Invoke-LifecycleProbe -Command 'runtime-state' -Arguments @('--listener-pid', [string]$confirmedOwner.ProcessId)
+                    $runtimeValid = [bool]$confirmedRuntime.valid -and $confirmedRuntime.state.runtimeInstanceId -eq $runtime.state.runtimeInstanceId
+                }
+                $conflict = -not $runtimeValid
+            }
+            if ($runtimeValid) {
+                $applicationProbe = Get-ApplicationReadinessProbe -WebPort ([int]$Config.web.port)
+                $applicationPayload = $applicationProbe.Payload
+                $applicationReadiness = $(if ($applicationProbe.Reachable) { Resolve-ReadinessPayloadState -Payload $applicationPayload } else { 'unreachable' })
+            }
         }
     }
     elseif (Test-Path -LiteralPath $script:RuntimeStatePath) {
@@ -809,14 +867,14 @@ function Get-SwingLensStatusReport {
     if ($conflict) { $overall = 'CONFLICT' }
     elseif ($null -eq $owner -and $roleProcesses.Count -gt 0) { $overall = 'FAILED' }
     elseif ($null -eq $owner) { $overall = 'STOPPED' }
-    elseif (-not $database.reachable -or -not $database.schemaAtHead -or $readiness -eq 'failed') { $overall = 'FAILED' }
+    elseif (-not $database.reachable -or -not $database.schemaAtHead -or -not $coreReady -or $readiness -eq 'failed') { $overall = 'FAILED' }
     elseif ($applicationReadiness -ne 'ok' -or -not $prometheus -or -not $grafana) { $overall = 'DEGRADED' }
     else { $overall = 'HEALTHY' }
     return [pscustomobject]@{
         Database=$database; Owner=$owner; RuntimeValid=$runtimeValid
         WebReachable=$webReachable; CoreReady=$coreReady; WebReady=$webReady
         WorkerReady=$workerReady; Readiness=$readiness; ReadinessClassification=$coreClassification
-        ReadinessPayload=$readinessPayload
+        ReadinessProbe=$readinessProbe; ReadinessPayload=$readinessPayload
         ApplicationReadiness=$applicationReadiness; ApplicationPayload=$applicationPayload
         BlockingFailures=@($blockingFailures); Warnings=@($warnings); Informational=@($informational)
         Docker=$docker; Prometheus=$prometheus; Grafana=$grafana; Overall=$overall
@@ -830,8 +888,8 @@ function Get-SwingLensStatusReport {
 }
 
 function Write-SwingLensStatus {
-    param($Config, [switch]$AsJson)
-    $status = Get-SwingLensStatusReport -Config $Config
+    param($Config, [switch]$AsJson, [switch]$CertifyStartup)
+    $status = Get-SwingLensStatusReport -Config $Config -CertifyStartup:$CertifyStartup
     if ($AsJson) {
         $machine = [ordered]@{
             operationId = $env:SWINGLENS_LIFECYCLE_OPERATION_ID
@@ -904,6 +962,7 @@ function Start-SwingLensStack {
     $existing = Get-ValidatedRuntime -WebPort ([int]$Config.web.port)
     $null = Start-AuthoritativeDatabase -Config $Config
     $launchResult = $null
+    $terminalProbe = $null
     try {
         if ($null -ne $existing) {
             $null = Set-RuntimeGeneration
@@ -922,15 +981,26 @@ function Start-SwingLensStack {
             $launchResult = Start-SwingLensWeb -Config $Config
         }
         $null = Start-SwingLensObservability -Config $Config
-        $status = Write-SwingLensStatus -Config $Config
+        $status = Write-SwingLensStatus -Config $Config -CertifyStartup
         if ($status.Overall -in @('HEALTHY','DEGRADED')) { return 0 }
-        throw (New-LifecycleFailureException -ReasonCode 'CORE_READINESS_FAILED' -Message ('Start certification failed with state ' + $status.Overall))
+        $terminalProbe = $status.ReadinessProbe
+        $reason = if ($status.Overall -eq 'CONFLICT') {
+            'FOREIGN_LISTENER'
+        } else {
+            Get-CoreReadinessFailureCode -Classification ([string]$status.ReadinessClassification)
+        }
+        $details = @{}
+        if ($null -ne $terminalProbe) {
+            $details.readiness_classification = [string]$terminalProbe.Classification
+            $details.readiness_status_code = [int]$terminalProbe.StatusCode
+        }
+        throw (New-LifecycleFailureException -ReasonCode $reason -Message ('Start certification failed with state ' + $status.Overall) -Details $details)
     }
     catch {
         if ($_.Exception.Data.Contains('runtime_retained')) { throw }
         if ($null -ne $launchResult -and [bool]$launchResult.NewGeneration) {
             $reason = Get-LifecycleExceptionReasonCode -Exception $_.Exception
-            throw (New-RetainedRuntimeFailureException -Launch $launchResult.Launch -ReasonCode $reason -Message ([string]$_.Exception.Message))
+            throw (New-RetainedRuntimeFailureException -Launch $launchResult.Launch -Probe $terminalProbe -ReasonCode $reason -Message ([string]$_.Exception.Message))
         }
         throw
     }
